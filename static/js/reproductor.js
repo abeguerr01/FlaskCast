@@ -1,9 +1,13 @@
+// Obtener el nombre de la serie actual desde el marcado HTML
+const serieContainer = document.getElementById('serieContainer');
+const NOMBRE_SERIE = serieContainer ? serieContainer.getAttribute('data-serie') : '';
+
 function playVideo(filename) {
     const container = document.getElementById('playerContainer');
     const player = document.getElementById('mainPlayer');
     const title = document.getElementById('currentTitle');
 
-    player.src = '/video/' + encodeURIComponent(filename);
+    player.src = '/video/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(filename);
     title.innerText = filename;
     
     container.style.display = 'block';
@@ -15,12 +19,9 @@ function convertirVideo(filename, button) {
     const card = button.closest('.video-card');
     card.classList.add('converting');
 
-    fetch('/api/convertir/' + encodeURIComponent(filename), { method: 'POST' })
+    fetch('/api/convertir/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(filename), { method: 'POST' })
         .then(res => res.json())
-        .then(data => {
-            console.log("Conversión iniciada para: " + filename, data);
-        })
-        .catch(err => console.error("Error al solicitar conversión:", err));
+        .catch(err => console.error("Error al convertir:", err));
 }
 
 function eliminarVideo(filename, button) {
@@ -28,38 +29,35 @@ function eliminarVideo(filename, button) {
 
     const card = button.closest('.video-card');
 
-    fetch('/api/eliminar/' + encodeURIComponent(filename), { method: 'POST' })
+    fetch('/api/eliminar/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(filename), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
-            if (data.status === 'eliminado') {
-                card.remove(); // Quitamos la tarjeta de la interfaz visualmente
-            }
+            if (data.status === 'eliminado') card.remove();
         })
         .catch(err => console.error("Error al eliminar:", err));
 }
 
-// Mecanismo de Polling (Consulta paralela continua)
 function verificarEstados() {
+    if (!NOMBRE_SERIE) return; // Si estamos en el catálogo general, no ejecutar polling
+
     fetch('/api/estados')
         .then(res => res.json())
         .then(data => {
             const activos = data.activos;
             
-            // Buscamos todas las tarjetas incompatibles del HTML
             document.querySelectorAll('.video-card.incompatible').forEach(card => {
                 const filename = card.getAttribute('data-filename');
+                const identificadorUnico = NOMBRE_SERIE + '/' + filename;
                 
-                if (activos.includes(filename)) {
-                    // Si el servidor reporta que sigue procesándose, aseguramos su animación
+                if (activos.includes(identificadorUnico)) {
                     card.classList.add('converting');
                 } else if (card.classList.contains('converting')) {
-                    // Si tenía la animación pero ya no está activo en el backend... ¡ha terminado!
-                    // Forzamos una recarga rápida para que aparezca el nuevo .mp4 generado
+                    // Si estaba convirtiendo y ya terminó, recargamos la vista de capítulos
                     window.location.reload();
                 }
             });
         });
 }
 
-// Consultar el estado del backend cada 4 segundos
+// Consultar cambios asíncronos cada 4 segundos
 setInterval(verificarEstados, 4000);

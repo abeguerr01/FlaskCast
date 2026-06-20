@@ -3,47 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Videoteca Inteligente</title>
+    <title>Catálogo de Series</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
 </head>
 <body>
 
     <header>
-        <h1>Portal de Series Asíncrono</h1>
+        <h1>Mi Videoteca Local</h1>
     </header>
 
     <div class="container">
-        <div class="player-container" id="playerContainer">
-            <video id="mainPlayer" controls autoplay src=""></video>
-            <div class="video-title" id="currentTitle"></div>
-        </div>
-
-        <h2 class="grid-title">Librería de Archivos</h2>
+        <h2 class="grid-title">Series y Películas Disponibles</h2>
         
-        <div class="video-grid">
-            {% for video in videos %}
-                {% if video.tipo == 'web' %}
-                    <div class="video-card" id="card-{{ loop.index }}" onclick="playVideo('{{ video.nombre }}')">
-                        <div class="thumb">▶</div>
-                        <div class="card-title" title="{{ video.nombre }}">{{ video.nombre }}</div>
-                    </div>
-                {% else %}
-                    <div class="video-card incompatible {% if video.estado == 'procesando' %}converting{% endif %}" data-filename="{{ video.nombre }}">
-                        <div class="thumb">⚠️</div>
-                        <div class="badge">Incompatible</div>
-                        <div class="card-title" title="{{ video.nombre }}">{{ video.nombre }}</div>
-                        
-                        <div class="actions-overlay">
-                            <button class="btn-convert" onclick="convertirVideo('{{ video.nombre }}', this)">Convertir</button>
-                            <button class="btn-delete" onclick="eliminarVideo('{{ video.nombre }}', this)">Eliminar</button>
-                        </div>
-                        <div class="loader-txt">Convirtiendo...</div>
-                    </div>
-                {% endif %}
+        <div class="catalog-grid">
+            {% for s in series %}
+            <a href="{{ url_for('vista_serie', nombre_serie=s.nombre_carpeta) }}" class="catalog-card">
+                <div class="cover-wrapper">
+                    {% if s.tiene_portada %}
+                        <img src="{{ url_for('serve_portada', nombre_serie=s.nombre_carpeta) }}" alt="Portada">
+                    {% else %}
+                        <div class="no-cover">🎬</div>
+                    {% endif %}
+                </div>
+                <div class="catalog-title">{{ s.nombre_carpeta }}</div>
+            </a>
+            {% else %}
+            <p style="color: #888; text-align: center; grid-column: 1/-1;">No se han encontrado carpetas dentro de data/media/</p>
             {% endfor %}
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/reproductor.js') }}"></script>
 </body>
 </html>

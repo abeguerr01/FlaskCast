@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ serie }} - Capítulos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+
+    <header>
+        <h1>{{ serie }}</h1>
+        <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+    </header>
+
+    <div class="container" id="serieContainer" data-serie="{{ serie }}">
+        
+        <div class="player-container" id="playerContainer">
+            <video id="mainPlayer" controls autoplay src=""></video>
+            <div class="video-title" id="currentTitle"></div>
+        </div>
+
+        <h2 class="grid-title">Capítulos e Indexación</h2>
+        
+        <div class="video-grid">
+            {% for video in videos %}
+                {% if video.tipo == 'web' %}
+                    <div class="video-card" onclick="playVideo('{{ video.nombre }}')">
+                        <div class="thumb">▶</div>
+                        <div class="card-title" title="{{ video.nombre }}">{{ video.nombre }}</div>
+                    </div>
+                {% else %}
+                    <div class="video-card incompatible {% if video.estado == 'procesando' %}converting{% endif %}" data-filename="{{ video.nombre }}">
+                        <div class="thumb">⚠️</div>
+                        <div class="badge">Incompatible</div>
+                        <div class="card-title" title="{{ video.nombre }}">{{ video.nombre }}</div>
+                        
+                        <div class="actions-overlay">
+                            <button class="btn-convert" onclick="convertirVideo('{{ video.nombre }}', this)">Convertir</button>
+                            <button class="btn-delete" onclick="eliminarVideo('{{ video.nombre }}', this)">Eliminar</button>
+                        </div>
+                        <div class="loader-txt">Convirtiendo...</div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/reproductor.js') }}"></script>
+</body>
+</html>
