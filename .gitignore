@@ -179,3 +179,10 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+
+# CUSTOM
+#   Ignorar todo el contenido dentro de data/media/ por defecto
+data/media/*
+#   Excepción: Permitir el archivo .gitkeep para que la carpeta no esté vacía en Git
+!data/media/.gitkeep 
