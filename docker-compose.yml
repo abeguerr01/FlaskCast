@@ -1,0 +1,11 @@
+services:
+  web:
+    build: .
+    container_name: plataforma_multimedia
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+    command: python app.py
