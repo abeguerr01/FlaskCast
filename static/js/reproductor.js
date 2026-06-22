@@ -52,10 +52,8 @@ function verificarEstados() {
                 if (activos.includes(identificadorUnico)) {
                     card.classList.add('converting');
                 } else if (card.classList.contains('converting')) {
-                    // El vídeo ha terminado de convertirse en segundo plano. Mutamos la tarjeta en vivo.
                     card.classList.remove('converting', 'incompatible');
                     
-                    // Eliminamos los overlays y badges de incompatibilidad
                     const badge = card.querySelector('.badge');
                     if (badge) badge.remove();
                     const actionsOverlay = card.querySelector('.actions-overlay');
@@ -63,24 +61,20 @@ function verificarEstados() {
                     const loaderTxt = card.querySelector('.loader-txt');
                     if (loaderTxt) loaderTxt.remove();
                     
-                    // Transmutamos el icono a Play
                     const lockOverlay = card.querySelector('.lock-overlay');
                     if (lockOverlay) {
                         lockOverlay.className = 'play-overlay';
                         lockOverlay.innerText = '▶';
                     }
                     
-                    // Calculamos la nueva ruta .mp4
                     const posPunto = rutaRelativa.lastIndexOf('.');
                     const rutaMp4 = rutaRelativa.substring(0, posPunto) + '.mp4';
                     
                     card.removeAttribute('data-filename');
                     
-                    // Extraemos los elementos visuales base
                     const thumb = card.querySelector('.thumb');
                     const title = card.querySelector('.card-title');
                     
-                    // Encapsulamos la zona superior para el click de PC/Móvil
                     const clickArea = document.createElement('div');
                     clickArea.className = 'card-click-area';
                     clickArea.onclick = function() {
@@ -91,7 +85,6 @@ function verificarEstados() {
                     clickArea.appendChild(thumb);
                     clickArea.appendChild(title);
                     
-                    // Inyectamos el botón para SmartTV
                     const tvLink = document.createElement('a');
                     tvLink.className = 'btn-tv-fallback';
                     tvLink.innerText = '📺 Modo SmartTV';

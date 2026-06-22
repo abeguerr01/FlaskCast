@@ -48,7 +48,7 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
 
 @app.route('/')
 def index():
-    """PÁGINA PRINCIPAL: Catálogo de Series/Películas"""
+    """PÁGINA PRINCIPAL: Catálogo de Series/Películas con Buscador"""
     lista_series = []
     if os.path.exists(DIRECTORIO_MEDIA):
         for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
@@ -131,8 +131,30 @@ def vista_serie(nombre_serie):
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
-    """VISTA TV COMPATIBLE: Carga aislada y estática para navegadores de SmartTV"""
-    return render_template('player_tv.html', serie=nombre_serie, filename=filename)
+    """VISTA TV COMPATIBLE: Carga aislada para SmartTV con cálculo de siguiente capítulo"""
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    sub_dir = os.path.dirname(filename)
+    ruta_dir_absoluta = os.path.join(ruta_serie, sub_dir)
+    
+    formatos_web = ('.mp4', '.webm', '.ogg')
+    next_filename = None
+    
+    if os.path.exists(ruta_dir_absoluta) and os.path.isdir(ruta_dir_absoluta):
+        # Filtramos solo los archivos de vídeo reproducibles ordenados alfabéticamente
+        archivos_compatibles = sorted([
+            f for f in os.listdir(ruta_dir_absoluta)
+            if os.path.isfile(os.path.join(ruta_dir_absoluta, f)) and f.lower().endswith(formatos_web)
+        ])
+        
+        nombre_actual = os.path.basename(filename)
+        if nombre_actual in archivos_compatibles:
+            indice_actual = archivos_compatibles.index(nombre_actual)
+            if indice_actual + 1 < len(archivos_compatibles):
+                # Construimos la ruta relativa limpia del siguiente capítulo disponible
+                siguiente_base = archivos_compatibles[indice_actual + 1]
+                next_filename = os.path.join(sub_dir, siguiente_base).replace('\\', '/')
+
+    return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename)
 
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):
@@ -205,5 +227,5 @@ def consultar_estados():
         return jsonify({'activos': list(conversiones_activas)})
 
 if __name__ == '__main__':
-    print("🚀 FlaskCast V1 (Modo SmartTV Activo).")
+    print("🚀 FlaskCast V1 (Buscador y Modo TV Secuencial Activo).")
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -22,6 +22,30 @@ header h1 {
     font-size: 2.5rem;
 }
 
+/* BUSCADOR DE SERIES V1 */
+.search-container {
+    margin: 20px auto 0 auto;
+    max-width: 500px;
+    padding: 0 10px;
+}
+
+#searchBox {
+    width: 100%;
+    padding: 12px 20px;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 25px;
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#searchBox:focus {
+    border-color: #e50914;
+    box-shadow: 0 0 8px rgba(229, 9, 20, 0.5);
+}
+
 .btn-back {
     display: inline-block;
     margin-top: 15px;
@@ -176,7 +200,6 @@ video { width: 100%; max-height: 550px; display: block; }
     background: #262626;
 }
 
-/* NUEVO BOTÓN PARA SMART TV */
 .btn-tv-fallback {
     display: block;
     text-align: center;

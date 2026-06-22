@@ -3,35 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FLASKCAST - Tu Videoteca Local</title>
+    <title>FlaskCast - Catálogo</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
 </head>
 <body>
 
     <header>
-        <h1>FLASKCAST</h1>
+        <h1>🎥 FlaskCast</h1>
+        <p style="color: #888; margin-top: 5px;">Tu servidor local de streaming</p>
+        
+        <div class="search-container">
+            <input type="text" id="searchBox" placeholder="🔍 Buscar una serie o película..." oninput="filtrarCatalogo()">
+        </div>
     </header>
 
     <div class="container">
-        <h2 class="grid-title">Series y Películas Disponibles</h2>
-        
-        <div class="catalog-grid">
-            {% for s in series %}
-            <a href="{{ url_for('vista_serie', nombre_serie=s.nombre_carpeta) }}" class="catalog-card">
+        <div class="catalog-grid" id="catalogGrid">
+            {% for serie in series %}
+            <a href="{{ url_for('vista_serie', nombre_serie=serie.nombre_carpeta) }}" class="catalog-card" data-title="{{ serie.nombre_carpeta.lower() }}">
                 <div class="cover-wrapper">
-                    {% if s.tiene_portada %}
-                        <img src="{{ url_for('serve_portada', nombre_serie=s.nombre_carpeta) }}" alt="Portada">
+                    {% if serie.tiene_portada %}
+                        <img src="{{ url_for('serve_portada', nombre_serie=serie.nombre_carpeta) }}" alt="{{ serie.nombre_carpeta }}">
                     {% else %}
                         <div class="no-cover">🎬</div>
                     {% endif %}
                 </div>
-                <div class="catalog-title">{{ s.nombre_carpeta }}</div>
+                <div class="catalog-title">{{ serie.nombre_carpeta }}</div>
             </a>
             {% else %}
-            <p style="color: #888; text-align: center; grid-column: 1/-1;">No se han encontrado carpetas dentro de data/media/</p>
+                <p style="color: #888; text-align: center; grid-column: 1 / -1; padding-top: 20px;">No se encontraron carpetas multimedia en 'data/media'.</p>
             {% endfor %}
         </div>
     </div>
 
+    <script>
+        function filtrarCatalogo() {
+            const query = document.getElementById('searchBox').value.toLowerCase().trim();
+            const cards = document.querySelectorAll('.catalog-card');
+            
+            cards.forEach(card => {
+                const title = card.getAttribute('data-title');
+                if (title.includes(query)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+    </script>
 </body>
 </html>

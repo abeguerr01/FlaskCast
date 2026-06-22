@@ -40,17 +40,31 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 70%;
+            max-width: 45%;
+            text-align: left;
         }
-        .btn-tv-back {
+        .tv-actions {
+            display: flex;
+            gap: 15px;
+        }
+        .btn-tv {
             display: inline-block;
             padding: 12px 24px;
-            background-color: #e50914;
             color: #ffffff;
             text-decoration: none;
             font-weight: bold;
             border-radius: 4px;
             font-size: 1rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .btn-tv-back {
+            background-color: #333333;
+        }
+        .btn-tv-next {
+            background-color: #e50914;
+        }
+        .btn-tv:hover {
+            transform: scale(1.02);
         }
     </style>
 </head>
@@ -65,7 +79,12 @@
 
     <div class="tv-footer">
         <div class="video-name">🍿 Viendo: {{ filename.split('/')[-1] }}</div>
-        <a href="/serie/{{ serie }}" class="btn-tv-back">⬅ Volver a la Lista</a>
+        <div class="tv-actions">
+            <a href="/serie/{{ serie }}" class="btn-tv btn-tv-back">⬅ Volver a la Lista</a>
+            {% if next_filename %}
+                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=next_filename) }}" class="btn-tv btn-tv-next">⏭️ Siguiente Capítulo</a>
+            {% endif %}
+        </div>
     </div>
 
 </body>
