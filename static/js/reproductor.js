@@ -6,10 +6,7 @@ function playVideo(rutaRelativa) {
     const player = document.getElementById('mainPlayer');
     const title = document.getElementById('currentTitle');
 
-    // Construimos la URL codificando limpiamente los directorios internos
     player.src = '/video/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaRelativa);
-    
-    // Obtenemos solo el nombre final del archivo para el título limpio
     title.innerText = rutaRelativa.substring(rutaRelativa.lastIndexOf('/') + 1);
     
     container.style.display = 'block';
@@ -49,45 +46,60 @@ function verificarEstados() {
             const activos = data.activos;
             
             document.querySelectorAll('.video-card.incompatible').forEach(card => {
-                const rutaRelativa = card.getAttribute('data-filename'); // Ej: "Temporada 1/capitulo.avi"
+                const rutaRelativa = card.getAttribute('data-filename');
                 const identificadorUnico = NOMBRE_SERIE + '/' + rutaRelativa;
                 
                 if (activos.includes(identificadorUnico)) {
                     card.classList.add('converting');
                 } else if (card.classList.contains('converting')) {
-                    // MÁGIA AQUÍ: El hilo terminó. Modificamos el DOM en vivo sin recargar la página entera
+                    // El vídeo ha terminado de convertirse en segundo plano. Mutamos la tarjeta en vivo.
                     card.classList.remove('converting', 'incompatible');
                     
-                    // 1. Limpiamos las etiquetas y paneles de la versión incompatible
+                    // Eliminamos los overlays y badges de incompatibilidad
                     const badge = card.querySelector('.badge');
                     if (badge) badge.remove();
-                    
                     const actionsOverlay = card.querySelector('.actions-overlay');
                     if (actionsOverlay) actionsOverlay.remove();
-                    
                     const loaderTxt = card.querySelector('.loader-txt');
                     if (loaderTxt) loaderTxt.remove();
                     
-                    // 2. Transmutamos visualmente el icono de bloqueo por el de Play clásico
+                    // Transmutamos el icono a Play
                     const lockOverlay = card.querySelector('.lock-overlay');
                     if (lockOverlay) {
                         lockOverlay.className = 'play-overlay';
                         lockOverlay.innerText = '▶';
                     }
                     
-                    // 3. Calculamos dinámicamente la string de la nueva ruta .mp4
+                    // Calculamos la nueva ruta .mp4
                     const posPunto = rutaRelativa.lastIndexOf('.');
                     const rutaMp4 = rutaRelativa.substring(0, posPunto) + '.mp4';
                     
-                    // 4. Convertimos la tarjeta en un elemento almacén reproducible normal
                     card.removeAttribute('data-filename');
-                    card.onclick = function() {
+                    
+                    // Extraemos los elementos visuales base
+                    const thumb = card.querySelector('.thumb');
+                    const title = card.querySelector('.card-title');
+                    
+                    // Encapsulamos la zona superior para el click de PC/Móvil
+                    const clickArea = document.createElement('div');
+                    clickArea.className = 'card-click-area';
+                    clickArea.onclick = function() {
                         playVideo(rutaMp4);
                     };
+                    
+                    card.insertBefore(clickArea, thumb);
+                    clickArea.appendChild(thumb);
+                    clickArea.appendChild(title);
+                    
+                    // Inyectamos el botón para SmartTV
+                    const tvLink = document.createElement('a');
+                    tvLink.className = 'btn-tv-fallback';
+                    tvLink.innerText = '📺 Modo SmartTV';
+                    tvLink.href = '/tv/reproducir/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaMp4);
+                    card.appendChild(tvLink);
                 }
             });
         });
 }
 
-// Consultas automáticas de fondo cada 4 segundos
 setInterval(verificarEstados, 4000);
