@@ -32,12 +32,15 @@
             <div class="video-grid">
                 {% for video in videos %}
                     {% if video.tipo == 'web' %}
-                        <div class="video-card" onclick="playVideo('{{ video.ruta_relativa }}')">
-                            <div class="thumb">
-                                <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
-                                <div class="play-overlay">▶</div>
+                        <div class="video-card">
+                            <div class="card-click-area" onclick="playVideo('{{ video.ruta_relativa }}')">
+                                <div class="thumb">
+                                    <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
+                                    <div class="play-overlay">▶</div>
+                                </div>
+                                <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                             </div>
-                            <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
+                            <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">📺 Modo SmartTV</a>
                         </div>
                     {% else %}
                         <div class="video-card incompatible {% if video.estado == 'procesando' %}converting{% endif %}" data-filename="{{ video.ruta_relativa }}">

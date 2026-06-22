@@ -37,7 +37,6 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
     """Usa FFmpeg para extraer un único fotograma en el segundo 3 del vídeo"""
     try:
         os.makedirs(os.path.dirname(ruta_output_jpg), exist_ok=True)
-        # -ss 00:00:03 salta al segundo 3, -vframes 1 toma 1 foto, -q:v 4 ajusta la calidad JPEG
         subprocess.run([
             'ffmpeg', '-ss', '00:00:03', '-i', ruta_video,
             '-vframes', '1', '-q:v', '4', '-y', ruta_output_jpg
@@ -49,7 +48,7 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
 
 @app.route('/')
 def index():
-    """PÁGINA PRINCIPAL: Catálogo de Series/Películas"""
+    """PÁGINA PRINCIPAL: Catálogo de Series/Películas con Buscador"""
     lista_series = []
     if os.path.exists(DIRECTORIO_MEDIA):
         for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
@@ -74,7 +73,6 @@ def vista_serie(nombre_serie):
     estructura_temporadas = {}
     
     items = sorted(os.listdir(ruta_serie))
-    # Filtrar subcarpetas ignorando las ocultas (como nuestra nueva carpeta de .thumbnails)
     subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
     
     if subcarpetas:
@@ -131,24 +129,45 @@ def vista_serie(nombre_serie):
             
     return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas)
 
+@app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
+def reproductor_tv(nombre_serie, filename):
+    """VISTA TV COMPATIBLE: Carga aislada para SmartTV con cálculo de siguiente capítulo"""
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    sub_dir = os.path.dirname(filename)
+    ruta_dir_absoluta = os.path.join(ruta_serie, sub_dir)
+    
+    formatos_web = ('.mp4', '.webm', '.ogg')
+    next_filename = None
+    
+    if os.path.exists(ruta_dir_absoluta) and os.path.isdir(ruta_dir_absoluta):
+        # Filtramos solo los archivos de vídeo reproducibles ordenados alfabéticamente
+        archivos_compatibles = sorted([
+            f for f in os.listdir(ruta_dir_absoluta)
+            if os.path.isfile(os.path.join(ruta_dir_absoluta, f)) and f.lower().endswith(formatos_web)
+        ])
+        
+        nombre_actual = os.path.basename(filename)
+        if nombre_actual in archivos_compatibles:
+            indice_actual = archivos_compatibles.index(nombre_actual)
+            if indice_actual + 1 < len(archivos_compatibles):
+                # Construimos la ruta relativa limpia del siguiente capítulo disponible
+                siguiente_base = archivos_compatibles[indice_actual + 1]
+                next_filename = os.path.join(sub_dir, siguiente_base).replace('\\', '/')
+
+    return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename)
+
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):
-    """Genera bajo demanda (y cachea) la miniatura de un capítulo"""
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_video = os.path.join(ruta_serie, filename)
-    
-    # Construimos la ruta de la miniatura reemplazando la extensión por .jpg
     nombre_base, _ = os.path.splitext(filename)
     ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
     
-    # Si no existe en caché, intentamos fabricarla ahora mismo
-    if not os.path.exists(ruta_thumb):
-        if os.path.exists(ruta_video):
-            generar_fotograma_preview(ruta_video, ruta_thumb)
+    if not os.path.exists(ruta_thumb) and os.path.exists(ruta_video):
+        generar_fotograma_preview(ruta_video, ruta_thumb)
             
     if os.path.exists(ruta_thumb):
         return send_from_directory(os.path.dirname(ruta_thumb), os.path.basename(ruta_thumb), mimetype='image/jpeg')
-    
     return abort(404)
 
 @app.route('/portada/<nombre_serie>')
@@ -190,16 +209,13 @@ def desencadenar_conversion(nombre_serie, filename):
 def eliminar_archivo(nombre_serie, filename):
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_archivo = os.path.join(ruta_serie, filename)
-    
     if os.path.exists(ruta_archivo):
         try:
             os.remove(ruta_archivo)
-            # También intentamos borrar su miniatura asociada para dejar limpio el disco
             nombre_base, _ = os.path.splitext(filename)
             ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
             if os.path.exists(ruta_thumb):
                 os.remove(ruta_thumb)
-                
             return jsonify({'status': 'eliminado'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -211,5 +227,5 @@ def consultar_estados():
         return jsonify({'activos': list(conversiones_activas)})
 
 if __name__ == '__main__':
-    print("🚀 Servidor Abierto con Miniaturas Dinámicas. Listo para disfrutar.")
+    print("🚀 FlaskCast V1 (Buscador y Modo TV Secuencial Activo).")
     app.run(host='0.0.0.0', port=5000, debug=True)

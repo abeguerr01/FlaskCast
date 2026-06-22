@@ -22,6 +22,30 @@ header h1 {
     font-size: 2.5rem;
 }
 
+/* BUSCADOR DE SERIES V1 */
+.search-container {
+    margin: 20px auto 0 auto;
+    max-width: 500px;
+    padding: 0 10px;
+}
+
+#searchBox {
+    width: 100%;
+    padding: 12px 20px;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 25px;
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#searchBox:focus {
+    border-color: #e50914;
+    box-shadow: 0 0 8px rgba(229, 9, 20, 0.5);
+}
+
 .btn-back {
     display: inline-block;
     margin-top: 15px;
@@ -69,26 +93,14 @@ header h1 {
     justify-content: center;
     overflow: hidden;
 }
-
-.cover-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.no-cover {
-    font-size: 3rem;
-    opacity: 0.5;
-}
+.cover-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+.no-cover { font-size: 3rem; opacity: 0.5; }
 
 .catalog-title {
-    padding: 12px;
-    font-weight: bold;
-    text-align: center;
-    font-size: 0.95rem;
+    padding: 12px; font-weight: bold; text-align: center; font-size: 0.95rem;
 }
 
-/* Bloques desplegables */
+/* Desplegables Temporadas */
 .season-accordion {
     background: #1f1f1f;
     border-radius: 6px;
@@ -111,48 +123,30 @@ header h1 {
     list-style: none;
 }
 .season-header::-webkit-details-marker { display: none; }
-
 .season-header::after {
-    content: '▼';
-    font-size: 0.85rem;
-    color: #e50914;
-    transition: transform 0.3s ease;
+    content: '▼'; font-size: 0.85rem; color: #e50914; transition: transform 0.3s ease;
 }
-
 .season-accordion[open] .season-header {
-    border-bottom: 1px solid #2d2d2d;
-    background: #222222;
+    border-bottom: 1px solid #2d2d2d; background: #222222;
 }
 .season-accordion[open] .season-header::after { transform: rotate(180deg); }
 
 .season-count {
-    font-size: 0.9rem;
-    color: #888;
-    font-weight: normal;
-    background: #141414;
-    padding: 4px 10px;
-    border-radius: 20px;
+    font-size: 0.9rem; color: #888; font-weight: normal;
+    background: #141414; padding: 4px 10px; border-radius: 20px;
 }
+.season-accordion .video-grid { padding: 25px; background: #181818; }
 
-.season-accordion .video-grid {
-    padding: 25px;
-    background: #181818;
-}
-
-/* Reproductor y Grid */
+/* Reproductor Superior */
 .player-container {
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 40px;
-    display: none;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    background: #000; border-radius: 8px; overflow: hidden;
+    margin-bottom: 40px; display: none; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
 }
-
 video { width: 100%; max-height: 550px; display: block; }
 .video-title { padding: 15px; font-size: 1.2rem; background: #1f1f1f; font-weight: bold; }
 .grid-title { margin-bottom: 20px; font-size: 1.6rem; border-bottom: 2px solid #e50914; padding-bottom: 5px; }
 
+/* Rejilla de vídeos */
 .video-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -163,13 +157,21 @@ video { width: 100%; max-height: 550px; display: block; }
     background: #262626;
     border-radius: 6px;
     overflow: hidden;
-    cursor: pointer;
     position: relative;
     transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
 }
 .video-card:hover { transform: scale(1.04); }
 
-/* --- CONTENEDOR MULTIMEDIA DE MINIATURAS --- */
+.card-click-area {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+/* Miniaturas */
 .thumb {
     height: 120px;
     background: linear-gradient(45deg, #1e272e, #000000);
@@ -179,64 +181,55 @@ video { width: 100%; max-height: 550px; display: block; }
     position: relative;
     overflow: hidden;
 }
-
 .thumb-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1;
-    opacity: 0.75;
-    transition: opacity 0.2s, transform 0.2s;
+    width: 100%; height: 100%; object-fit: cover; position: absolute;
+    top: 0; left: 0; z-index: 1; opacity: 0.75; transition: opacity 0.2s;
 }
-.video-card:hover .thumb-img {
-    opacity: 0.9;
-    transform: scale(1.03);
-}
+.video-card:hover .thumb-img { opacity: 0.9; }
 
-/* Icono de Play sobre la miniatura */
 .play-overlay {
-    position: relative;
-    z-index: 2;
-    font-size: 2.2rem;
-    color: rgba(255, 255, 255, 0.85);
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
-    transition: transform 0.2s, color 0.2s;
+    position: relative; z-index: 2; font-size: 2.2rem;
+    color: rgba(255, 255, 255, 0.85); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
-.video-card:hover .play-overlay {
-    transform: scale(1.2);
-    color: #e50914;
-}
-
-/* Icono de Bloqueo Incompatible sobre la miniatura */
-.lock-overlay {
-    position: relative;
-    z-index: 2;
-    font-size: 1.8rem;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
-}
+.video-card:hover .play-overlay { color: #e50914; }
+.lock-overlay { position: relative; z-index: 2; font-size: 1.8rem; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9); }
 
 .card-title {
-    padding: 12px 10px; font-size: 0.9rem; text-align: center;
+    padding: 12px 10px 8px 10px; font-size: 0.9rem; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    position: relative; z-index: 3; background: #262626;
+    background: #262626;
 }
 
-/* Overlays Incompatibles */
+.btn-tv-fallback {
+    display: block;
+    text-align: center;
+    background-color: #1f1f1f;
+    color: #e50914;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: bold;
+    padding: 8px 0;
+    border-top: 1px solid #333;
+    transition: background 0.2s, color 0.2s;
+    position: relative;
+    z-index: 5;
+}
+.btn-tv-fallback:hover {
+    background-color: #e50914;
+    color: #ffffff;
+}
+
+/* Elementos incompatibles e hilos */
 .badge {
     position: absolute; top: 10px; left: 10px; background: #d35400;
     color: #fff; padding: 3px 8px; font-size: 0.75rem; font-weight: bold; border-radius: 4px; z-index: 3;
 }
-
 .actions-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 120px;
     background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
     justify-content: center; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.2s; z-index: 4;
 }
 .video-card.incompatible:hover .actions-overlay { opacity: 1; }
-
 .actions-overlay button { border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 70%; }
 .btn-convert { background: #2ecc71; color: white; }
 .btn-delete { background: #e74c3c; color: white; }
