@@ -1,19 +1,163 @@
 const serieContainer = document.getElementById('serieContainer');
 const NOMBRE_SERIE = serieContainer ? serieContainer.getAttribute('data-serie') : '';
+const USUARIO_ACTIVO = serieContainer ? (serieContainer.getAttribute('data-user-active') === 'true') : false;
 
-function playVideo(rutaRelativa) {
+let archivoActualRelativo = '';
+let ultimoTiempoReportado = 0;
+
+function playVideo(rutaRelativa, segundoInicio, element) {
     const container = document.getElementById('playerContainer');
     const player = document.getElementById('mainPlayer');
     const title = document.getElementById('currentTitle');
+
+    archivoActualRelativo = rutaRelativa;
+    ultimoTiempoReportado = 0;
 
     player.src = '/video/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaRelativa);
     title.innerText = rutaRelativa.substring(rutaRelativa.lastIndexOf('/') + 1);
     
     container.style.display = 'block';
     container.scrollIntoView({ behavior: 'smooth' });
+    
+    if (segundoInicio && parseFloat(segundoInicio) > 5) {
+        player.addEventListener('loadedmetadata', function onMetadata() {
+            player.currentTime = parseFloat(segundoInicio);
+            player.removeEventListener('loadedmetadata', onMetadata);
+        });
+    }
+
+    // Si el marcado automático está activado y el vídeo está a 0 (No visto), lo pasamos provisionalmente a "Viendo" en la UI
+    const autoMarcar = (serieContainer && serieContainer.getAttribute('data-auto-marcar') === 'true');
+    if (USUARIO_ACTIVO && autoMarcar) {
+        const badge = document.querySelector(`.visto-badge[data-filename="${rutaRelativa}"]`);
+        if (badge && badge.getAttribute('data-estado') === '0') {
+            actualizarBadgeUI(rutaRelativa, 1);
+        }
+    }
+
     player.play();
 }
 
+// --- FUNCIÓN REACTIVA PARA ACTUALIZAR EL BADGE Y LA TARJETA EN CALIENTE ---
+function actualizarBadgeUI(filename, estado) {
+    const badge = document.querySelector(`.visto-badge[data-filename="${filename}"]`);
+    if (!badge) return;
+
+    let texto = '';
+    let clasesBadge = ['badge-novisto', 'badge-viendo', 'badge-visto'];
+    let clasesCard = ['capitulo-novisto', 'capitulo-viendo', 'capitulo-visto'];
+    
+    let añadirClaseBadge = '';
+    let añadirClaseCard = '';
+
+    if (estado === 0) {
+        texto = '👁️ No visto';
+        añadirClaseBadge = 'badge-novisto';
+        añadirClaseCard = 'capitulo-novisto';
+    } else if (estado === 1) {
+        texto = '⏳ Viendo';
+        añadirClaseBadge = 'badge-viendo';
+        añadirClaseCard = 'capitulo-viendo';
+    } else if (estado === 2) {
+        texto = '✔️ Visto';
+        añadirClaseBadge = 'badge-visto';
+        añadirClaseCard = 'capitulo-visto';
+    }
+
+    badge.setAttribute('data-estado', estado);
+    badge.innerText = texto;
+    clasesBadge.forEach(c => badge.classList.remove(c));
+    badge.classList.add(añadirClaseBadge);
+
+    const card = badge.closest('.video-card');
+    if (card) {
+        clasesCard.forEach(c => card.classList.remove(c));
+        card.classList.add(añadirClaseCard);
+    }
+}
+
+// --- CLIC INTERACTIVO EN EL BADGE (CAMBIO CÍCLICO MANUAL) ---
+function toggleBadgeEstado(event, element) {
+    event.stopPropagation(); // Evita que se abra o reproduzca el vídeo al tocar la etiqueta
+    if (!USUARIO_ACTIVO) return;
+
+    let estadoActual = parseInt(element.getAttribute('data-estado')) || 0;
+    let nuevoEstado = (estadoActual + 1) % 3; // Ciclo rotativo: 0 -> 1 -> 2 -> 0
+    const filename = element.getAttribute('data-filename');
+
+    // Cambiamos el estado en el DOM inmediatamente
+    actualizarBadgeUI(filename, nuevoEstado);
+
+    // Persistimos el estado exacto en SQLite indicando la propiedad "visto"
+    fetch('/api/progreso/guardar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            serie: NOMBRE_SERIE,
+            filename: filename,
+            segundos: nuevoEstado === 2 ? 0 : 0, 
+            visto: nuevoEstado
+        })
+    });
+}
+
+// --- MONITOREO AUTOMÁTICO DE PROGRESO DE REPRODUCCIÓN ---
+const mainPlayer = document.getElementById('mainPlayer');
+if (mainPlayer) {
+    mainPlayer.addEventListener('timeupdate', () => {
+        if (!USUARIO_ACTIVO || !archivoActualRelativo) return;
+
+        const tiempoActual = Math.floor(mainPlayer.currentTime);
+        const duracion = mainPlayer.duration;
+        if (!duracion) return;
+
+        // Guardar cada 5 segundos de reproducción real
+        if (tiempoActual % 5 === 0 && tiempoActual !== ultimoTiempoReportado) {
+            ultimoTiempoReportado = tiempoActual;
+
+            fetch('/api/progreso/guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    serie: NOMBRE_SERIE,
+                    filename: archivoActualRelativo,
+                    segundos: mainPlayer.currentTime,
+                    duracion: duracion
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                // Si el servidor calculó un cambio de estado automático, refrescar UI
+                if (data.nuevo_visto !== undefined) {
+                    actualizarBadgeUI(archivoActualRelativo, data.nuevo_visto);
+                }
+            });
+        }
+    });
+
+    mainPlayer.addEventListener('ended', () => {
+        if (!USUARIO_ACTIVO || !archivoActualRelativo) return;
+
+        fetch('/api/progreso/guardar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                serie: NOMBRE_SERIE,
+                filename: archivoActualRelativo,
+                segundos: mainPlayer.duration || 0,
+                duracion: mainPlayer.duration || 0
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.nuevo_visto !== undefined) {
+                actualizarBadgeUI(archivoActualRelativo, data.nuevo_visto);
+            }
+        });
+    });
+}
+
+// --- LÓGICA DE SEGUIMIENTO FFMPEG ---
 function convertirVideo(rutaRelativa, button) {
     const card = button.closest('.video-card');
     card.classList.add('converting');
@@ -78,7 +222,7 @@ function verificarEstados() {
                     const clickArea = document.createElement('div');
                     clickArea.className = 'card-click-area';
                     clickArea.onclick = function() {
-                        playVideo(rutaMp4);
+                        playVideo(rutaMp4, 0, clickArea);
                     };
                     
                     card.insertBefore(clickArea, thumb);

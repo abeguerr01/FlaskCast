@@ -1,24 +1,73 @@
 import os
 import subprocess
 import threading
-from flask import Flask, send_from_directory, render_template, jsonify, abort
+import sqlite3
+from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
 import static_ffmpeg
 
 app = Flask(__name__)
+app.secret_key = 'flaskcast_ultra_secret_key_2026'
 
-# Configura automáticamente los binarios de FFmpeg según el SO de la máquina
 static_ffmpeg.add_paths()
 
-# Ruta raíz hacia la carpeta donde guardas todas las series/pelis
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
+DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
 
-# Estructuras de control para la conversión asíncrona multi-nivel
-conversiones_activas = set()  # Almacena cadenas estilo "Nombre Serie/Temporada 1/capitulo.avi"
+conversiones_activas = set()
 lock_conversiones = threading.Lock()
 
+def conectar_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def inicializar_base_datos():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT UNIQUE NOT NULL,
+            emoji TEXT DEFAULT '👤',
+            ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            auto_marcar INTEGER DEFAULT 1
+        )
+    ''')
+    
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas = [col['name'] for col in cursor.fetchall()]
+    if 'emoji' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN emoji TEXT DEFAULT '👤'")
+    if 'ultimo_acceso' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    if 'auto_marcar' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN auto_marcar INTEGER DEFAULT 1")
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS progreso (
+            usuario_id INTEGER,
+            serie TEXT,
+            filename TEXT,
+            segundos REAL DEFAULT 0,
+            visto INTEGER DEFAULT 0,
+            duracion REAL DEFAULT 0,
+            PRIMARY KEY (usuario_id, serie, filename),
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    cursor.execute("PRAGMA table_info(progreso)")
+    col_progreso = [col['name'] for col in cursor.fetchall()]
+    if 'duracion' not in col_progreso:
+        cursor.execute("ALTER TABLE progreso ADD COLUMN duracion REAL DEFAULT 0")
+
+    conn.commit()
+    conn.close()
+
 def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
-    """Procesa la conversión en paralelo por debajo sin congelar Flask"""
     global conversiones_activas
     try:
         subprocess.run([
@@ -34,7 +83,6 @@ def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
             conversiones_activas.discard(identificador_unico)
 
 def generar_fotograma_preview(ruta_video, ruta_output_jpg):
-    """Usa FFmpeg para extraer un único fotograma en el segundo 3 del vídeo"""
     try:
         os.makedirs(os.path.dirname(ruta_output_jpg), exist_ok=True)
         subprocess.run([
@@ -46,9 +94,87 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
         print(f"⚠️ No se pudo generar la miniatura para {ruta_video}: {e}")
         return False
 
+@app.route('/usuarios_panel')
+def usuarios_panel():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM usuarios ORDER BY ultimo_acceso DESC, nombre ASC')
+    todos_usuarios = cursor.fetchall()
+    conn.close()
+    return render_template('usuarios.html', usuarios=todos_usuarios)
+
+@app.route('/usuarios/crear', methods=['POST'])
+def crear_usuario():
+    nombre = request.form.get('nombre', '').strip()
+    if nombre:
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO usuarios (nombre) VALUES (?)', (nombre,))
+            conn.commit()
+            conn.close()
+        except sqlite3.IntegrityError:
+            pass 
+    return redirect(url_for('usuarios_panel'))
+
+@app.route('/usuarios/seleccionar/<int:user_id>')
+def seleccionar_usuario(user_id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?', (user_id,))
+    cursor.execute('SELECT * FROM usuarios WHERE id = ?', (user_id,))
+    user = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    if user:
+        session['usuario_id'] = user['id']
+        session['usuario_nombre'] = user['nombre']
+        session['usuario_emoji'] = user['emoji']
+        session['usuario_auto_marcar'] = user['auto_marcar']
+    return redirect(url_for('index'))
+
+@app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
+def editar_usuario(user_id):
+    nombre = request.form.get('nombre', '').strip()
+    emoji = request.form.get('emoji', '👤').strip()
+    if nombre:
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('UPDATE usuarios SET nombre = ?, emoji = ? WHERE id = ?', (nombre, emoji, user_id))
+            conn.commit()
+            conn.close()
+            if session.get('usuario_id') == user_id:
+                session['usuario_nombre'] = nombre
+                session['usuario_emoji'] = emoji
+        except sqlite3.IntegrityError:
+            pass
+    return redirect(url_for('usuarios_panel'))
+
+@app.route('/usuarios/eliminar/<int:user_id>', methods=['POST'])
+def eliminar_usuario(user_id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    if session.get('usuario_id') == user_id:
+        session.pop('usuario_id', None)
+        session.pop('usuario_nombre', None)
+        session.pop('usuario_emoji', None)
+        session.pop('usuario_auto_marcar', None)
+    return redirect(url_for('usuarios_panel'))
+
+@app.route('/usuarios/salir')
+def salir_usuario():
+    session.pop('usuario_id', None)
+    session.pop('usuario_nombre', None)
+    session.pop('usuario_emoji', None)
+    session.pop('usuario_auto_marcar', None)
+    return redirect(url_for('index'))
+
 @app.route('/')
 def index():
-    """PÁGINA PRINCIPAL: Catálogo de Series/Películas con Buscador"""
     lista_series = []
     if os.path.exists(DIRECTORIO_MEDIA):
         for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
@@ -61,9 +187,31 @@ def index():
                 })
     return render_template('index.html', series=lista_series)
 
+@app.route('/ajustes', methods=['GET', 'POST'])
+def ajustes():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return redirect(url_for('usuarios_panel'))
+        
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
+        cursor.execute('UPDATE usuarios SET auto_marcar = ? WHERE id = ?', (auto_marcar, usuario_id))
+        conn.commit()
+        session['usuario_auto_marcar'] = auto_marcar
+        return redirect(url_for('index'))
+        
+    cursor.execute('SELECT auto_marcar FROM usuarios WHERE id = ?', (usuario_id,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    auto_marcar = user['auto_marcar'] if user else 1
+    return render_template('ajustes.html', auto_marcar=auto_marcar)
+
 @app.route('/serie/<nombre_serie>')
 def vista_serie(nombre_serie):
-    """PÁGINA DE DETALLE: Estructura de temporadas y capítulos agrupados por carpetas"""
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     if not os.path.exists(ruta_serie) or not os.path.isdir(ruta_serie):
         return abort(404)
@@ -72,6 +220,20 @@ def vista_serie(nombre_serie):
     formatos_incompatibles = ('.avi', '.mkv')
     estructura_temporadas = {}
     
+    progreso_usuario = {}
+    usuario_id = session.get('usuario_id')
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT filename, segundos, visto FROM progreso WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
+        filas = cursor.fetchall()
+        conn.close()
+        for fila in filas:
+            progreso_usuario[fila['filename']] = {
+                'segundos': fila['segundos'],
+                'visto': int(fila['visto']) if fila['visto'] is not None else 0
+            }
+
     items = sorted(os.listdir(ruta_serie))
     subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
     
@@ -85,12 +247,16 @@ def vista_serie(nombre_serie):
                 ruta_relativa = f"{subcarpeta}/{archivo}"
                 identificador_unico = f"{nombre_serie}/{ruta_relativa}"
                 
+                prog = progreso_usuario.get(ruta_relativa, {'segundos': 0, 'visto': 0})
+                
                 if extension in formatos_web:
                     videos_temporada.append({
                         'nombre_real': archivo,
                         'ruta_relativa': ruta_relativa,
                         'tipo': 'web',
-                        'estado': 'listo'
+                        'estado': 'listo',
+                        'visto': prog['visto'],
+                        'segundos': prog['segundos']
                     })
                 elif extension in formatos_incompatibles:
                     with lock_conversiones:
@@ -99,7 +265,9 @@ def vista_serie(nombre_serie):
                         'nombre_real': archivo,
                         'ruta_relativa': ruta_relativa,
                         'tipo': 'incompatible',
-                        'estado': 'procesando' if en_progreso else 'pendiente'
+                        'estado': 'procesando' if en_progreso else 'pendiente',
+                        'visto': 0,
+                        'segundos': 0
                     })
             if videos_temporada:
                 estructura_temporadas[subcarpeta] = videos_temporada
@@ -108,12 +276,16 @@ def vista_serie(nombre_serie):
         for archivo in items:
             if os.path.isfile(os.path.join(ruta_serie, archivo)):
                 extension = os.path.splitext(archivo)[1].lower()
+                prog = progreso_usuario.get(archivo, {'segundos': 0, 'visto': 0})
+                
                 if extension in formatos_web:
                     videos_raiz.append({
                         'nombre_real': archivo,
                         'ruta_relativa': archivo,
                         'tipo': 'web',
-                        'estado': 'listo'
+                        'estado': 'listo',
+                        'visto': prog['visto'],
+                        'segundos': prog['segundos']
                     })
                 elif extension in formatos_incompatibles:
                     with lock_conversiones:
@@ -122,7 +294,9 @@ def vista_serie(nombre_serie):
                         'nombre_real': archivo,
                         'ruta_relativa': archivo,
                         'tipo': 'incompatible',
-                        'estado': 'procesando' if en_progreso else 'pendiente'
+                        'estado': 'procesando' if en_progreso else 'pendiente',
+                        'visto': 0,
+                        'segundos': 0
                     })
         if videos_raiz:
             estructura_temporadas['Contenido Disponible'] = videos_raiz
@@ -131,16 +305,25 @@ def vista_serie(nombre_serie):
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
-    """VISTA TV COMPATIBLE: Carga aislada para SmartTV con cálculo de siguiente capítulo"""
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     sub_dir = os.path.dirname(filename)
     ruta_dir_absoluta = os.path.join(ruta_serie, sub_dir)
     
     formatos_web = ('.mp4', '.webm', '.ogg')
     next_filename = None
+    segundo_inicio = 0
+    
+    usuario_id = session.get('usuario_id')
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT segundos FROM progreso WHERE usuario_id = ? AND serie = ? AND filename = ?', (usuario_id, nombre_serie, filename))
+        fila = cursor.fetchone()
+        conn.close()
+        if fila:
+            segundo_inicio = fila['segundos']
     
     if os.path.exists(ruta_dir_absoluta) and os.path.isdir(ruta_dir_absoluta):
-        # Filtramos solo los archivos de vídeo reproducibles ordenados alfabéticamente
         archivos_compatibles = sorted([
             f for f in os.listdir(ruta_dir_absoluta)
             if os.path.isfile(os.path.join(ruta_dir_absoluta, f)) and f.lower().endswith(formatos_web)
@@ -150,11 +333,85 @@ def reproductor_tv(nombre_serie, filename):
         if nombre_actual in archivos_compatibles:
             indice_actual = archivos_compatibles.index(nombre_actual)
             if indice_actual + 1 < len(archivos_compatibles):
-                # Construimos la ruta relativa limpia del siguiente capítulo disponible
                 siguiente_base = archivos_compatibles[indice_actual + 1]
                 next_filename = os.path.join(sub_dir, siguiente_base).replace('\\', '/')
 
-    return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename)
+    return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename, segundo_inicio=segundo_inicio)
+
+@app.route('/api/progreso/guardar', methods=['POST'])
+def api_guardar_progreso():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return jsonify({'status': 'ignorado_invitado'}) 
+        
+    datos = request.json or {}
+    serie = datos.get('serie')
+    filename = datos.get('filename')
+    segundos = datos.get('segundos', 0)
+    duracion = datos.get('duracion', 0)
+    
+    if not serie or not filename:
+        return jsonify({'error': 'Parámetros insuficientes'}), 400
+        
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT auto_marcar FROM usuarios WHERE id = ?', (usuario_id,))
+    user_row = cursor.fetchone()
+    auto_marcar = user_row['auto_marcar'] if user_row else 1
+    
+    cursor.execute('SELECT visto, duracion FROM progreso WHERE usuario_id = ? AND serie = ? AND filename = ?', (usuario_id, serie, filename))
+    existing = cursor.fetchone()
+    
+    if duracion == 0 and existing:
+        duracion = existing['duracion']
+        
+    if 'visto' in datos:
+        # Forzado manual (Click en el Badge)
+        nuevo_visto = int(datos['visto'])
+    else:
+        # Reproducción Automática
+        if auto_marcar == 1 and duracion > 0:
+            porcentaje = segundos / duracion
+            if porcentaje >= 0.85:
+                nuevo_visto = 2
+            elif porcentaje >= 0.10:
+                nuevo_visto = 1
+            else:
+                nuevo_visto = 0
+        else:
+            nuevo_visto = existing['visto'] if existing else 0
+            
+    cursor.execute('''
+        INSERT INTO progreso (usuario_id, serie, filename, segundos, visto, duracion)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(usuario_id, serie, filename) DO UPDATE SET
+            segundos = excluded.segundos,
+            visto = excluded.visto,
+            duracion = max(progreso.duracion, excluded.duracion)
+    ''', (usuario_id, serie, filename, segundos, nuevo_visto, duracion))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'guardado', 'nuevo_visto': nuevo_visto})
+
+@app.route('/api/progreso/obtener')
+def api_obtener_progreso():
+    usuario_id = session.get('usuario_id')
+    serie = request.args.get('serie')
+    filename = request.args.get('filename')
+    
+    if not usuario_id or not serie or not filename:
+        return jsonify({'segundos': 0, 'visto': 0})
+        
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT segundos, visto FROM progreso WHERE usuario_id = ? AND serie = ? AND filename = ?', (usuario_id, serie, filename))
+    fila = cursor.fetchone()
+    conn.close()
+    
+    if fila:
+        return jsonify({'segundos': fila['segundos'], 'visto': int(fila['visto'])})
+    return jsonify({'segundos': 0, 'visto': 0})
 
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):
@@ -227,5 +484,5 @@ def consultar_estados():
         return jsonify({'activos': list(conversiones_activas)})
 
 if __name__ == '__main__':
-    print("🚀 FlaskCast V1 (Buscador y Modo TV Secuencial Activo).")
+    inicializar_base_datos()
     app.run(host='0.0.0.0', port=5000, debug=True)

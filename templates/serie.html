@@ -5,15 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ serie }} - Capítulos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+    <style>
+        /* Barra de estado de usuario estilo Facebook uniforme */
+        .user-status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #141414;
+            padding: 10px 20px;
+            border-bottom: 1px solid #222;
+        }
+        .profile-widget {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: #ffffff;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .profile-widget:hover {
+            background-color: #252525; /* Iluminación rectangular redondeada idéntica */
+        }
+        .profile-avatar {
+            width: 38px;
+            height: 38px;
+            background-color: #282828;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            border: 2px solid #444;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .profile-avatar.invitado-style {
+            border-color: #e50914;
+            background-color: #221111;
+        }
+        .profile-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        /* Control de salto de línea en títulos de capítulos */
+        .card-title {
+            padding: 10px 8px;
+            font-weight: bold;
+            white-space: normal;
+            word-break: normal;        /* Espera a terminar la palabra para saltar de línea */
+            overflow-wrap: break-word; 
+        }
+
+        /* Estilos reactivos de los 3 estados para las etiquetas */
+        .visto-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #ffffff !important;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s, background-color 0.2s;
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .visto-badge:hover {
+            transform: scale(1.08);
+        }
+        .badge-novisto { background-color: #555555; border: 1px solid #777; }
+        .badge-viendo { background-color: #0d6efd; border: 1px solid #0a58ca; }
+        .badge-visto { background-color: #1fcc72; border: 1px solid #198754; color: #000000 !important; }
+        
+        /* Modificaciones de contenedor según el estado */
+        .video-card.capitulo-visto { border: 2px solid #1fcc72; background-color: #0f2617 !important; }
+        .video-card.capitulo-viendo { border: 2px solid #0d6efd; background-color: #0b1a30 !important; }
+        .video-card.capitulo-novisto { border: 1px solid #333; background-color: #111111; }
+    </style>
 </head>
 <body>
+
+    <div class="user-status-bar">
+        {% if session.get('usuario_nombre') %}
+            <a href="/usuarios_panel" class="profile-widget" title="Ir a Panel de Usuarios">
+                <div class="profile-avatar">
+                    {{ session.get('usuario_emoji', '👤') }}
+                </div>
+                <span class="profile-name">{{ session['usuario_nombre'] }}</span>
+            </a>
+        {% else %}
+            <a href="/usuarios_panel" class="profile-widget" title="Iniciar Sesión">
+                <div class="profile-avatar invitado-style">👤</div>
+                <span class="profile-name" style="color: #e50914;">Invitado</span>
+            </a>
+        {% endif %}
+    </div>
 
     <header>
         <h1>{{ serie }}</h1>
         <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
     </header>
 
-    <div class="container" id="serieContainer" data-serie="{{ serie }}">
+    <div class="container" id="serieContainer" 
+         data-serie="{{ serie }}" 
+         data-user-active="{{ 'true' if session.get('usuario_id') else 'false' }}"
+         data-auto-marcar="{{ 'true' if session.get('usuario_auto_marcar', 1) == 1 else 'false' }}">
         
         <div class="player-container" id="playerContainer">
             <video id="mainPlayer" controls autoplay src=""></video>
@@ -32,11 +133,20 @@
             <div class="video-grid">
                 {% for video in videos %}
                     {% if video.tipo == 'web' %}
-                        <div class="video-card">
-                            <div class="card-click-area" onclick="playVideo('{{ video.ruta_relativa }}')">
+                        <div class="video-card {% if video.visto == 2 %}capitulo-visto{% elif video.visto == 1 %}capitulo-viendo{% else %}capitulo-novisto{% endif %}">
+                            <div class="card-click-area" onclick="playVideo('{{ video.ruta_relativa }}', '{{ video.segundos }}', this)">
                                 <div class="thumb">
                                     <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
                                     <div class="play-overlay">▶</div>
+                                    
+                                    <div class="visto-badge {% if video.visto == 2 %}badge-visto{% elif video.visto == 1 %}badge-viendo{% else %}badge-novisto{% endif %}"
+                                         data-filename="{{ video.ruta_relativa }}"
+                                         data-estado="{{ video.visto if video.visto else 0 }}"
+                                         onclick="toggleBadgeEstado(event, this)">
+                                        {% if video.visto == 2 %}✔️ Visto
+                                        {% elif video.visto == 1 %}⏳ Viendo
+                                        {% else %}👁️ No visto{% endif %}
+                                    </div>
                                 </div>
                                 <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                             </div>
