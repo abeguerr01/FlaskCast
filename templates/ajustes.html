@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ajustes de FlaskCast</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+    <style>
+        .settings-box {
+            background-color: #111;
+            border: 1px solid #333;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            margin: 40px auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .form-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #ddd;
+            cursor: pointer;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #444;
+            transition: .3s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #1fcc72; }
+        input:checked + .slider:before { transform: translateX(24px); }
+        
+        .btn-save {
+            background-color: #1fcc72;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .btn-save:hover { background-color: #198754; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚙️ Panel de Ajustes</h1>
+        <a href="/" class="btn-back">⬅ Cancelar y Volver</a>
+    </header>
+
+    <div class="container">
+        <div class="settings-box">
+            <form action="/ajustes" method="POST">
+                <div class="form-group">
+                    <label for="auto_marcar">Marcar estado del capítulo automático</label>
+                    <label class="switch">
+                        <input type="checkbox" id="auto_marcar" name="auto_marcar" {% if auto_marcar == 1 %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
+                    Si está activado, el sistema marcará el capítulo como <strong>"Viendo"</strong> al alcanzar el 10% reproducido, y como <strong>"Visto"</strong> al pasar del 85%. Si se desactiva, los estados solo cambiarán al hacer click manual sobre la etiqueta.
+                </p>
+                <button type="submit" class="btn-save">Guardar Configuración</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>

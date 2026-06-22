@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlaskCast - Quién está viendo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+
+    <div class="profile-container">
+        <h1 style="color: #fff; font-size: 2.2rem;">¿Quién está viendo ahora?</h1>
+        
+        <div class="profile-grid">
+            {% for usuario in usuarios %}
+                <div class="profile-card">
+                    <a href="/usuarios/seleccionar/{{ usuario.id }}" class="profile-link">
+                        <div class="profile-circle">{{ usuario.emoji if usuario.emoji else '👤' }}</div>
+                        <div class="profile-name-txt">{{ usuario.nombre }}</div>
+                    </a>
+                    <button class="btn-profile-edit-trigger" onclick="abrirModalEditar('{{ usuario.id }}', '{{ usuario.nombre }}', '{{ usuario.emoji }}')">⚙️ Editar</button>
+                </div>
+            {% endfor %}
+            
+            <div class="profile-card">
+                <a href="/usuarios/salir" class="profile-link">
+                    <div class="profile-circle" style="background-color: #e5091444; color: #e50914;">🕶️</div>
+                    <div class="profile-name-txt" style="color: #e50914;">Invitado</div>
+                </a>
+                <div style="height: 28px;"></div> </div>
+        </div>
+
+        <div class="form-crear-user">
+            <h3 style="margin-bottom: 15px; color: #ccc;">Añadir nuevo perfil:</h3>
+            <form action="/usuarios/crear" method="POST">
+                <input type="text" name="nombre" placeholder="Nombre del usuario..." required autocomplete="off">
+                <button type="submit" class="btn-submit-user">Añadir</button>
+            </form>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <a href="/" style="color: #888; text-decoration: none;">← Cancelar e ir al Inicio</a>
+        </div>
+    </div>
+
+    <div id="modalEditarPerfil" class="modal-overlay">
+        <div class="modal-box">
+            <span class="modal-close-btn" onclick="cerrarModalEditar()">&times;</span>
+            <h2 style="margin-top: 0; color: #fff;">Configuración del Perfil</h2>
+            <p style="color: #666; font-size: 0.85rem; margin-top: -5px;">Modifica los detalles de tu cuenta</p>
+            
+            <form id="formEditarPerfil" method="POST" action="">
+                <label class="modal-label">Nombre del Perfil:</label>
+                <input type="text" id="inputEditarNombre" name="nombre" class="modal-input-text" required autocomplete="off">
+                
+                <label class="modal-label">Elige tu Avatar (Emoji):</label>
+                <input type="hidden" id="inputEditarEmoji" name="emoji" value="👤">
+                
+                <div class="emoji-selector-grid">
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('👤')">👤</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🍿')">🍿</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🎬')">🎬</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🦊')">🦊</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🐱')">🐱</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🚀')">🚀</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🧙‍♂️')">🧙‍♂️</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🥷')">🥷</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('👾')">👾</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🦖')">🦖</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('💎')">💎</span>
+                    <span class="emoji-tile" onclick="seleccionarEmojiEnPopup('🍕')">🍕</span>
+                </div>
+                
+                <div class="emoji-preview-container">
+                    <span>Seleccionado: </span>
+                    <span id="previewEmojiActual" style="font-size: 2rem; margin-left: 10px;">👤</span>
+                </div>
+
+                <button type="submit" class="btn-submit-user" style="width: 100%; margin-top: 10px;">Guardar Cambios</button>
+            </form>
+            
+            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+            
+            <form id="formEliminarPerfil" method="POST" action="" onsubmit="return confirm('⚠️ ¿Estás completamente seguro de eliminar este perfil?\nSe borrarán de forma PERMANENTE todos los capítulos vistos y marcas de reproducción.')">
+                <button type="submit" class="btn-delete-profile-submit">❌ Eliminar este perfil por completo</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function abrirModalEditar(id, nombre, emoji) {
+            const modal = document.getElementById('modalEditarPerfil');
+            document.getElementById('inputEditarNombre').value = nombre;
+            document.getElementById('inputEditarEmoji').value = emoji;
+            document.getElementById('previewEmojiActual').innerText = emoji;
+            
+            // Inyectamos las rutas de acción correctas usando la ID del usuario
+            document.getElementById('formEditarPerfil').action = `/usuarios/editar/${id}`;
+            document.getElementById('formEliminarPerfil').action = `/usuarios/eliminar/${id}`;
+            
+            modal.style.display = 'flex';
+            
+            // Marcar visualmente el tile del emoji activo en el popup
+            resaltarEmojiActivo(emoji);
+        }
+
+        function cerrarModalEditar() {
+            document.getElementById('modalEditarPerfil').style.display = 'none';
+        }
+
+        function seleccionarEmojiEnPopup(emoji) {
+            document.getElementById('inputEditarEmoji').value = emoji;
+            document.getElementById('previewEmojiActual').innerText = emoji;
+            resaltarEmojiActivo(emoji);
+        }
+
+        function resaltarEmojiActivo(emoji) {
+            const tiles = document.querySelectorAll('.emoji-tile');
+            tiles.forEach(tile => {
+                if(tile.innerText === emoji) {
+                    tile.style.backgroundColor = '#e50914';
+                    tile.style.borderColor = '#ffffff';
+                } else {
+                    tile.style.backgroundColor = '#333';
+                    tile.style.borderColor = 'transparent';
+                }
+            });
+        }
+
+        // Cerrar modal si se hace clic fuera del recuadro contenedor
+        window.onclick = function(event) {
+            const modal = document.getElementById('modalEditarPerfil');
+            if (event.target == modal) {
+                cerrarModalEditar();
+            }
+        }
+    </script>
+</body>
+</html>

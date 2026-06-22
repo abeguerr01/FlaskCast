@@ -71,7 +71,10 @@
 <body>
 
     <div class="tv-player-wrapper">
-        <video controls autoplay preload="auto">
+        <video id="tvPlayer" controls autoplay preload="auto" 
+               data-serie="{{ serie }}" 
+               data-filename="{{ filename }}" 
+               data-inicio="{{ segundo_inicio }}">
             <source src="{{ url_for('serve_video', nombre_serie=serie, filename=filename) }}" type="video/mp4">
             Tu Smart TV no soporta la decodificación de este archivo de vídeo.
         </video>
@@ -87,5 +90,59 @@
         </div>
     </div>
 
+    <script>
+        const player = document.getElementById('tvPlayer');
+        const serie = player.getAttribute('data-serie');
+        const filename = player.getAttribute('data-filename');
+        const segundoInicio = parseFloat(player.getAttribute('data-inicio') || 0);
+        
+        let ultimoTiempoGuardado = 0;
+
+        // Saltar automáticamente al segundo guardado al arrancar
+        player.addEventListener('loadedmetadata', () => {
+            if (segundoInicio > 5) {
+                player.currentTime = segundoInicio;
+            }
+        });
+
+        // Reportar el progreso al servidor cada 5 segundos
+        player.addEventListener('timeupdate', () => {
+            const tiempoActual = Math.floor(player.currentTime);
+            if (tiempoActual % 5 === 0 && tiempoActual !== ultimoTiempoGuardado) {
+                ultimoTiempoGuardado = tiempoActual;
+                
+                fetch('/api/progreso/guardar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        serie: serie,
+                        filename: filename,
+                        segundos: player.currentTime,
+                        visto: 0
+                    })
+                });
+            }
+        });
+
+        // Marcar como visto al finalizar
+        player.addEventListener('ended', () => {
+            fetch('/api/progreso/guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    serie: serie,
+                    filename: filename,
+                    segundos: 0,
+                    visto: 1
+                })
+            }).then(() => {
+                // Si hay un botón de siguiente capítulo, ir a él automáticamente al terminar
+                const btnNext = document.querySelector('.btn-tv-next');
+                if (btnNext) {
+                    window.location.href = btnNext.href;
+                }
+            });
+        });
+    </script>
 </body>
 </html>
