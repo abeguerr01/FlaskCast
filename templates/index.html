@@ -3,16 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlaskCast - Catálogo de Series</title>
+    <title>FLASKCAST</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
     <style>
-        /* Barra de estado de usuario estilo Facebook (Compacta y Seleccionable) */
+        /* Color rojo clásico de streaming */
+        :root {
+            --main-color: #e50914;
+        }
+
+        /* Barra de estado superior */
         .user-status-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             background-color: #141414;
-            padding: 10px 20px;
+            padding: 12px 20px;
             border-bottom: 1px solid #222;
         }
         .profile-widget {
@@ -41,7 +46,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
         .profile-avatar.invitado-style {
-            border-color: #e50914;
+            border-color: var(--main-color);
             background-color: #221111;
         }
         .profile-name {
@@ -49,22 +54,49 @@
             font-weight: 600;
             color: #ffffff;
         }
+        
+        /* Botón de Ajustes */
         .btn-settings {
-            background-color: #333;
+            background-color: #222;
             color: #fff;
-            padding: 6px 14px;
+            padding: 8px 16px;
             border-radius: 4px;
             text-decoration: none;
             font-weight: bold;
             font-size: 0.9rem;
-            border: 1px solid #444;
-            transition: background 0.2s;
+            border: 1px solid #333;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, border-color 0.2s;
         }
         .btn-settings:hover {
-            background-color: #555;
+            background-color: #333;
+            border-color: var(--main-color);
         }
 
-        /* Estilos de la Barra de Búsqueda (Centrada y limpia sin botón) */
+        /* Encabezado con fondo transparente */
+        header {
+            text-align: center;
+            padding: 50px 0 20px 0;
+            background: transparent; /* Totalmente transparente para integrarse con la página */
+            margin-bottom: 20px;
+        }
+        header h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            margin: 0;
+            /* Textura con degradado de rojo vivo a rojo clásico */
+            background: linear-gradient(180deg, #ff4d53 0%, var(--main-color) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            user-select: none;
+        }
+
+        /* Barra de Búsqueda */
         .search-container {
             margin: 10px auto 30px auto;
             max-width: 500px;
@@ -83,11 +115,11 @@
         }
         .search-input:focus {
             outline: none;
-            border-color: #e50914;
-            box-shadow: 0 0 8px rgba(229, 9, 20, 0.4);
+            border-color: var(--main-color);
+            box-shadow: 0 0 8px var(--main-color);
         }
 
-        /* Carteles: Formato cuadrado (1:1) y tamaño base de 180px */
+        /* Cuadrícula de Series (Carteles 1:1) */
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -103,8 +135,8 @@
         }
         .video-card:hover {
             transform: scale(1.05);
-            border-color: #e50914;
-            box-shadow: 0 0 15px rgba(229, 9, 20, 0.7);
+            border-color: var(--main-color);
+            box-shadow: 0 0 15px rgba(229, 9, 20, 0.4);
         }
         .thumb {
             position: relative;
@@ -119,11 +151,6 @@
             object-fit: cover;
             transition: transform 0.3s ease;
         }
-        .play-overlay {
-            display: none !important;
-        }
-
-        /* Evita cortes feos de palabras a la mitad en los títulos */
         .card-title {
             text-align: center;
             font-weight: bold;
@@ -132,6 +159,7 @@
             white-space: normal;
             word-break: normal;
             overflow-wrap: break-word;
+            color: #eee;
         }
     </style>
 </head>
@@ -151,14 +179,16 @@
         {% else %}
             <a href="/usuarios_panel" class="profile-widget" title="Iniciar Sesión">
                 <div class="profile-avatar invitado-style">👤</div>
-                <span class="profile-name" style="color: #e50914;">Invitado</span>
+                <span class="profile-name" style="color: var(--main-color);">Invitado</span>
             </a>
+            <div>
+                <a href="/ajustes" class="btn-settings">⚙️ Ajustes</a>
+            </div>
         {% endif %}
     </div>
 
     <header>
-        <h1>🎬 Mi Catálogo de Series</h1>
-        <p>Streaming local de alta fidelidad</p>
+        <h1>FLASKCAST</h1>
     </header>
 
     <div class="container">
@@ -195,8 +225,6 @@
 
             cards.forEach(card => {
                 const titleText = card.querySelector('.card-title').textContent.toLowerCase();
-                
-                // Si coincide con la búsqueda (o si está vacía), se muestra; si no, se oculta
                 if (titleText.includes(query)) {
                     card.style.display = '';
                 } else {
