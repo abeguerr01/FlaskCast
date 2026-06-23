@@ -182,6 +182,8 @@ cython_debug/
 
 
 # CUSTOM
+#   Ignorar todo el contenido dentro de data/ por defecto
+data/*
 #   Ignorar todo el contenido dentro de data/media/ por defecto
 data/media/*
 #   Excepción: Permitir el archivo .gitkeep para que la carpeta no esté vacía en Git
