@@ -4,6 +4,7 @@ import threading
 import sqlite3
 from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
 import static_ffmpeg
+import platform
 
 app = Flask(__name__)
 app.secret_key = 'flaskcast_ultra_secret_key_2026'
@@ -45,6 +46,8 @@ def inicializar_base_datos():
         cursor.execute("ALTER TABLE usuarios ADD COLUMN ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     if 'auto_marcar' not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN auto_marcar INTEGER DEFAULT 1")
+    if 'api_habilitada' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN api_habilitada INTEGER DEFAULT 0")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progreso (
@@ -131,6 +134,7 @@ def seleccionar_usuario(user_id):
         session['usuario_nombre'] = user['nombre']
         session['usuario_emoji'] = user['emoji']
         session['usuario_auto_marcar'] = user['auto_marcar']
+        session['usuario_api_habilitada'] = user['api_habilitada']
     return redirect(url_for('index'))
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
@@ -171,6 +175,7 @@ def salir_usuario():
     session.pop('usuario_nombre', None)
     session.pop('usuario_emoji', None)
     session.pop('usuario_auto_marcar', None)
+    session.pop('usuario_api_habilitada', None)
     return redirect(url_for('index'))
 
 @app.route('/')
@@ -198,17 +203,140 @@ def ajustes():
     
     if request.method == 'POST':
         auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
-        cursor.execute('UPDATE usuarios SET auto_marcar = ? WHERE id = ?', (auto_marcar, usuario_id))
+        api_habilitada_val = 1 if request.form.get('api_habilitada') == 'on' else 0
+        cursor.execute('UPDATE usuarios SET auto_marcar = ?, api_habilitada = ? WHERE id = ?', (auto_marcar, api_habilitada_val, usuario_id))
         conn.commit()
         session['usuario_auto_marcar'] = auto_marcar
+        session['usuario_api_habilitada'] = api_habilitada_val
         return redirect(url_for('index'))
         
-    cursor.execute('SELECT auto_marcar FROM usuarios WHERE id = ?', (usuario_id,))
+    cursor.execute('SELECT auto_marcar, api_habilitada FROM usuarios WHERE id = ?', (usuario_id,))
     user = cursor.fetchone()
     conn.close()
     
     auto_marcar = user['auto_marcar'] if user else 1
-    return render_template('ajustes.html', auto_marcar=auto_marcar)
+    api_habilitada_val = user['api_habilitada'] if user else 0
+    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=api_habilitada_val)
+
+def api_habilitada_check():
+    return session.get('usuario_api_habilitada') == 1
+
+@app.route('/api/videos/add', methods=['POST'])
+def api_agregar_video():
+    if not api_habilitada_check():
+        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+    
+    serie = request.form.get('serie', '').strip()
+    if not serie:
+        return jsonify({'error': 'El campo "serie" es requerido.'}), 400
+    
+    temporada = request.form.get('temporada', '').strip()
+    archivo = request.files.get('archivo')
+    if not archivo or archivo.filename == '':
+        return jsonify({'error': 'Debes enviar un archivo en el campo "archivo".'}), 400
+    
+    filename = os.path.basename(archivo.filename)
+    serie_dir = os.path.join(DIRECTORIO_MEDIA, serie)
+    
+    if not os.path.exists(serie_dir):
+        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
+    
+    items = os.listdir(serie_dir)
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(serie_dir, i)) and not i.startswith('.')]
+    
+    if subcarpetas:
+        if not temporada:
+            return jsonify({'error': 'Esta serie tiene temporadas. El campo "temporada" es obligatorio.'}), 400
+        if temporada not in subcarpetas:
+            return jsonify({'error': f'La temporada "{temporada}" no existe en esta serie.'}), 404
+        destino_dir = os.path.join(serie_dir, temporada)
+    else:
+        if temporada:
+            return jsonify({'error': 'Esta serie no tiene temporadas. No uses el campo "temporada".'}), 400
+        destino_dir = serie_dir
+    
+    ruta_destino = os.path.join(destino_dir, filename)
+    archivo.save(ruta_destino)
+    
+    ruta_rel = f"{temporada}/{filename}" if temporada else filename
+    return jsonify({'status': 'ok', 'mensaje': f'Video guardado en {serie}/{ruta_rel}'})
+
+@app.route('/api/videos/rm', methods=['POST'])
+def api_eliminar_video():
+    if not api_habilitada_check():
+        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+    
+    datos = request.json or {}
+    serie = datos.get('serie', '').strip()
+    filename = datos.get('filename', '').strip()
+    
+    if not serie or not filename:
+        return jsonify({'error': 'Los campos "serie" y "filename" son requeridos.'}), 400
+    
+    filename = filename.replace('\\', '/')
+    ruta_archivo = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, serie, filename))
+    if not ruta_archivo.startswith(os.path.normpath(DIRECTORIO_MEDIA)):
+        return jsonify({'error': 'Ruta no válida'}), 400
+    
+    if not os.path.exists(ruta_archivo):
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    
+    try:
+        os.remove(ruta_archivo)
+        nombre_base, _ = os.path.splitext(filename)
+        ruta_thumb = os.path.join(DIRECTORIO_MEDIA, serie, '.thumbnails', f"{nombre_base}.jpg")
+        if os.path.exists(ruta_thumb):
+            os.remove(ruta_thumb)
+        usuario_id = session.get('usuario_id')
+        if usuario_id:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM progreso WHERE serie = ? AND filename = ?', (serie, filename))
+            conn.commit()
+            conn.close()
+        return jsonify({'status': 'eliminado'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def escanear_estructura_serie(ruta_serie, nombre_serie):
+    if not os.path.exists(ruta_serie) or not os.path.isdir(ruta_serie):
+        return None
+    formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+    items = sorted(os.listdir(ruta_serie))
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
+    estructura = {'nombre': nombre_serie, 'temporadas': {}}
+    if subcarpetas:
+        for sub in subcarpetas:
+            ruta_sub = os.path.join(ruta_serie, sub)
+            videos = sorted([f for f in os.listdir(ruta_sub) if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(formatos_video)])
+            estructura['temporadas'][sub] = {'nombre': sub, 'capitulos': videos}
+    else:
+        videos = sorted([f for f in items if os.path.isfile(os.path.join(ruta_serie, f)) and f.lower().endswith(formatos_video)])
+        estructura['temporadas']['Contenido Disponible'] = {'nombre': 'Contenido Disponible', 'capitulos': videos}
+    return estructura
+
+@app.route('/api/videos', methods=['GET'])
+@app.route('/api/videos/<path:nombre_serie>', methods=['GET'])
+def api_listar_videos(nombre_serie=None):
+    if not api_habilitada_check():
+        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+    
+    if nombre_serie:
+        ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+        estructura = escanear_estructura_serie(ruta_serie, nombre_serie)
+        if estructura is None:
+            return jsonify({'error': f'La serie "{nombre_serie}" no existe.'}), 404
+        return jsonify({'status': 'ok', 'serie': estructura})
+    
+    series = []
+    if os.path.exists(DIRECTORIO_MEDIA):
+        for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
+            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
+            if os.path.isdir(ruta_item):
+                estructura = escanear_estructura_serie(ruta_item, item)
+                if estructura:
+                    series.append(estructura)
+    return jsonify({'status': 'ok', 'series': series})
 
 @app.route('/serie/<nombre_serie>')
 def vista_serie(nombre_serie):
@@ -437,6 +565,16 @@ def serve_video(nombre_serie, filename):
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     return send_from_directory(ruta_serie, filename)
 
+@app.route('/api/video/<nombre_serie>/<path:filename>')
+def api_obtener_video(nombre_serie, filename):
+    if not api_habilitada_check():
+        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    ruta_archivo = os.path.join(ruta_serie, filename)
+    if not os.path.exists(ruta_archivo):
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    return send_from_directory(ruta_serie, filename)
+
 @app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
 def desencadenar_conversion(nombre_serie, filename):
     global conversiones_activas
@@ -485,4 +623,24 @@ def consultar_estados():
 
 if __name__ == '__main__':
     inicializar_base_datos()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    
+    sistema = platform.system()
+    
+    if sistema == "Windows":
+        # Usamos Waitress para Windows
+        from waitress import serve
+        print("Iniciando servidor de producción con Waitress (Windows)...")
+        serve(app, host='0.0.0.0', port=5000, threads=6)
+        
+    else:
+        # Usamos Gunicorn para Linux/macOS
+        # Nota: Gunicorn no se puede importar como un módulo de Python, 
+        # por lo que usamos 'subprocess' para ejecutarlo como proceso externo.
+        import subprocess
+        print("Iniciando servidor de producción con Gunicorn (Linux/Unix)...")
+        subprocess.run([
+            "gunicorn", 
+            "--bind", "0.0.0.0:5000", 
+            "--workers", "4", 
+            "app:app"  # Asegúrate que el formato sea archivo:instancia
+        ])

@@ -67,6 +67,77 @@
             transition: background 0.2s;
         }
         .btn-save:hover { background-color: #198754; color: #fff; }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-divider {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 25px 0;
+        }
+        .modal-box.api-modal {
+            max-width: 650px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .api-docs-content {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #ccc;
+        }
+        .api-docs-content h3 {
+            color: #1fcc72;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        .api-docs-content h3:first-child {
+            margin-top: 0;
+        }
+        .api-docs-content h4 {
+            color: #e50914;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+        .api-docs-content p {
+            margin: 8px 0;
+        }
+        .api-docs-content ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        .api-docs-content li {
+            margin: 4px 0;
+        }
+        .api-docs-content code {
+            background: #222;
+            color: #1fcc72;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+        .api-docs-content pre {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #ddd;
+        }
+        .api-docs-content .api-note {
+            background: #1a2a1a;
+            border-left: 3px solid #1fcc72;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
@@ -89,10 +160,123 @@
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
                     Si está activado, el sistema marcará el capítulo como <strong>"Viendo"</strong> al alcanzar el 10% reproducido, y como <strong>"Visto"</strong> al pasar del 85%. Si se desactiva, los estados solo cambiarán al hacer click manual sobre la etiqueta.
                 </p>
+
+                <hr class="form-divider">
+
+                <div class="form-group">
+                    <div class="form-row">
+                        <label for="api_habilitada">Habilitar API</label>
+                        <button type="button" class="btn-info" onclick="document.getElementById('apiInfoModal').style.display='flex'" title="¿Cómo usar la API?">i</button>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="api_habilitada" name="api_habilitada" {% if api_habilitada == 1 %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
+                    Activa la API REST para agregar y eliminar vídeos mediante peticiones externas. Necesitas tener una sesión iniciada para usarla. Haz clic en <strong>"i"</strong> para ver la documentación.
+                </p>
+
                 <button type="submit" class="btn-save">Guardar Configuración</button>
             </form>
         </div>
     </div>
+
+    <!-- Modal de documentación API -->
+    <div class="modal-overlay" id="apiInfoModal" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal-box api-modal">
+            <span class="modal-close-btn" onclick="document.getElementById('apiInfoModal').style.display='none'">&times;</span>
+            <h2 style="color: #1fcc72; margin-bottom: 20px;">📡 API REST - FlaskCast</h2>
+            <div class="api-docs-content">
+                <div class="api-note">
+                    Para usar la API, debes tener una sesión activa en FlaskCast y tener la opción <strong>"Habilitar API"</strong> activada en Ajustes.
+                </div>
+
+                <h3>📤 Agregar Video</h3>
+                <p>Sube un archivo de vídeo a una serie y temporada específica.</p>
+                <h4>Petición</h4>
+                <pre>POST /api/videos/add
+Content-Type: multipart/form-data</pre>
+                <h4>Parámetros</h4>
+                <ul>
+                    <li><code>serie</code> (obligatorio) — Nombre de la serie</li>
+                    <li><code>temporada</code> — Nombre de la temporada (obligatorio si la serie tiene subcarpetas, no uses si no las tiene)</li>
+                    <li><code>archivo</code> (obligatorio) — Archivo de vídeo</li>
+                </ul>
+                <h4>Ejemplo con curl (con temporada)</h4>
+                <pre>curl -X POST http://localhost:5000/api/videos/add \
+  -b "session=TU_SESSION" \
+  -F "serie=Mi Serie" \
+  -F "temporada=Temporada 1" \
+  -F "archivo=@/ruta/al/video.mp4"</pre>
+                <h4>Ejemplo (sin temporada)</h4>
+                <pre>curl -X POST http://localhost:5000/api/videos/add \
+  -b "session=TU_SESSION" \
+  -F "serie=Mi Serie" \
+  -F "archivo=@/ruta/al/video.mp4"</pre>
+
+                <h3>📋 Listar Estructura</h3>
+                <p>Obtén la estructura completa de todas las series o de una específica.</p>
+                <h4>Petición</h4>
+                <pre>GET /api/videos              → Todas las series
+GET /api/videos/Mi Serie     → Una serie específica</pre>
+                <h4>Respuesta (ejemplo)</h4>
+                <pre>{
+  "status": "ok",
+  "series": [
+    {
+      "nombre": "Mi Serie",
+      "temporadas": {
+        "Temporada 1": {
+          "nombre": "Temporada 1",
+          "capitulos": ["cap1.mp4", "cap2.mp4"]
+        }
+      }
+    }
+  ]
+}</pre>
+                <h4>Ejemplo con curl</h4>
+                <pre>curl http://localhost:5000/api/videos \
+  -b "session=TU_SESSION"
+
+curl http://localhost:5000/api/videos/Mi%20Serie \
+  -b "session=TU_SESSION"</pre>
+
+                <h3>🎬 Obtener Video</h3>
+                <p>Devuelve el archivo de vídeo para reproducir o descargar.</p>
+                <h4>Petición</h4>
+                <pre>GET /api/video/Mi Serie/Temporada 1/cap1.mp4</pre>
+                <h4>Ejemplo con curl</h4>
+                <pre>curl http://localhost:5000/api/video/Mi%20Serie/Temporada%201/cap1.mp4 \
+  -b "session=TU_SESSION" \
+  -o cap1.mp4</pre>
+
+                <h3>🗑️ Eliminar Video</h3>
+                <p>Elimina un archivo de vídeo de una serie.</p>
+                <h4>Petición</h4>
+                <pre>POST /api/videos/rm
+Content-Type: application/json</pre>
+                <h4>Parámetros (JSON)</h4>
+                <ul>
+                    <li><code>serie</code> (obligatorio) — Nombre de la serie</li>
+                    <li><code>filename</code> (obligatorio) — Ruta del archivo dentro de la serie (ej: <code>Temporada 1/video.mp4</code>)</li>
+                </ul>
+                <h4>Ejemplo con curl</h4>
+                <pre>curl -X POST http://localhost:5000/api/videos/rm \
+  -b "session=TU_SESSION" \
+  -H "Content-Type: application/json" \
+  -d '{"serie": "Mi Serie", "filename": "Temporada 1/video.mp4"}'</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.getElementById('apiInfoModal').style.display = 'none';
+            }
+        });
+    </script>
 
 </body>
 </html>

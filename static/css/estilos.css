@@ -593,3 +593,27 @@ h1 {
     background: rgba(255, 68, 68, 0.1);
     border-color: #ff4444;
 }
+
+/* --- BOTÓN DE INFORMACIÓN --- */
+.btn-info {
+    background: #333;
+    color: #aaa;
+    border: 1px solid #555;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+    padding: 0;
+}
+.btn-info:hover {
+    background: #555;
+    color: #fff;
+}
