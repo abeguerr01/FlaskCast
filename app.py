@@ -620,6 +620,18 @@ def eliminar_archivo(nombre_serie, filename):
 def consultar_estados():
     with lock_conversiones:
         return jsonify({'activos': list(conversiones_activas)})
+    
+@app.route('/api/ping')
+def ping():
+    return jsonify({'status': 'servidor en linea'})
+
+@app.route('/api/off')
+def off():
+    if sistema == "Windows":
+        subprocess.run("shutdown /s /t 0 /f", shell=True)
+        
+    else:
+        subprocess.run("sudo shutdown -h now", shell=True)
 
 if __name__ == '__main__':
     inicializar_base_datos()
@@ -629,7 +641,7 @@ if __name__ == '__main__':
     if sistema == "Windows":
         # Usamos Waitress para Windows
         from waitress import serve
-        print("Iniciando servidor de producción con Waitress (Windows)...")
+        print("Iniciado servidor con Waitress (Windows)...")
         serve(app, host='0.0.0.0', port=5000, threads=6)
         
     else:
@@ -637,7 +649,7 @@ if __name__ == '__main__':
         # Nota: Gunicorn no se puede importar como un módulo de Python, 
         # por lo que usamos 'subprocess' para ejecutarlo como proceso externo.
         import subprocess
-        print("Iniciando servidor de producción con Gunicorn (Linux/Unix)...")
+        print("Iniciado servidor Gunicorn (Linux/Unix)...")
         subprocess.run([
             "gunicorn", 
             "--bind", "0.0.0.0:5000", 
