@@ -661,7 +661,7 @@ def off_all():
 
 def _apagar_todo():
     if platform.system() == "Windows":
-        subprocess.run("shutdown /s /t 0 /f", shell=True)
+        subprocess.run("shutdown -s -t 0 ", shell=True)
     else:
         subprocess.run("sudo shutdown -h now", shell=True)
 
