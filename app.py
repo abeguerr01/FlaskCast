@@ -1,4 +1,6 @@
+import json
 import os
+import signal
 import subprocess
 import threading
 import sqlite3
@@ -14,9 +16,18 @@ static_ffmpeg.add_paths()
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
+CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'config.json')
 
 conversiones_activas = set()
 lock_conversiones = threading.Lock()
+
+
+def leer_config():
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 def conectar_db():
     conn = sqlite3.connect(DB_PATH)
@@ -195,13 +206,10 @@ def index():
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():
     usuario_id = session.get('usuario_id')
-    if not usuario_id:
-        return redirect(url_for('usuarios_panel'))
-        
-    conn = conectar_db()
-    cursor = conn.cursor()
     
-    if request.method == 'POST':
+    if request.method == 'POST' and usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
         auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
         api_habilitada_val = 1 if request.form.get('api_habilitada') == 'on' else 0
         cursor.execute('UPDATE usuarios SET auto_marcar = ?, api_habilitada = ? WHERE id = ?', (auto_marcar, api_habilitada_val, usuario_id))
@@ -209,14 +217,21 @@ def ajustes():
         session['usuario_auto_marcar'] = auto_marcar
         session['usuario_api_habilitada'] = api_habilitada_val
         return redirect(url_for('index'))
-        
-    cursor.execute('SELECT auto_marcar, api_habilitada FROM usuarios WHERE id = ?', (usuario_id,))
-    user = cursor.fetchone()
-    conn.close()
     
-    auto_marcar = user['auto_marcar'] if user else 1
-    api_habilitada_val = user['api_habilitada'] if user else 0
-    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=api_habilitada_val)
+    auto_marcar = 1
+    api_habilitada_val = 0
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT auto_marcar, api_habilitada FROM usuarios WHERE id = ?', (usuario_id,))
+        user = cursor.fetchone()
+        conn.close()
+        if user:
+            auto_marcar = user['auto_marcar']
+            api_habilitada_val = user['api_habilitada']
+    
+    cfg = leer_config()
+    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=api_habilitada_val, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False))
 
 def api_habilitada_check():
     return session.get('usuario_api_habilitada') == 1
@@ -627,32 +642,47 @@ def ping():
 
 @app.route('/api/off')
 def off():
-    if sistema == "Windows":
+    cfg = leer_config()
+    if not cfg.get('boton_apagar_visible', False):
+        return jsonify({'error': 'Funcion no habilitada'}), 403
+    threading.Thread(target=_apagar_servidor, daemon=True).start()
+    return jsonify({'status': 'Apagando servidor...'})
+
+def _apagar_servidor():
+    os.kill(os.getpid(), signal.SIGINT)
+
+@app.route('/api/off/all')
+def off_all():
+    cfg = leer_config()
+    if not cfg.get('boton_apagar_todo_visible', False):
+        return jsonify({'error': 'Funcion no habilitada'}), 403
+    threading.Thread(target=_apagar_todo, daemon=True).start()
+    return jsonify({'status': 'Apagando sistema...'})
+
+def _apagar_todo():
+    if platform.system() == "Windows":
         subprocess.run("shutdown /s /t 0 /f", shell=True)
-        
     else:
         subprocess.run("sudo shutdown -h now", shell=True)
 
 if __name__ == '__main__':
     inicializar_base_datos()
     
+    cfg = leer_config()
+    puerto = cfg.get('puerto', 5000)
     sistema = platform.system()
     
     if sistema == "Windows":
-        # Usamos Waitress para Windows
         from waitress import serve
-        print("Iniciado servidor con Waitress (Windows)...")
-        serve(app, host='0.0.0.0', port=5000, threads=6)
+        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}...")
+        serve(app, host='0.0.0.0', port=puerto, threads=6)
         
     else:
-        # Usamos Gunicorn para Linux/macOS
-        # Nota: Gunicorn no se puede importar como un módulo de Python, 
-        # por lo que usamos 'subprocess' para ejecutarlo como proceso externo.
         import subprocess
-        print("Iniciado servidor Gunicorn (Linux/Unix)...")
+        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}...")
         subprocess.run([
             "gunicorn", 
-            "--bind", "0.0.0.0:5000", 
+            "--bind", f"0.0.0.0:{puerto}", 
             "--workers", "4", 
-            "app:app"  # Asegúrate que el formato sea archivo:instancia
+            "app:app"
         ])

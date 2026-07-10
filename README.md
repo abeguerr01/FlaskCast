@@ -30,7 +30,7 @@ FlaskCast es un portal de streaming multimedia personal y local construido con P
 1. Clona o descarga el proyecto y sitúate en la carpeta raíz:
 
 ```bash
-git clone <repo> && cd PlataformaMultimediaOnline
+git clone <repo> && cd FlaskCast
 ```
 
 2. Crea y activa un entorno virtual (recomendado):
@@ -70,6 +70,8 @@ docker-compose up --build
 ```
 .
 ├── app.py                   # Aplicación Flask (rutas, API, BD, FFmpeg)
+├── config.json              # Configuración del servidor (puerto, botones de apagado)
+├── config_gui.py            # Interfaz gráfica para editar config.json
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
@@ -142,6 +144,26 @@ Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
 - **Marcado automático:** activa o desactiva el cambio automático de estado "Viendo"/"Visto" según el progreso de reproducción.
 - **Habilitar API:** activa o desactiva los endpoints REST. Al activarla, los endpoints requieren sesión de usuario. Un botón informativo (`i`) muestra la documentación completa de la API en un modal.
+
+---
+
+## Configuración avanzada (config_gui.py)
+
+FlaskCast incluye un panel de configuración gráfico (`config_gui.py`) que permite modificar en tiempo real ciertos parámetros del servidor sin necesidad de editar archivos manualmente.
+
+### Opciones
+
+- **Mostrar botón "Apagar Servidor":** activa/desactiva la visibilidad del botón que apaga solo el proceso de Flask.
+- **Mostrar botón "Apagar Todo":** activa/desactiva la visibilidad del botón que apaga todo el sistema operativo.
+- **Puerto:** cambia el puerto en el que escucha el servidor (requiere reiniciar la aplicación).
+
+Los cambios en los botones de apagado se aplican inmediatamente sin necesidad de reiniciar el servidor.
+
+```bash
+python config_gui.py
+```
+
+> **Nota para Docker:** si ejecutas FlaskCast mediante `docker-compose`, el cambio de puerto desde `config_gui.py` no tendrá efecto. El puerto se define en el archivo `docker-compose.yml` mediante el mapeo `ports:`. Para cambiar el puerto en Docker, edita el archivo `docker-compose.yml` y modifica el lado izquierdo del mapeo (ej: `"8080:5000"` para usar el puerto 8080).
 
 ---
 

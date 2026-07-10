@@ -68,6 +68,36 @@
         }
         .btn-save:hover { background-color: #198754; color: #fff; }
 
+        .btn-shutdown {
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        .btn-shutdown:hover { background-color: #b02a37; }
+
+        .btn-shutdown-all {
+            background-color: #ff8800;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        .btn-shutdown-all:hover { background-color: #cc6a00; color: #fff; }
+
         .form-row {
             display: flex;
             align-items: center;
@@ -179,6 +209,18 @@
 
                 <button type="submit" class="btn-save">Guardar Configuración</button>
             </form>
+            {% if boton_apagar_visible or boton_apagar_todo_visible %}
+            <hr class="form-divider">
+            <p style="color: #888; font-size: 0.85rem; margin-bottom: 15px; line-height: 1.4;">
+                Los botones de apagado solo están disponibles si se activan desde el panel de configuración avanzada (<code>config_gui.py</code>). No dependen del toggle "Habilitar API".
+            </p>
+            {% if boton_apagar_visible %}
+            <button type="button" class="btn-shutdown" onclick="apagarServidor()">⏻ Apagar Servidor</button>
+            {% endif %}
+            {% if boton_apagar_todo_visible %}
+            <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">⏻ Apagar Todo</button>
+            {% endif %}
+            {% endif %}
         </div>
     </div>
 
@@ -271,6 +313,38 @@ Content-Type: application/json</pre>
     </div>
 
     <script>
+        function apagarServidor() {
+            if (!confirm('¿Estás seguro de que quieres apagar el servidor?')) return;
+            fetch('/api/off')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Servidor apagándose...</div>';
+                    }
+                })
+                .catch(function() {
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Servidor apagándose...</div>';
+                });
+        }
+
+        function apagarTodo() {
+            if (!confirm('¿Estás seguro? Esto apagará todo el sistema.')) return;
+            fetch('/api/off/all')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Sistema apagándose...</div>';
+                    }
+                })
+                .catch(function() {
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Sistema apagándose...</div>';
+                });
+        }
+
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 document.getElementById('apiInfoModal').style.display = 'none';
