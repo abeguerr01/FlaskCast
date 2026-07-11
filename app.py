@@ -201,7 +201,66 @@ def index():
                     'nombre_carpeta': item,
                     'tiene_portada': tiene_portada
                 })
-    return render_template('index.html', series=lista_series)
+    return render_template('index.html', series=lista_series, active_section='catalogo')
+
+LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
+
+def detectar_tipo(url):
+    ext = os.path.splitext(url.split('?')[0])[1].lower()
+    if ext in ('.mp4', '.webm', '.ogg'):
+        return 'video'
+    if ext == '.m3u8':
+        return 'hls'
+    return 'iframe'
+
+def parsear_m3u(url):
+    import urllib.request
+    canales = []
+    try:
+        if url.startswith('http://') or url.startswith('https://'):
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            respuesta = urllib.request.urlopen(req, timeout=10)
+            contenido = respuesta.read().decode('utf-8', errors='ignore')
+        else:
+            ruta_local = os.path.join(DIRECTORIO_RAIZ, url)
+            with open(ruta_local, 'r', encoding='utf-8') as f:
+                contenido = f.read()
+        lineas = contenido.strip().split('\n')
+        nombre_temp = None
+        for linea in lineas:
+            linea = linea.strip()
+            if not linea or linea.startswith('#EXTM3U'):
+                continue
+            if linea.startswith('#EXTINF:'):
+                parte = linea.split(',', 1)
+                nombre_temp = parte[1].strip() if len(parte) > 1 else None
+            elif linea.startswith('http') or linea.startswith('rtmp'):
+                canales.append({
+                    'titulo': nombre_temp or linea.split('/')[-1] or 'Canal',
+                    'url': linea,
+                    'tipo': detectar_tipo(linea)
+                })
+                nombre_temp = None
+    except Exception as e:
+        print("Error al parsear M3U: " + str(e))
+    return canales
+
+@app.route('/live')
+def live():
+    streams = []
+    if os.path.exists(LIVE_STREAMS_PATH):
+        with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
+            raw = json.load(f)
+        for item in raw:
+            if item.get('tipo') == 'm3u':
+                canales = parsear_m3u(item['url'])
+                streams.extend(canales)
+            elif item.get('tipo') == 'auto':
+                item['tipo'] = detectar_tipo(item['url'])
+                streams.append(item)
+            else:
+                streams.append(item)
+    return render_template('live.html', streams=streams, active_section='directo')
 
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():

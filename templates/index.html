@@ -1,17 +1,9 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FLASKCAST</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
-    <style>
-        /* Color rojo clásico de streaming */
-        :root {
-            --main-color: #e50914;
-        }
+{% extends 'base.html' %}
 
-        /* Barra de estado superior */
+{% block title %}FLASKCAST{% endblock %}
+
+{% block head %}
+    <style>
         .user-status-bar {
             display: flex;
             justify-content: space-between;
@@ -23,12 +15,10 @@
         .profile-widget {
             display: flex;
             align-items: center;
-            gap: 10px;
             text-decoration: none;
             color: #ffffff;
             padding: 6px 12px;
             border-radius: 8px;
-            transition: background-color 0.2s ease;
         }
         .profile-widget:hover {
             background-color: #252525;
@@ -46,7 +36,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
         .profile-avatar.invitado-style {
-            border-color: var(--main-color);
+            border-color: #e50914;
             background-color: #221111;
         }
         .profile-name {
@@ -54,8 +44,6 @@
             font-weight: 600;
             color: #ffffff;
         }
-        
-        /* Botón de Ajustes */
         .btn-settings {
             background-color: #222;
             color: #fff;
@@ -68,18 +56,15 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            transition: background 0.2s, border-color 0.2s;
         }
         .btn-settings:hover {
             background-color: #333;
-            border-color: var(--main-color);
+            border-color: #e50914;
         }
-
-        /* Encabezado con fondo transparente */
         header {
             text-align: center;
             padding: 50px 0 20px 0;
-            background: transparent; /* Totalmente transparente para integrarse con la página */
+            background: transparent;
             margin-bottom: 20px;
         }
         header h1 {
@@ -87,21 +72,13 @@
             font-weight: 900;
             letter-spacing: 4px;
             margin: 0;
-            /* Textura con degradado de rojo vivo a rojo clásico */
-            background: linear-gradient(180deg, #ff4d53 0%, var(--main-color) 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #e50914;
             text-shadow: 0 4px 15px rgba(0,0,0,0.6);
-            user-select: none;
         }
-
-        /* Barra de Búsqueda */
         .search-container {
             margin: 10px auto 30px auto;
             max-width: 500px;
             width: 100%;
-            display: flex;
         }
         .search-input {
             width: 100%;
@@ -111,18 +88,16 @@
             padding: 12px 16px;
             border-radius: 6px;
             font-size: 1rem;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box;
         }
         .search-input:focus {
             outline: none;
-            border-color: var(--main-color);
-            box-shadow: 0 0 8px var(--main-color);
+            border-color: #e50914;
+            box-shadow: 0 0 8px #e50914;
         }
-
-        /* Cuadrícula de Series (Carteles 1:1) */
         .video-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
             gap: 25px;
             padding: 20px 0;
         }
@@ -131,17 +106,16 @@
             border: 1px solid #222;
             border-radius: 6px;
             overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            width: 180px;
         }
         .video-card:hover {
-            transform: scale(1.05);
-            border-color: var(--main-color);
+            border-color: #e50914;
             box-shadow: 0 0 15px rgba(229, 9, 20, 0.4);
         }
         .thumb {
             position: relative;
             width: 100%;
-            aspect-ratio: 1 / 1;
+            height: 180px;
             overflow: hidden;
             background: #1a1a1a;
         }
@@ -149,21 +123,19 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform 0.3s ease;
         }
         .card-title {
             text-align: center;
             font-weight: bold;
             padding: 12px 8px;
             font-size: 1rem;
-            white-space: normal;
-            word-break: normal;
-            overflow-wrap: break-word;
             color: #eee;
+            word-break: break-word;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
@@ -179,7 +151,7 @@
         {% else %}
             <a href="/usuarios_panel" class="profile-widget" title="Iniciar Sesión">
                 <div class="profile-avatar invitado-style">👤</div>
-                <span class="profile-name" style="color: var(--main-color);">Invitado</span>
+                <span class="profile-name" style="color: #e50914;">Invitado</span>
             </a>
             <div>
                 <a href="/ajustes" class="btn-settings">⚙️ Ajustes</a>
@@ -220,19 +192,17 @@
 
     <script>
         document.getElementById('realtime-search').addEventListener('input', function() {
-            const query = this.value.toLowerCase().trim();
-            const cards = document.querySelectorAll('.video-card');
-
-            cards.forEach(card => {
-                const titleText = card.querySelector('.card-title').textContent.toLowerCase();
-                if (titleText.includes(query)) {
-                    card.style.display = '';
+            var query = this.value.toLowerCase().trim();
+            var cards = document.querySelectorAll('.video-card');
+            for (var i = 0; i < cards.length; i++) {
+                var titleText = cards[i].querySelector('.card-title').textContent.toLowerCase();
+                if (titleText.indexOf(query) !== -1) {
+                    cards[i].style.display = '';
                 } else {
-                    card.style.display = 'none';
+                    cards[i].style.display = 'none';
                 }
-            });
+            }
         });
     </script>
 
-</body>
-</html>
+{% endblock %}

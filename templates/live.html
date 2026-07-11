@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+
+{% block title %}Contenido en directo - FLASKCAST{% endblock %}
+
+{% block head %}
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+    <style>
+        .live-header {
+            text-align: center;
+            padding: 40px 0 20px 0;
+        }
+        .live-header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin: 0;
+            color: #e50914;
+        }
+        .live-header p {
+            color: #888;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+        .live-list {
+            padding: 10px 0;
+        }
+        .live-item {
+            background: #1c1c1c;
+            border: 1px solid #2b2b2b;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .live-item:hover {
+            border-color: #e50914;
+        }
+        .live-item-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .live-item-title {
+            color: #ffffff;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .live-item-url {
+            color: #888888;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+        .live-item-btn {
+            display: inline-block;
+            background: #e50914;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            margin-left: 20px;
+            cursor: pointer;
+            border: none;
+        }
+        .live-item-btn:hover {
+            opacity: 0.9;
+        }
+        .live-empty {
+            text-align: center;
+            color: #888;
+            padding: 60px 20px;
+            font-size: 1rem;
+        }
+
+        /* Modal reproductor */
+        .player-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .player-modal {
+            width: 90%;
+            max-width: 900px;
+            background: #111;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        .player-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        .player-modal-title {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .player-modal-close {
+            color: #888;
+            font-size: 1.6rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .player-modal-close:hover {
+            color: #ffffff;
+        }
+        .player-modal-body {
+            background: #000;
+        }
+        .player-modal-body video {
+            width: 100%;
+            max-height: 520px;
+            display: block;
+        }
+        .player-modal-body iframe {
+            width: 100%;
+            height: 520px;
+            border: none;
+            display: block;
+        }
+        .player-modal-body .enlace-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: #ccc;
+        }
+        .player-modal-body .enlace-msg p {
+            margin-bottom: 20px;
+            color: #888;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+        .player-modal-body .enlace-msg a {
+            display: inline-block;
+            background: #e50914;
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 28px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 0 8px;
+        }
+        .player-modal-body .enlace-msg a:hover {
+            opacity: 0.9;
+        }
+        .player-modal-body .enlace-msg .btn-cancelar {
+            background: #333;
+        }
+        .player-modal-body .enlace-msg .btn-cancelar:hover {
+            background: #444;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+
+    <div class="live-header">
+        <h1>Contenido en directo</h1>
+        <p>Pulsa en Ver para abrir el reproductor</p>
+    </div>
+
+    <div class="live-list">
+        {% if streams %}
+            {% for stream in streams %}
+                <div class="live-item">
+                    <div class="live-item-info">
+                        <span class="live-item-title">{{ stream.titulo }}</span>
+                        <span class="live-item-url">{{ stream.url }}</span>
+                    </div>
+                    <button class="live-item-btn"
+                        data-url="{{ stream.url }}"
+                        data-tipo="{{ stream.tipo }}"
+                        data-titulo="{{ stream.titulo }}"
+                        onclick="abrirReproductor(this)">Ver</button>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="live-empty">
+                No hay streams en directo disponibles en este momento.<br>
+                Agrega enlaces en <code>data/live_streams.json</code>.
+            </div>
+        {% endif %}
+    </div>
+
+    <div id="player-overlay" class="player-overlay">
+        <div class="player-modal">
+            <div class="player-modal-header">
+                <span class="player-modal-title" id="pm-title"></span>
+                <button class="player-modal-close" onclick="cerrarReproductor()">&times;</button>
+            </div>
+            <div class="player-modal-body" id="pm-body"></div>
+        </div>
+    </div>
+
+    <script>
+        var hlsActivo = null;
+
+        function abrirReproductor(btn) {
+            var url = btn.getAttribute('data-url');
+            var tipo = btn.getAttribute('data-tipo');
+            var titulo = btn.getAttribute('data-titulo');
+            var body = document.getElementById('pm-body');
+            var title = document.getElementById('pm-title');
+
+            title.textContent = titulo;
+            body.innerHTML = '';
+
+            if (tipo === 'video') {
+                var vid = document.createElement('video');
+                vid.setAttribute('controls', '');
+                vid.setAttribute('preload', 'metadata');
+                vid.style.width = '100%';
+                vid.style.maxHeight = '520px';
+                vid.style.display = 'block';
+                var src = document.createElement('source');
+                src.setAttribute('src', url);
+                vid.appendChild(src);
+                body.appendChild(vid);
+
+            } else if (tipo === 'hls') {
+                var vid = document.createElement('video');
+                vid.setAttribute('controls', '');
+                vid.setAttribute('preload', 'metadata');
+                vid.style.width = '100%';
+                vid.style.maxHeight = '520px';
+                vid.style.display = 'block';
+                body.appendChild(vid);
+
+                if (vid.canPlayType('application/vnd.apple.mpegurl')) {
+                    vid.src = url;
+                } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                    hlsActivo = new Hls();
+                    hlsActivo.loadSource(url);
+                    hlsActivo.attachMedia(vid);
+                } else {
+                    body.innerHTML = '<div class="enlace-msg"><p>' + url + '</p><a href="' + url + '" target="_blank">Abrir stream</a></div>';
+                }
+
+            } else if (tipo === 'iframe') {
+                var ifr = document.createElement('iframe');
+                ifr.setAttribute('src', url);
+                ifr.setAttribute('allowfullscreen', '');
+                ifr.style.width = '100%';
+                ifr.style.height = '520px';
+                ifr.style.border = 'none';
+                ifr.style.display = 'block';
+                body.appendChild(ifr);
+
+            } else {
+                body.innerHTML = '<div class="enlace-msg"><p>Se va a abrir un sitio de terceros:</p><p>' + url + '</p><a href="' + url + '" target="_blank">Acceder</a> <a href="javascript:cerrarReproductor()" class="btn-cancelar">Rechazar</a></div>';
+            }
+
+            document.getElementById('player-overlay').style.display = 'flex';
+        }
+
+        function cerrarReproductor() {
+            var body = document.getElementById('pm-body');
+            if (hlsActivo) {
+                hlsActivo.destroy();
+                hlsActivo = null;
+            }
+            body.innerHTML = '';
+            document.getElementById('player-overlay').style.display = 'none';
+        }
+
+        document.getElementById('player-overlay').onclick = function(e) {
+            if (e.target === this) {
+                cerrarReproductor();
+            }
+        };
+
+        document.onkeydown = function(e) {
+            if (e.keyCode === 27) {
+                cerrarReproductor();
+            }
+        };
+    </script>
+
+{% endblock %}

@@ -594,6 +594,80 @@ h1 {
     border-color: #ff4444;
 }
 
+/* --- BARRA LATERAL DE NAVEGACIÓN (SIDEBAR) --- */
+/* Compatible con navegadores antiguos: usa float, sin CSS Grid, sin variables, sin calc */
+
+body.sidebar-layout {
+    padding: 0;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 220px;
+    height: 100%;
+    background-color: #111111;
+    border-right: 1px solid #222222;
+    z-index: 100;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 24px 20px 20px 20px;
+    border-bottom: 1px solid #222222;
+}
+
+.sidebar-logo {
+    display: block;
+    color: #e50914;
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-decoration: none;
+    text-align: center;
+}
+
+.sidebar-nav {
+    padding: 12px 0;
+}
+
+.sidebar-link {
+    display: block;
+    padding: 14px 20px;
+    color: #999999;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-left: 3px solid transparent;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+.sidebar-link:hover {
+    color: #ffffff;
+    background-color: #1c1c1c;
+}
+
+.sidebar-link-active {
+    color: #ffffff;
+    background-color: #1c1c1c;
+    border-left-color: #e50914;
+}
+
+.sidebar-icon {
+    margin-right: 10px;
+    font-size: 1.1rem;
+}
+
+.main-content {
+    margin-left: 220px;
+    padding: 30px;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
 /* --- BOTÓN DE INFORMACIÓN --- */
 .btn-info {
     background: #333;
