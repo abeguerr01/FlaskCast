@@ -77,7 +77,7 @@
     <div class="tv-player-wrapper">
         {% if tipo == 'video' %}
             <video controls autoplay preload="auto"
-                   data-urls="{{ urls | tojson }}"></video>
+                   data-urls="{{ urls | tojson | forceescape }}"></video>
             <script>
                 (function() {
                     var v = document.querySelector('.tv-player-wrapper video');

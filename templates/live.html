@@ -183,7 +183,7 @@
                     </div>
                     <div style="display:flex; gap:8px; margin-left:20px;">
                         <button class="live-item-btn"
-                            data-urls="{{ stream.urls | tojson }}"
+                            data-urls="{{ stream.urls | tojson | forceescape }}"
                             data-tipo="{{ stream.tipo }}"
                             data-titulo="{{ stream.titulo }}"
                             onclick="abrirReproductor(this)">Ver</button>
@@ -216,7 +216,12 @@
         var tipoActual = '';
 
         function abrirReproductor(btn) {
-            urlsActuales = JSON.parse(btn.getAttribute('data-urls'));
+            try {
+                urlsActuales = JSON.parse(btn.getAttribute('data-urls'));
+            } catch(e) {
+                var fallback = btn.getAttribute('data-urls');
+                urlsActuales = fallback ? [fallback] : [];
+            }
             tipoActual = btn.getAttribute('data-tipo');
             var titulo = btn.getAttribute('data-titulo');
             var body = document.getElementById('pm-body');
