@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlaskCast TV - {{ titulo }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
     <style>
         body {
             background-color: #000000;
@@ -75,27 +76,71 @@
 
     <div class="tv-player-wrapper">
         {% if tipo == 'video' %}
-            <video controls autoplay preload="auto">
-                <source src="{{ url }}">
-                Tu Smart TV no soporta la decodificaci&oacute;n de este archivo de v&iacute;deo.
-            </video>
+            <video controls autoplay preload="auto"
+                   data-urls="{{ urls | tojson }}"></video>
+            <script>
+                (function() {
+                    var v = document.querySelector('.tv-player-wrapper video');
+                    var urls = JSON.parse(v.getAttribute('data-urls'));
+                    var idx = 0;
+                    v.src = urls[idx];
+                    v.onerror = function() {
+                        if (idx < urls.length - 1) {
+                            idx++;
+                            v.src = urls[idx];
+                        } else {
+                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                        }
+                    };
+                })();
+            </script>
 
         {% elif tipo == 'hls' %}
-            <video id="tvPlayerHls" controls autoplay preload="auto"
-                   src="{{ url }}"></video>
+            <video id="tvPlayerHls" controls autoplay preload="auto"></video>
             <script>
-                var v = document.getElementById('tvPlayerHls');
-                v.onerror = function() {
-                    document.body.innerHTML = '<div class="tv-msg">Tu navegador no soporta este stream HLS.<br><br><a href="{{ url }}" style="color:#e50914;">Abrir enlace directo</a></div>';
-                };
+                (function() {
+                    var v = document.getElementById('tvPlayerHls');
+                    var urls = {{ urls | tojson }};
+                    var idx = 0;
+
+                    function intentarURL(i) {
+                        if (v.canPlayType('application/vnd.apple.mpegurl')) {
+                            v.src = urls[i];
+                            v.onerror = function() {
+                                if (i < urls.length - 1) {
+                                    intentarURL(i + 1);
+                                } else {
+                                    document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes HLS fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                                }
+                            };
+                        } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                            var hls = new Hls();
+                            hls.loadSource(urls[i]);
+                            hls.attachMedia(v);
+                            hls.on(Hls.Events.ERROR, function(event, data) {
+                                if (data.fatal) {
+                                    hls.destroy();
+                                    if (i < urls.length - 1) {
+                                        intentarURL(i + 1);
+                                    } else {
+                                        document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes HLS fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                                    }
+                                }
+                            });
+                        } else {
+                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Tu navegador no soporta este stream HLS.<br><br><a href="' + urls[i] + '" style="color:#e50914;">Abrir enlace directo</a></div>';
+                        }
+                    }
+                    intentarURL(0);
+                })();
             </script>
 
         {% elif tipo == 'iframe' %}
-            <iframe src="{{ url }}" allowfullscreen></iframe>
+            <iframe src="{{ urls[0] }}" allowfullscreen></iframe>
 
         {% else %}
             <div class="tv-msg">
-                <div>Tipo de stream no soportado en modo SmartTV.<br><br><a href="{{ url }}" style="color:#e50914;">Abrir enlace directo</a></div>
+                <div>Tipo de stream no soportado en modo SmartTV.<br><br><a href="{{ urls[0] }}" style="color:#e50914;">Abrir enlace directo</a></div>
             </div>
         {% endif %}
     </div>

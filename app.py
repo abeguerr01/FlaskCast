@@ -245,6 +245,15 @@ def parsear_m3u(url):
         print("Error al parsear M3U: " + str(e))
     return canales
 
+def normalizar_urls(stream):
+    urls_raw = stream.get('urls', stream.get('url', ''))
+    if isinstance(urls_raw, list):
+        stream['urls'] = urls_raw
+    else:
+        stream['urls'] = [urls_raw] if urls_raw else []
+    stream['url'] = stream['urls'][0] if stream['urls'] else ''
+    return stream
+
 def cargar_streams():
     streams = []
     if os.path.exists(LIVE_STREAMS_PATH):
@@ -252,12 +261,17 @@ def cargar_streams():
             raw = json.load(f)
         for item in raw:
             if item.get('tipo') == 'm3u':
-                canales = parsear_m3u(item['url'])
+                m3u_url = item.get('url', '')
+                canales = parsear_m3u(m3u_url)
+                for canal in canales:
+                    canal = normalizar_urls(canal)
                 streams.extend(canales)
             elif item.get('tipo') == 'auto':
-                item['tipo'] = detectar_tipo(item['url'])
+                item['tipo'] = detectar_tipo(item.get('url', ''))
+                item = normalizar_urls(item)
                 streams.append(item)
             else:
+                item = normalizar_urls(item)
                 streams.append(item)
     return streams
 
@@ -272,7 +286,7 @@ def live_tv(indice):
     if indice < 0 or indice >= len(streams):
         return abort(404)
     s = streams[indice]
-    return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], tipo=s.get('tipo', 'iframe'))
+    return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], urls=s.get('urls', [s['url']]), tipo=s.get('tipo', 'iframe'))
 
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():

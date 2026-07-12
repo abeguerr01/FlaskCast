@@ -179,11 +179,11 @@
                 <div class="live-item">
                     <div class="live-item-info">
                         <span class="live-item-title">{{ stream.titulo }}</span>
-                        <span class="live-item-url">{{ stream.url }}</span>
+                        <span class="live-item-url">{{ stream.urls | length }} fuente(s) disponible(s)</span>
                     </div>
                     <div style="display:flex; gap:8px; margin-left:20px;">
                         <button class="live-item-btn"
-                            data-url="{{ stream.url }}"
+                            data-urls="{{ stream.urls | tojson }}"
                             data-tipo="{{ stream.tipo }}"
                             data-titulo="{{ stream.titulo }}"
                             onclick="abrirReproductor(this)">Ver</button>
@@ -211,63 +211,120 @@
 
     <script>
         var hlsActivo = null;
+        var urlsActuales = [];
+        var indiceUrlActual = 0;
+        var tipoActual = '';
 
         function abrirReproductor(btn) {
-            var url = btn.getAttribute('data-url');
-            var tipo = btn.getAttribute('data-tipo');
+            urlsActuales = JSON.parse(btn.getAttribute('data-urls'));
+            tipoActual = btn.getAttribute('data-tipo');
             var titulo = btn.getAttribute('data-titulo');
             var body = document.getElementById('pm-body');
             var title = document.getElementById('pm-title');
 
             title.textContent = titulo;
             body.innerHTML = '';
+            indiceUrlActual = 0;
 
-            if (tipo === 'video') {
-                var vid = document.createElement('video');
-                vid.setAttribute('controls', '');
-                vid.setAttribute('preload', 'metadata');
-                vid.style.width = '100%';
-                vid.style.maxHeight = '520px';
-                vid.style.display = 'block';
-                var src = document.createElement('source');
-                src.setAttribute('src', url);
-                vid.appendChild(src);
-                body.appendChild(vid);
-
-            } else if (tipo === 'hls') {
-                var vid = document.createElement('video');
-                vid.setAttribute('controls', '');
-                vid.setAttribute('preload', 'metadata');
-                vid.style.width = '100%';
-                vid.style.maxHeight = '520px';
-                vid.style.display = 'block';
-                body.appendChild(vid);
-
-                if (vid.canPlayType('application/vnd.apple.mpegurl')) {
-                    vid.src = url;
-                } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-                    hlsActivo = new Hls();
-                    hlsActivo.loadSource(url);
-                    hlsActivo.attachMedia(vid);
-                } else {
-                    body.innerHTML = '<div class="enlace-msg"><p>' + url + '</p><a href="' + url + '" target="_blank">Abrir stream</a></div>';
-                }
-
-            } else if (tipo === 'iframe') {
+            if (tipoActual === 'video') {
+                reproducirVideo();
+            } else if (tipoActual === 'hls') {
+                reproducirHLS();
+            } else if (tipoActual === 'iframe') {
                 var ifr = document.createElement('iframe');
-                ifr.setAttribute('src', url);
+                ifr.setAttribute('src', urlsActuales[0]);
                 ifr.setAttribute('allowfullscreen', '');
                 ifr.style.width = '100%';
                 ifr.style.height = '520px';
                 ifr.style.border = 'none';
                 ifr.style.display = 'block';
                 body.appendChild(ifr);
-
             } else {
-                body.innerHTML = '<div class="enlace-msg"><p>Se va a abrir un sitio de terceros:</p><p>' + url + '</p><a href="' + url + '" target="_blank">Acceder</a> <a href="javascript:cerrarReproductor()" class="btn-cancelar">Rechazar</a></div>';
+                body.innerHTML = '<div class="enlace-msg"><p>Se va a abrir un sitio de terceros:</p><p>' + urlsActuales[0] + '</p><a href="' + urlsActuales[0] + '" target="_blank">Acceder</a> <a href="javascript:cerrarReproductor()" class="btn-cancelar">Rechazar</a></div>';
             }
 
             document.getElementById('player-overlay').style.display = 'flex';
+        }
+
+        function reproducirVideo() {
+            var body = document.getElementById('pm-body');
+            var vid = document.createElement('video');
+            vid.setAttribute('controls', '');
+            vid.setAttribute('preload', 'metadata');
+            vid.style.width = '100%';
+            vid.style.maxHeight = '520px';
+            vid.style.display = 'block';
+            body.appendChild(vid);
+
+            vid.src = urlsActuales[indiceUrlActual];
+            vid.onerror = function() {
+                if (indiceUrlActual < urlsActuales.length - 1) {
+                    indiceUrlActual++;
+                    vid.src = urlsActuales[indiceUrlActual];
+                } else {
+                    body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+                }
+            };
+        }
+
+        function reproducirHLS() {
+            var body = document.getElementById('pm-body');
+            var vid = document.createElement('video');
+            vid.setAttribute('controls', '');
+            vid.setAttribute('preload', 'metadata');
+            vid.style.width = '100%';
+            vid.style.maxHeight = '520px';
+            vid.style.display = 'block';
+            body.appendChild(vid);
+
+            if (vid.canPlayType('application/vnd.apple.mpegurl')) {
+                vid.src = urlsActuales[0];
+                vid.onerror = function() {
+                    intentarFallbackHLSNativo(vid);
+                };
+            } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                intentarFallbackHlsJS(vid);
+            } else {
+                body.innerHTML = '<div class="enlace-msg"><p>No se puede reproducir este stream.</p><a href="' + urlsActuales[0] + '" target="_blank">Abrir enlace</a></div>';
+            }
+        }
+
+        function intentarFallbackHLSNativo(vid) {
+            if (indiceUrlActual < urlsActuales.length - 1) {
+                indiceUrlActual++;
+                vid.src = urlsActuales[indiceUrlActual];
+                vid.onerror = function() {
+                    intentarFallbackHLSNativo(vid);
+                };
+            } else {
+                var body = document.getElementById('pm-body');
+                body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes HLS fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+            }
+        }
+
+        function intentarFallbackHlsJS(vid) {
+            if (hlsActivo) {
+                hlsActivo.destroy();
+                hlsActivo = null;
+            }
+            var url = urlsActuales[indiceUrlActual];
+            hlsActivo = new Hls();
+            hlsActivo.loadSource(url);
+            hlsActivo.attachMedia(vid);
+            hlsActivo.on(Hls.Events.ERROR, function(event, data) {
+                if (data.fatal) {
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        if (indiceUrlActual < urlsActuales.length - 1) {
+                            indiceUrlActual++;
+                            intentarFallbackHlsJS(vid);
+                        } else {
+                            if (hlsActivo) { hlsActivo.destroy(); hlsActivo = null; }
+                            var body = document.getElementById('pm-body');
+                            body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes HLS fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+                        }
+                    }
+                }
+            });
         }
 
         function cerrarReproductor() {
@@ -276,6 +333,8 @@
                 hlsActivo.destroy();
                 hlsActivo = null;
             }
+            urlsActuales = [];
+            indiceUrlActual = 0;
             body.innerHTML = '';
             document.getElementById('player-overlay').style.display = 'none';
         }
