@@ -188,3 +188,5 @@ data/*
 data/media/*
 #   Excepción: Permitir el archivo .gitkeep para que la carpeta no esté vacía en Git
 !data/media/.gitkeep 
+!data/config.json
+!data/live_streams.json

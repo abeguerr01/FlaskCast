@@ -1,0 +1,12 @@
+[
+    {
+        "titulo": "ENLACE DE EJEMPLO",
+        "url": "https://enlace.de.ejemplo",
+        "tipo": "hls"
+    },
+    {
+        "titulo": "ENLACE DE EJEMPLO 2",
+        "url": "https://enlace.de.ejemplo.2",
+        "tipo": "hls"
+    }
+]
