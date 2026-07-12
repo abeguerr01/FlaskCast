@@ -3,7 +3,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'config.json')
 
 
 def leer_config():

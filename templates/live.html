@@ -181,11 +181,14 @@
                         <span class="live-item-title">{{ stream.titulo }}</span>
                         <span class="live-item-url">{{ stream.url }}</span>
                     </div>
-                    <button class="live-item-btn"
-                        data-url="{{ stream.url }}"
-                        data-tipo="{{ stream.tipo }}"
-                        data-titulo="{{ stream.titulo }}"
-                        onclick="abrirReproductor(this)">Ver</button>
+                    <div style="display:flex; gap:8px; margin-left:20px;">
+                        <button class="live-item-btn"
+                            data-url="{{ stream.url }}"
+                            data-tipo="{{ stream.tipo }}"
+                            data-titulo="{{ stream.titulo }}"
+                            onclick="abrirReproductor(this)">Ver</button>
+                        <a href="/live/tv/{{ loop.index0 }}" class="live-item-btn" style="background:#333; text-decoration:none; display:inline-block; padding:10px 16px; font-size:0.8rem;">SmartTV</a>
+                    </div>
                 </div>
             {% endfor %}
         {% else %}

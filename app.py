@@ -16,7 +16,7 @@ static_ffmpeg.add_paths()
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
-CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'config.json')
+CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 
 conversiones_activas = set()
 lock_conversiones = threading.Lock()
@@ -245,8 +245,7 @@ def parsear_m3u(url):
         print("Error al parsear M3U: " + str(e))
     return canales
 
-@app.route('/live')
-def live():
+def cargar_streams():
     streams = []
     if os.path.exists(LIVE_STREAMS_PATH):
         with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
@@ -260,7 +259,20 @@ def live():
                 streams.append(item)
             else:
                 streams.append(item)
+    return streams
+
+@app.route('/live')
+def live():
+    streams = cargar_streams()
     return render_template('live.html', streams=streams, active_section='directo')
+
+@app.route('/live/tv/<int:indice>')
+def live_tv(indice):
+    streams = cargar_streams()
+    if indice < 0 or indice >= len(streams):
+        return abort(404)
+    s = streams[indice]
+    return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], tipo=s.get('tipo', 'iframe'))
 
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():
