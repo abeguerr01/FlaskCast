@@ -72,7 +72,8 @@ class ConfigGUI:
         data = {
             'boton_apagar_visible': self.apagar_var.get(),
             'boton_apagar_todo_visible': self.apagar_todo_var.get(),
-            'puerto': puerto
+            'puerto': puerto,
+            'api_habilitada': cfg.get('api_habilitada', False)
         }
         guardar_config(data)
         self.status_label.config(text='Configuración guardada correctamente.')

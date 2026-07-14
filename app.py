@@ -20,6 +20,7 @@ CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 
 conversiones_activas = set()
 lock_conversiones = threading.Lock()
+api_habilitada = False
 
 
 def leer_config():
@@ -57,8 +58,6 @@ def inicializar_base_datos():
         cursor.execute("ALTER TABLE usuarios ADD COLUMN ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     if 'auto_marcar' not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN auto_marcar INTEGER DEFAULT 1")
-    if 'api_habilitada' not in columnas:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN api_habilitada INTEGER DEFAULT 0")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progreso (
@@ -145,7 +144,6 @@ def seleccionar_usuario(user_id):
         session['usuario_nombre'] = user['nombre']
         session['usuario_emoji'] = user['emoji']
         session['usuario_auto_marcar'] = user['auto_marcar']
-        session['usuario_api_habilitada'] = user['api_habilitada']
     return redirect(url_for('index'))
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
@@ -186,7 +184,6 @@ def salir_usuario():
     session.pop('usuario_nombre', None)
     session.pop('usuario_emoji', None)
     session.pop('usuario_auto_marcar', None)
-    session.pop('usuario_api_habilitada', None)
     return redirect(url_for('index'))
 
 @app.route('/')
@@ -290,36 +287,42 @@ def live_tv(indice):
 
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():
+    global api_habilitada
     usuario_id = session.get('usuario_id')
     
-    if request.method == 'POST' and usuario_id:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
-        api_habilitada_val = 1 if request.form.get('api_habilitada') == 'on' else 0
-        cursor.execute('UPDATE usuarios SET auto_marcar = ?, api_habilitada = ? WHERE id = ?', (auto_marcar, api_habilitada_val, usuario_id))
-        conn.commit()
-        session['usuario_auto_marcar'] = auto_marcar
-        session['usuario_api_habilitada'] = api_habilitada_val
+    if request.method == 'POST':
+        cfg = leer_config()
+        api_habilitada = request.form.get('api_habilitada') == 'on'
+        cfg['api_habilitada'] = api_habilitada
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=4, ensure_ascii=False)
+
+        if usuario_id:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
+            cursor.execute('UPDATE usuarios SET auto_marcar = ? WHERE id = ?', (auto_marcar, usuario_id))
+            conn.commit()
+            session['usuario_auto_marcar'] = auto_marcar
+
         return redirect(url_for('index'))
     
     auto_marcar = 1
-    api_habilitada_val = 0
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT auto_marcar, api_habilitada FROM usuarios WHERE id = ?', (usuario_id,))
+        cursor.execute('SELECT auto_marcar FROM usuarios WHERE id = ?', (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         if user:
             auto_marcar = user['auto_marcar']
-            api_habilitada_val = user['api_habilitada']
     
     cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=api_habilitada_val, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False))
+    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=1 if cfg.get('api_habilitada', False) else 0, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False))
 
 def api_habilitada_check():
-    return session.get('usuario_api_habilitada') == 1
+    global api_habilitada
+    return api_habilitada
 
 @app.route('/api/videos/add', methods=['POST'])
 def api_agregar_video():
@@ -754,17 +757,18 @@ if __name__ == '__main__':
     inicializar_base_datos()
     
     cfg = leer_config()
+    api_habilitada = cfg.get('api_habilitada', False)
     puerto = cfg.get('puerto', 5000)
     sistema = platform.system()
     
     if sistema == "Windows":
         from waitress import serve
-        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}...")
+        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}.")
         serve(app, host='0.0.0.0', port=puerto, threads=6)
         
     else:
         import subprocess
-        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}...")
+        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}.")
         subprocess.run([
             "gunicorn", 
             "--bind", f"0.0.0.0:{puerto}", 

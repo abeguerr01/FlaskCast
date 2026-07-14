@@ -1,5 +1,6 @@
 {
     "boton_apagar_visible": false,
     "boton_apagar_todo_visible": false,
-    "puerto": 5000
+    "puerto": 5000,
+    "api_habilitada": false
 }
