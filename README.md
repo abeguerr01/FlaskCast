@@ -11,7 +11,7 @@ FlaskCast es un portal de streaming multimedia personal y local construido con P
 - **Miniaturas dinámicas:** extrae fotogramas como `.jpg` para previsualizaciones.
 - **Seguimiento por usuario:** guarda la posición exacta (segundos), marca "En progreso" y "Visto" según umbrales configurables.
 - **API REST completa:** añade, elimina, lista, descarga vídeos y gestiona el progreso mediante endpoints protegidos por toggle.
-- **Streaming en Vivo:** reproduce streams en directo (HLS, iframes, vídeos) con soporte para listas M3U y modo SmartTV.
+- **Streaming en Vivo:** reproduce streams en directo (HLS, iframes, vídeos) con soporte para listas M3U, modo SmartTV y **fallback automático con múltiples fuentes**.
 - **Modo SmartTV:** reproductor optimizado para televisores conectados a la red local.
 - **Auto-reproducción:** el reproductor avanza automáticamente al siguiente capítulo de la temporada.
 - **Interfaz ligera:** HTML5, CSS y JavaScript Vanilla para reproducción y búsqueda en tiempo real.
@@ -161,7 +161,16 @@ Los streams se configuran en el archivo `data/live_streams.json`. Si el archivo 
     "tipo": "auto"
   },
   {
-    "titulo": "Canal HLS Directo",
+    "titulo": "Canal HLS con Fallback",
+    "urls": [
+      "https://principal.com/stream.m3u8",
+      "https://backup1.com/stream.m3u8",
+      "https://backup2.com/stream.m3u8"
+    ],
+    "tipo": "hls"
+  },
+  {
+    "titulo": "Canal HLS Simple",
     "url": "https://ejemplo.com/live/playlist.m3u8",
     "tipo": "hls"
   },
@@ -177,6 +186,44 @@ Los streams se configuran en el archivo `data/live_streams.json`. Si el archivo 
   }
 ]
 ```
+
+### Múltiples URLs y fallback automático
+
+Cada stream puede definir múltiples fuentes de reproducción mediante el campo `urls` (array). Cuando una fuente falla (caída del servidor, problemas de red, etc.), el reproductor **salta automáticamente a la siguiente** sin intervención del usuario.
+
+**Formatos soportados (retrocompatibles):**
+
+```json
+// Una sola URL (formato simple, retrocompatible)
+{
+  "titulo": "Canal A",
+  "url": "https://stream.com/live.m3u8",
+  "tipo": "hls"
+}
+
+// Múltiples URLs (fallback automático)
+{
+  "titulo": "Canal B",
+  "url": "https://principal.com/live.m3u8",
+  "urls": [
+    "https://principal.com/live.m3u8",
+    "https://backup1.com/live.m3u8",
+    "https://backup2.com/live.m3u8"
+  ],
+  "tipo": "hls"
+}
+```
+
+- Si solo se usa `"url"` (string), se comporta como una única fuente.
+- Si se usa `"urls"` (array), el player intentará cada fuente en orden hasta encontrar una que funcione.
+- El campo `"url"` se mantiene para retrocompatibilidad; si se proporciona `"urls"`, este tiene prioridad.
+
+**¿Cuándo es útil?**
+
+- **Redundancia:** si un servidor CDN cae, el player usa el siguiente automáticamente.
+- **Carga balanceada:** distribuir la conexión entre diferentes servidores.
+- **Calidad adaptativa:** diferentes enlaces pueden apuntar a distintas calidades (1080p, 720p, 480p).
+- **Reducción de latencia:** enlaces de diferentes regiones para usuarios en distintas ubicaciones.
 
 ### Tipos de streams soportados
 
@@ -210,6 +257,8 @@ http://server/canal2/stream.m3u8
 - **Modal en PC:** al hacer clic en "Ver", se abre un reproductor modal superpuesto.
 - **Modo SmartTV:** vista optimizada con pantalla completa y controles grandes para televisores.
 - **Soporte HLS:** usa HLS.js como fallback cuando el navegador no soporta HLS nativo (todos excepto Safari).
+- **Fallback automático:** si un stream falla, el player intenta la siguiente URL disponible sin intervención del usuario.
+- **SmartTV con HLS.js:** el reproductor SmartTV ahora incluye HLS.js desde CDN, permitiendo reproducción HLS en navegadores sin soporte nativo.
 - **Tecla Escape:** cierra el reproductor modal.
 
 ---
@@ -236,7 +285,8 @@ Características:
 http://localhost:5000/live/tv/<indice>
 ```
 
-- Soporta vídeo directo, HLS nativo e iframes
+- Soporta vídeo directo, HLS (con HLS.js) e iframes
+- Fallback automático entre múltiples fuentes
 - Diseñado para ser controlado con el mando del televisor
 
 ---

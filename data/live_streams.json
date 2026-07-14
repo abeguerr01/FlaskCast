@@ -2,11 +2,19 @@
     {
         "titulo": "ENLACE DE EJEMPLO",
         "url": "https://enlace.de.ejemplo",
+        "urls": [
+            "https://enlace.de.ejemplo",
+            "https://backup1.de.ejemplo",
+            "https://backup2.de.ejemplo"
+        ],
         "tipo": "hls"
     },
     {
         "titulo": "ENLACE DE EJEMPLO 2",
-        "url": "https://enlace.de.ejemplo.2",
+        "urls": [
+            "https://enlace.de.ejemplo.2",
+            "https://backup.de.ejemplo.2"
+        ],
         "tipo": "hls"
     }
 ]

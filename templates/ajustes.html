@@ -199,12 +199,12 @@
                         <button type="button" class="btn-info" onclick="document.getElementById('apiInfoModal').style.display='flex'" title="¿Cómo usar la API?">i</button>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" id="api_habilitada" name="api_habilitada" {% if api_habilitada == 1 %}checked{% endif %}>
+                        <input type="checkbox" id="api_habilitada" name="api_habilitada" {% if api_habilitada == 1 %}checked{% endif %} onchange="onApiToggle(this)">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Activa la API REST para agregar y eliminar vídeos mediante peticiones externas. Necesitas tener una sesión iniciada para usarla. Haz clic en <strong>"i"</strong> para ver la documentación.
+                    Configuración <strong>global</strong> (no por usuario). Activa la API REST para agregar, eliminar y listar vídeos mediante peticiones externas desde cualquier cliente. Necesitas tener una sesión iniciada para usarla. Haz clic en <strong>"i"</strong> para ver la documentación.
                 </p>
 
                 <button type="submit" class="btn-save">Guardar Configuración</button>
@@ -221,6 +221,32 @@
             <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">⏻ Apagar Todo</button>
             {% endif %}
             {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal de confirmación activar API -->
+    <div class="modal-overlay" id="apiConfirmModal" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal-box api-modal" style="max-width: 450px;">
+            <span class="modal-close-btn" onclick="cancelarActivarAPI()">&times;</span>
+            <h2 style="color: #ff8800; margin-bottom: 20px;">⚠️ Activar API</h2>
+            <div class="api-docs-content">
+                <p>Estás a punto de <strong>habilitar la API REST</strong> de FlaskCast.</p>
+                <div class="api-note" style="border-left-color: #ff8800; background: #2a2a1a;">
+                    Esta configuración es <strong>global</strong>: afecta a <strong>todos los usuarios</strong> del servidor, no solo a tu cuenta.
+                </div>
+                <p style="margin-top: 15px;">Al activarla, cualquier cliente con una sesión válida podrá:</p>
+                <ul>
+                    <li><strong>Listar</strong> todas las series y vídeos almacenados.</li>
+                    <li><strong>Subir</strong> nuevos vídeos a series y temporadas existentes.</li>
+                    <li><strong>Eliminar</strong> vídeos del servidor.</li>
+                    <li><strong>Descargar</strong> archivos de vídeo directamente.</li>
+                </ul>
+                <p style="margin-top: 15px; color: #aaa;">No se activa nada nuevo al desactivarla; simplemente se bloquean las peticiones a la API.</p>
+                <div style="display: flex; gap: 10px; margin-top: 25px;">
+                    <button type="button" class="btn-save" onclick="confirmarActivarAPI()" style="flex:1;">Aceptar</button>
+                    <button type="button" class="btn-shutdown" onclick="cancelarActivarAPI()" style="flex:1; margin-top: 0;">Cancelar</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -313,6 +339,28 @@ Content-Type: application/json</pre>
     </div>
 
     <script>
+        var apiCheckbox = document.getElementById('api_habilitada');
+        var apiWasChecked = apiCheckbox.checked;
+
+        function onApiToggle(el) {
+            if (el.checked && !apiWasChecked) {
+                document.getElementById('apiConfirmModal').style.display = 'flex';
+            } else {
+                apiWasChecked = el.checked;
+            }
+        }
+
+        function confirmarActivarAPI() {
+            apiWasChecked = true;
+            document.getElementById('apiConfirmModal').style.display = 'none';
+        }
+
+        function cancelarActivarAPI() {
+            apiCheckbox.checked = false;
+            apiWasChecked = false;
+            document.getElementById('apiConfirmModal').style.display = 'none';
+        }
+
         function apagarServidor() {
             if (!confirm('¿Estás seguro de que quieres apagar el servidor?')) return;
             fetch('/api/off')
@@ -348,6 +396,9 @@ Content-Type: application/json</pre>
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 document.getElementById('apiInfoModal').style.display = 'none';
+                if (document.getElementById('apiConfirmModal').style.display === 'flex') {
+                    cancelarActivarAPI();
+                }
             }
         });
     </script>

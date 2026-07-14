@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    container_name: plataforma_multimedia
+    container_name: FlaskCast
     ports:
       - "5000:5000"
     volumes:
