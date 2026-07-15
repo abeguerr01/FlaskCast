@@ -69,11 +69,12 @@ class ConfigGUI:
             messagebox.showerror('Error', 'El puerto debe ser un número entre 1 y 65535.')
             return
 
+        cfg_actual = leer_config()
         data = {
             'boton_apagar_visible': self.apagar_var.get(),
             'boton_apagar_todo_visible': self.apagar_todo_var.get(),
             'puerto': puerto,
-            'api_habilitada': cfg.get('api_habilitada', False)
+            'api_habilitada': cfg_actual.get('api_habilitada', False)
         }
         guardar_config(data)
         self.status_label.config(text='Configuración guardada correctamente.')
