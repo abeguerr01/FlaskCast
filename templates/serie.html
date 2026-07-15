@@ -238,6 +238,7 @@
                             <div class="thumb">
                                 <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
                                 <div class="lock-overlay">⚠️</div>
+                                <div class="loader-txt">Convirtiendo...</div>
                             </div>
                             <div class="badge">Incompatible</div>
                             <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
@@ -246,7 +247,6 @@
                                 <button class="btn-convert" onclick="convertirVideo('{{ video.ruta_relativa }}', this)">Convertir</button>
                                 <button class="btn-delete" onclick="eliminarVideo('{{ video.ruta_relativa }}', this)">Eliminar</button>
                             </div>
-                            <div class="loader-txt">Convirtiendo...</div>
                         </div>
                     {% endif %}
                 {% endfor %}
