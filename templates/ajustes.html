@@ -174,12 +174,13 @@
 
     <header>
         <h1>⚙️ Panel de Ajustes</h1>
-        <a href="/" class="btn-back">⬅ Cancelar y Volver</a>
+        <a href="{{ return_to }}" class="btn-back">⬅ Cancelar y Volver</a>
     </header>
 
     <div class="container">
         <div class="settings-box">
             <form action="/ajustes" method="POST">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="form-group">
                     <label for="auto_marcar">Marcar estado del capítulo automático</label>
                     <label class="switch">
@@ -189,6 +190,19 @@
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
                     Si está activado, el sistema marcará el capítulo como <strong>"Viendo"</strong> al alcanzar el 10% reproducido, y como <strong>"Visto"</strong> al pasar del 85%. Si se desactiva, los estados solo cambiarán al hacer click manual sobre la etiqueta.
+                </p>
+
+                <hr class="form-divider">
+
+                <div class="form-group">
+                    <label for="mostrar_progreso">Mostrar barra de progreso</label>
+                    <label class="switch">
+                        <input type="checkbox" id="mostrar_progreso" name="mostrar_progreso" {% if mostrar_progreso == 1 %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
+                    Muestra una barra de progreso debajo de cada capítulo indicando el porcentaje visto. Si se desactiva, las barras no se mostrarán en las tarjetas de episodios.
                 </p>
 
                 <hr class="form-divider">

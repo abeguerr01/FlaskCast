@@ -14,7 +14,7 @@
         <div class="profile-grid">
             {% for usuario in usuarios %}
                 <div class="profile-card">
-                    <a href="/usuarios/seleccionar/{{ usuario.id }}" class="profile-link">
+                    <a href="/usuarios/seleccionar/{{ usuario.id }}?return_to={{ return_to }}" class="profile-link">
                         <div class="profile-circle">{{ usuario.emoji if usuario.emoji else '👤' }}</div>
                         <div class="profile-name-txt">{{ usuario.nombre }}</div>
                     </a>
@@ -23,7 +23,7 @@
             {% endfor %}
             
             <div class="profile-card">
-                <a href="/usuarios/salir" class="profile-link">
+                <a href="/usuarios/salir?return_to={{ return_to }}" class="profile-link">
                     <div class="profile-circle" style="background-color: #e5091444; color: #e50914;">🕶️</div>
                     <div class="profile-name-txt" style="color: #e50914;">Invitado</div>
                 </a>
@@ -33,13 +33,14 @@
         <div class="form-crear-user">
             <h3 style="margin-bottom: 15px; color: #ccc;">Añadir nuevo perfil:</h3>
             <form action="/usuarios/crear" method="POST">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
                 <input type="text" name="nombre" placeholder="Nombre del usuario..." required autocomplete="off">
                 <button type="submit" class="btn-submit-user">Añadir</button>
             </form>
         </div>
         
         <div style="margin-top: 30px;">
-            <a href="/" style="color: #888; text-decoration: none;">← Cancelar e ir al Inicio</a>
+            <a href="{{ return_to }}" style="color: #888; text-decoration: none;">← Cancelar y volver</a>
         </div>
     </div>
 
@@ -50,6 +51,7 @@
             <p style="color: #666; font-size: 0.85rem; margin-top: -5px;">Modifica los detalles de tu cuenta</p>
             
             <form id="formEditarPerfil" method="POST" action="">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
                 <label class="modal-label">Nombre del Perfil:</label>
                 <input type="text" id="inputEditarNombre" name="nombre" class="modal-input-text" required autocomplete="off">
                 
@@ -82,6 +84,7 @@
             <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
             
             <form id="formEliminarPerfil" method="POST" action="" onsubmit="return confirm('⚠️ ¿Estás completamente seguro de eliminar este perfil?\nSe borrarán de forma PERMANENTE todos los capítulos vistos y marcas de reproducción.')">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
                 <button type="submit" class="btn-delete-profile-submit">❌ Eliminar este perfil por completo</button>
             </form>
         </div>

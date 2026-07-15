@@ -1,9 +1,30 @@
 const serieContainer = document.getElementById('serieContainer');
 const NOMBRE_SERIE = serieContainer ? serieContainer.getAttribute('data-serie') : '';
 const USUARIO_ACTIVO = serieContainer ? (serieContainer.getAttribute('data-user-active') === 'true') : false;
+const MOSTRAR_PROGRESO = serieContainer ? (serieContainer.getAttribute('data-mostrar-progreso') === '1') : true;
 
 let archivoActualRelativo = '';
 let ultimoTiempoReportado = 0;
+
+// --- VELOCIDAD DE REPRODUCCIÓN ---
+function cambiarVelocidad(valor) {
+    var player = document.getElementById('mainPlayer');
+    if (player) {
+        player.playbackRate = parseFloat(valor);
+    }
+    localStorage.setItem('flaskcast_speed', valor);
+}
+
+function cargarVelocidadGuardada() {
+    var guardada = localStorage.getItem('flaskcast_speed');
+    if (guardada) {
+        var select = document.getElementById('speedSelector');
+        if (select) {
+            select.value = guardada;
+        }
+    }
+    return guardada ? parseFloat(guardada) : 1;
+}
 
 function playVideo(rutaRelativa, segundoInicio, element) {
     const container = document.getElementById('playerContainer');
@@ -18,6 +39,9 @@ function playVideo(rutaRelativa, segundoInicio, element) {
     
     container.style.display = 'block';
     container.scrollIntoView({ behavior: 'smooth' });
+
+    var velocidadGuardada = cargarVelocidadGuardada();
+    player.playbackRate = velocidadGuardada;
     
     if (segundoInicio && parseFloat(segundoInicio) > 5) {
         player.addEventListener('loadedmetadata', function onMetadata() {
@@ -73,6 +97,17 @@ function actualizarBadgeUI(filename, estado) {
     if (card) {
         clasesCard.forEach(c => card.classList.remove(c));
         card.classList.add(añadirClaseCard);
+
+        // Actualizar barra de progreso
+        const barra = card.querySelector('.episode-progress-bar');
+        if (barra && MOSTRAR_PROGRESO) {
+            if (estado === 0) {
+                barra.style.width = '0%';
+            } else {
+                var porcentajeOriginal = parseInt(card.getAttribute('data-porcentaje')) || 0;
+                barra.style.width = porcentajeOriginal + '%';
+            }
+        }
     }
 }
 
@@ -240,3 +275,71 @@ function verificarEstados() {
 }
 
 setInterval(verificarEstados, 4000);
+
+// --- ATAJOS DE TECLADO ---
+(function() {
+    var indicador = null;
+
+    function mostrarIndicador(texto) {
+        if (!indicador) {
+            indicador = document.createElement('div');
+            indicador.className = 'keyboard-indicator';
+            document.body.appendChild(indicador);
+        }
+        indicador.textContent = texto;
+        indicador.classList.add('show');
+        clearTimeout(indicador._timer);
+        indicador._timer = setTimeout(function() {
+            indicador.classList.remove('show');
+        }, 800);
+    }
+
+    document.addEventListener('keydown', function(e) {
+        var player = document.getElementById('mainPlayer');
+        var container = document.getElementById('playerContainer');
+        if (!player || !container || container.style.display === 'none') return;
+
+        var tag = e.target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+        switch(e.key) {
+            case ' ':
+                e.preventDefault();
+                if (player.paused) {
+                    player.play();
+                    mostrarIndicador('▶ Play');
+                } else {
+                    player.pause();
+                    mostrarIndicador('⏸ Pausa');
+                }
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                player.currentTime = Math.max(0, player.currentTime - 10);
+                mostrarIndicador('⏪ -10s');
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                player.currentTime = Math.min(player.duration || 0, player.currentTime + 10);
+                mostrarIndicador('⏩ +10s');
+                break;
+            case 'f':
+            case 'F':
+                e.preventDefault();
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                    mostrarIndicador('Salida pantalla completa');
+                } else {
+                    container.requestFullscreen();
+                    mostrarIndicador('📺 Pantalla completa');
+                }
+                break;
+            case 'm':
+            case 'M':
+                e.preventDefault();
+                player.muted = !player.muted;
+                mostrarIndicador(player.muted ? '🔇 Mutear' : '🔊 Sonido');
+                break;
+        }
+    });
+})();

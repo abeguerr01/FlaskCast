@@ -59,6 +59,49 @@
             overflow-wrap: break-word; 
         }
 
+        .btn-settings {
+            background-color: #222;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 1px solid #333;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-settings:hover {
+            background-color: #333;
+            border-color: #e50914;
+        }
+        .btn-toggle-seasons {
+            display: inline-block;
+            margin-bottom: 12px;
+            padding: 8px 16px;
+            background: #262626;
+            color: #aaa;
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            transition: background 0.2s, color 0.2s;
+        }
+        .btn-toggle-seasons:hover {
+            background: #333;
+            color: #fff;
+        }
+        .season-arrow {
+            display: inline-block;
+            transition: transform 0.2s;
+            margin-right: 6px;
+        }
+        .season-accordion:not([open]) .season-arrow {
+            transform: rotate(-90deg);
+        }
+
         /* Estilos reactivos de los 3 estados para las etiquetas */
         .visto-badge {
             position: absolute;
@@ -92,17 +135,23 @@
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
-            <a href="/usuarios_panel" class="profile-widget" title="Ir a Panel de Usuarios">
+            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="Ir a Panel de Usuarios">
                 <div class="profile-avatar">
                     {{ session.get('usuario_emoji', '👤') }}
                 </div>
                 <span class="profile-name">{{ session['usuario_nombre'] }}</span>
             </a>
+            <div>
+                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">⚙️ Ajustes</a>
+            </div>
         {% else %}
-            <a href="/usuarios_panel" class="profile-widget" title="Iniciar Sesión">
+            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="Iniciar Sesión">
                 <div class="profile-avatar invitado-style">👤</div>
                 <span class="profile-name" style="color: #e50914;">Invitado</span>
             </a>
+            <div>
+                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">⚙️ Ajustes</a>
+            </div>
         {% endif %}
     </div>
 
@@ -114,26 +163,53 @@
     <div class="container" id="serieContainer" 
          data-serie="{{ serie }}" 
          data-user-active="{{ 'true' if session.get('usuario_id') else 'false' }}"
-         data-auto-marcar="{{ 'true' if session.get('usuario_auto_marcar', 1) == 1 else 'false' }}">
+         data-auto-marcar="{{ 'true' if session.get('usuario_auto_marcar', 1) == 1 else 'false' }}"
+         data-mostrar-progreso="{{ mostrar_progreso }}">
         
         <div class="player-container" id="playerContainer">
             <video id="mainPlayer" controls autoplay src=""></video>
-            <div class="video-title" id="currentTitle"></div>
+            <div class="player-controls">
+                <div class="video-title" id="currentTitle"></div>
+                <select id="speedSelector" class="speed-select" onchange="cambiarVelocidad(this.value)">
+                    <option value="0.5">0.5x</option>
+                    <option value="0.75">0.75x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                </select>
+            </div>
         </div>
 
         <h2 class="grid-title">Temporadas Disponibles</h2>
+
+        {% if session.get('usuario_id') %}
+        <div class="filter-bar">
+            <button class="filter-btn filter-btn-active" onclick="filtrarEpisodios('todos', this)">Todos</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('novisto', this)">👁️ No vistos</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('viendo', this)">⏳ Viendo</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('visto', this)">✔️ Vistos</button>
+        </div>
+        {% endif %}
+
+        {% if temporadas|length > 1 %}
+        <button class="btn-toggle-seasons" onclick="toggleAllSeasons(this)">📂 Colapsar / Expandir</button>
+        {% endif %}
         
         {% for nombre_temporada, videos in temporadas.items() %}
         <details class="season-accordion" open>
             <summary class="season-header">
-                <span class="season-title-text">📂 {{ nombre_temporada }}</span>
+                <span class="season-title-text"><span class="season-arrow">▾</span> 📂 {{ nombre_temporada }}</span>
                 <span class="season-count">{{ videos|length }} archivos</span>
             </summary>
             
             <div class="video-grid">
                 {% for video in videos %}
                     {% if video.tipo == 'web' %}
-                        <div class="video-card {% if video.visto == 2 %}capitulo-visto{% elif video.visto == 1 %}capitulo-viendo{% else %}capitulo-novisto{% endif %}">
+                        <div class="video-card {% if video.visto == 2 %}capitulo-visto{% elif video.visto == 1 %}capitulo-viendo{% else %}capitulo-novisto{% endif %}"
+                             data-porcentaje="{{ video.porcentaje }}"
+                             data-segundos="{{ video.segundos }}"
+                             data-duracion="{{ video.duracion }}">
                             <div class="card-click-area" onclick="playVideo('{{ video.ruta_relativa }}', '{{ video.segundos }}', this)">
                                 <div class="thumb">
                                     <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
@@ -148,6 +224,11 @@
                                         {% else %}👁️ No visto{% endif %}
                                     </div>
                                 </div>
+                                {% if mostrar_progreso|int == 1 %}
+                                <div class="episode-progress">
+                                    <div class="episode-progress-bar" style="width: {{ video.porcentaje }}%"></div>
+                                </div>
+                                {% endif %}
                                 <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                             </div>
                             <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">📺 Modo SmartTV</a>
@@ -177,5 +258,46 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/reproductor.js') }}"></script>
+    <script>
+        function toggleAllSeasons(btn) {
+            var details = document.querySelectorAll('.season-accordion');
+            var allOpen = true;
+            for (var i = 0; i < details.length; i++) {
+                if (!details[i].hasAttribute('open')) {
+                    allOpen = false;
+                    break;
+                }
+            }
+            for (var i = 0; i < details.length; i++) {
+                if (allOpen) {
+                    details[i].removeAttribute('open');
+                } else {
+                    details[i].setAttribute('open', '');
+                }
+            }
+        }
+
+        function filtrarEpisodios(estado, btn) {
+            var cards = document.querySelectorAll('.video-card');
+            var filterBtns = document.querySelectorAll('.filter-btn');
+            for (var i = 0; i < filterBtns.length; i++) {
+                filterBtns[i].classList.remove('filter-btn-active');
+            }
+            btn.classList.add('filter-btn-active');
+
+            for (var i = 0; i < cards.length; i++) {
+                var card = cards[i];
+                if (estado === 'todos') {
+                    card.style.display = '';
+                } else if (estado === 'novisto') {
+                    card.style.display = card.classList.contains('capitulo-novisto') ? '' : 'none';
+                } else if (estado === 'viendo') {
+                    card.style.display = card.classList.contains('capitulo-viendo') ? '' : 'none';
+                } else if (estado === 'visto') {
+                    card.style.display = card.classList.contains('capitulo-visto') ? '' : 'none';
+                }
+            }
+        }
+    </script>
 </body>
 </html>

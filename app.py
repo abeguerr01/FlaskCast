@@ -58,6 +58,8 @@ def inicializar_base_datos():
         cursor.execute("ALTER TABLE usuarios ADD COLUMN ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     if 'auto_marcar' not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN auto_marcar INTEGER DEFAULT 1")
+    if 'mostrar_progreso' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN mostrar_progreso INTEGER DEFAULT 1")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progreso (
@@ -109,15 +111,17 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
 
 @app.route('/usuarios_panel')
 def usuarios_panel():
+    return_to = request.args.get('return_to', '/')
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM usuarios ORDER BY ultimo_acceso DESC, nombre ASC')
     todos_usuarios = cursor.fetchall()
     conn.close()
-    return render_template('usuarios.html', usuarios=todos_usuarios)
+    return render_template('usuarios.html', usuarios=todos_usuarios, return_to=return_to)
 
 @app.route('/usuarios/crear', methods=['POST'])
 def crear_usuario():
+    return_to = request.form.get('return_to', '/usuarios_panel')
     nombre = request.form.get('nombre', '').strip()
     if nombre:
         try:
@@ -128,10 +132,11 @@ def crear_usuario():
             conn.close()
         except sqlite3.IntegrityError:
             pass 
-    return redirect(url_for('usuarios_panel'))
+    return redirect(return_to)
 
 @app.route('/usuarios/seleccionar/<int:user_id>')
 def seleccionar_usuario(user_id):
+    return_to = request.args.get('return_to', '/')
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute('UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?', (user_id,))
@@ -144,10 +149,12 @@ def seleccionar_usuario(user_id):
         session['usuario_nombre'] = user['nombre']
         session['usuario_emoji'] = user['emoji']
         session['usuario_auto_marcar'] = user['auto_marcar']
-    return redirect(url_for('index'))
+        session['usuario_mostrar_progreso'] = user['mostrar_progreso']
+    return redirect(return_to)
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
 def editar_usuario(user_id):
+    return_to = request.form.get('return_to', '/usuarios_panel')
     nombre = request.form.get('nombre', '').strip()
     emoji = request.form.get('emoji', '👤').strip()
     if nombre:
@@ -162,10 +169,11 @@ def editar_usuario(user_id):
                 session['usuario_emoji'] = emoji
         except sqlite3.IntegrityError:
             pass
-    return redirect(url_for('usuarios_panel'))
+    return redirect(return_to)
 
 @app.route('/usuarios/eliminar/<int:user_id>', methods=['POST'])
 def eliminar_usuario(user_id):
+    return_to = request.form.get('return_to', '/usuarios_panel')
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute('DELETE FROM usuarios WHERE id = ?', (user_id,))
@@ -176,15 +184,18 @@ def eliminar_usuario(user_id):
         session.pop('usuario_nombre', None)
         session.pop('usuario_emoji', None)
         session.pop('usuario_auto_marcar', None)
-    return redirect(url_for('usuarios_panel'))
+        session.pop('usuario_mostrar_progreso', None)
+    return redirect(return_to)
 
 @app.route('/usuarios/salir')
 def salir_usuario():
+    return_to = request.args.get('return_to', '/')
     session.pop('usuario_id', None)
     session.pop('usuario_nombre', None)
     session.pop('usuario_emoji', None)
     session.pop('usuario_auto_marcar', None)
-    return redirect(url_for('index'))
+    session.pop('usuario_mostrar_progreso', None)
+    return redirect(return_to)
 
 @app.route('/')
 def index():
@@ -198,7 +209,54 @@ def index():
                     'nombre_carpeta': item,
                     'tiene_portada': tiene_portada
                 })
-    return render_template('index.html', series=lista_series, active_section='catalogo')
+
+    continuar_viendo = []
+    usuario_id = session.get('usuario_id')
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT serie, filename, segundos, duracion, visto
+            FROM progreso
+            WHERE usuario_id = ? AND segundos > 0 AND duracion > 0 AND visto = 1
+            ORDER BY serie, filename
+        ''', (usuario_id,))
+        filas = cursor.fetchall()
+        conn.close()
+
+        vistos = {}
+        for fila in filas:
+            clave = fila['serie']
+            if clave not in vistos:
+                vistos[clave] = []
+            vistos[clave].append({
+                'filename': fila['filename'],
+                'segundos': fila['segundos'],
+                'duracion': fila['duracion'],
+                'visto': int(fila['visto']) if fila['visto'] is not None else 0
+            })
+
+        for nombre_serie, capitulos in vistos.items():
+            ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+            tiene_portada = os.path.exists(os.path.join(ruta_serie, '_img.png'))
+            for cap in capitulos:
+                porcentaje = min(int((cap['segundos'] / cap['duracion']) * 100), 100)
+                nombre_limpio = os.path.basename(cap['filename'])
+                continuar_viendo.append({
+                    'serie': nombre_serie,
+                    'filename': cap['filename'],
+                    'nombre_capitulo': nombre_limpio,
+                    'segundos': cap['segundos'],
+                    'duracion': cap['duracion'],
+                    'porcentaje': porcentaje,
+                    'visto': cap['visto'],
+                    'tiene_portada': tiene_portada
+                })
+
+        continuar_viendo.sort(key=lambda x: x['segundos'], reverse=True)
+        continuar_viendo = continuar_viendo[:12]
+
+    return render_template('index.html', series=lista_series, active_section='catalogo', continuar_viendo=continuar_viendo)
 
 LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
 
@@ -291,6 +349,7 @@ def ajustes():
     usuario_id = session.get('usuario_id')
     
     if request.method == 'POST':
+        return_to = request.form.get('return_to', '/')
         cfg = leer_config()
         api_habilitada = request.form.get('api_habilitada') == 'on'
         cfg['api_habilitada'] = api_habilitada
@@ -301,24 +360,29 @@ def ajustes():
             conn = conectar_db()
             cursor = conn.cursor()
             auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
-            cursor.execute('UPDATE usuarios SET auto_marcar = ? WHERE id = ?', (auto_marcar, usuario_id))
+            mostrar_progreso = 1 if request.form.get('mostrar_progreso') == 'on' else 0
+            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ? WHERE id = ?', (auto_marcar, mostrar_progreso, usuario_id))
             conn.commit()
             session['usuario_auto_marcar'] = auto_marcar
+            session['usuario_mostrar_progreso'] = mostrar_progreso
 
-        return redirect(url_for('index'))
+        return redirect(return_to)
     
+    return_to = request.args.get('return_to', '/')
     auto_marcar = 1
+    mostrar_progreso = 1
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT auto_marcar FROM usuarios WHERE id = ?', (usuario_id,))
+        cursor.execute('SELECT auto_marcar, mostrar_progreso FROM usuarios WHERE id = ?', (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         if user:
             auto_marcar = user['auto_marcar']
+            mostrar_progreso = user['mostrar_progreso']
     
     cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, api_habilitada=1 if cfg.get('api_habilitada', False) else 0, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False))
+    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, api_habilitada=1 if cfg.get('api_habilitada', False) else 0, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False), return_to=return_to)
 
 def api_habilitada_check():
     global api_habilitada
@@ -453,16 +517,26 @@ def vista_serie(nombre_serie):
     
     progreso_usuario = {}
     usuario_id = session.get('usuario_id')
+    mostrar_progreso = 1
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT filename, segundos, visto FROM progreso WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
+        cursor.execute('SELECT filename, segundos, duracion, visto FROM progreso WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
         filas = cursor.fetchall()
+        cursor.execute('SELECT mostrar_progreso FROM usuarios WHERE id = ?', (usuario_id,))
+        user_row = cursor.fetchone()
         conn.close()
+        if user_row:
+            mostrar_progreso = int(user_row['mostrar_progreso'])
         for fila in filas:
+            dur = fila['duracion'] if fila['duracion'] else 0
+            seg = fila['segundos'] if fila['segundos'] else 0
+            porcentaje = min(int((seg / dur) * 100), 100) if dur > 0 else 0
             progreso_usuario[fila['filename']] = {
-                'segundos': fila['segundos'],
-                'visto': int(fila['visto']) if fila['visto'] is not None else 0
+                'segundos': seg,
+                'duracion': dur,
+                'visto': int(fila['visto']) if fila['visto'] is not None else 0,
+                'porcentaje': porcentaje
             }
 
     items = sorted(os.listdir(ruta_serie))
@@ -478,7 +552,7 @@ def vista_serie(nombre_serie):
                 ruta_relativa = f"{subcarpeta}/{archivo}"
                 identificador_unico = f"{nombre_serie}/{ruta_relativa}"
                 
-                prog = progreso_usuario.get(ruta_relativa, {'segundos': 0, 'visto': 0})
+                prog = progreso_usuario.get(ruta_relativa, {'segundos': 0, 'duracion': 0, 'visto': 0, 'porcentaje': 0})
                 
                 if extension in formatos_web:
                     videos_temporada.append({
@@ -487,7 +561,9 @@ def vista_serie(nombre_serie):
                         'tipo': 'web',
                         'estado': 'listo',
                         'visto': prog['visto'],
-                        'segundos': prog['segundos']
+                        'segundos': prog['segundos'],
+                        'duracion': prog['duracion'],
+                        'porcentaje': prog['porcentaje']
                     })
                 elif extension in formatos_incompatibles:
                     with lock_conversiones:
@@ -507,7 +583,7 @@ def vista_serie(nombre_serie):
         for archivo in items:
             if os.path.isfile(os.path.join(ruta_serie, archivo)):
                 extension = os.path.splitext(archivo)[1].lower()
-                prog = progreso_usuario.get(archivo, {'segundos': 0, 'visto': 0})
+                prog = progreso_usuario.get(archivo, {'segundos': 0, 'duracion': 0, 'visto': 0, 'porcentaje': 0})
                 
                 if extension in formatos_web:
                     videos_raiz.append({
@@ -516,7 +592,9 @@ def vista_serie(nombre_serie):
                         'tipo': 'web',
                         'estado': 'listo',
                         'visto': prog['visto'],
-                        'segundos': prog['segundos']
+                        'segundos': prog['segundos'],
+                        'duracion': prog['duracion'],
+                        'porcentaje': prog['porcentaje']
                     })
                 elif extension in formatos_incompatibles:
                     with lock_conversiones:
@@ -532,7 +610,7 @@ def vista_serie(nombre_serie):
         if videos_raiz:
             estructura_temporadas['Contenido Disponible'] = videos_raiz
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):

@@ -139,22 +139,22 @@
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
-            <a href="/usuarios_panel" class="profile-widget" title="Ir a Panel de Usuarios">
+            <a href="/usuarios_panel?return_to=/" class="profile-widget" title="Ir a Panel de Usuarios">
                 <div class="profile-avatar">
                     {{ session.get('usuario_emoji', '👤') }}
                 </div>
                 <span class="profile-name">{{ session['usuario_nombre'] }}</span>
             </a>
             <div>
-                <a href="/ajustes" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/" class="btn-settings">⚙️ Ajustes</a>
             </div>
         {% else %}
-            <a href="/usuarios_panel" class="profile-widget" title="Iniciar Sesión">
+            <a href="/usuarios_panel?return_to=/" class="profile-widget" title="Iniciar Sesión">
                 <div class="profile-avatar invitado-style">👤</div>
                 <span class="profile-name" style="color: #e50914;">Invitado</span>
             </a>
             <div>
-                <a href="/ajustes" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/" class="btn-settings">⚙️ Ajustes</a>
             </div>
         {% endif %}
     </div>
@@ -164,6 +164,36 @@
     </header>
 
     <div class="container">
+        {% if continuar_viendo %}
+        <div class="continue-section">
+            <h2 class="section-title">▶ Continuar viendo</h2>
+            <div class="continue-grid">
+                {% for item in continuar_viendo %}
+                <a href="/serie/{{ item.serie }}" class="continue-card">
+                    <div class="continue-thumb">
+                        {% if item.tiene_portada %}
+                            <img class="continue-img" src="/portada/{{ item.serie }}" alt="{{ item.serie }}">
+                        {% else %}
+                            <div class="continue-no-cover">📺</div>
+                        {% endif %}
+                        <div class="continue-overlay">
+                            <span class="continue-play">▶</span>
+                        </div>
+                    </div>
+                    <div class="continue-info">
+                        <div class="continue-serie">{{ item.serie }}</div>
+                        <div class="continue-episodio">{{ item.nombre_capitulo }}</div>
+                        <div class="continue-bar-container">
+                            <div class="continue-bar" style="width: {{ item.porcentaje }}%"></div>
+                        </div>
+                        <div class="continue-porcentaje">{{ item.porcentaje }}%</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="search-container">
             <input type="text" id="realtime-search" class="search-input" placeholder="Buscar una serie o carpeta...">
         </div>
