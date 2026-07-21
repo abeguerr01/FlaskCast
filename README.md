@@ -4,6 +4,16 @@ FlaskCast es un portal de streaming multimedia personal y local construido con P
 
 ---
 
+> **⚠ Aviso Legal y Exención de Responsabilidad**
+>
+> FlaskCast es una herramienta de uso privado y local diseñada exclusivamente para organizar y reproducir contenido multimedia al que el usuario posee los derechos legales de uso. En ningún caso FlaskCast facilita, promueve ni permite la obtención o distribución de contenido protegido por derechos de autor sin la debida autorización.
+>
+> El usuario es el único responsable del contenido que alberga, organiza y reproduce mediante esta aplicación. El desarrollador de FlaskCast declina toda responsabilidad derivada del uso indebido de esta herramienta en relación con material sobre el que el usuario no tenga derechos legales.
+>
+> El uso de FlaskCast implica la aceptación de estas condiciones.
+
+---
+
 **Características principales**
 
 - **Catálogo por carpetas:** organiza series, temporadas y capítulos directamente desde el sistema de archivos.
