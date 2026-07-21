@@ -316,6 +316,14 @@ Los cambios en los botones de apagado se aplican inmediatamente sin necesidad de
 python config_gui.py
 ```
 
+> **Nota para Linux:** `config_gui.py` usa `tkinter`, que no siempre viene incluido por defecto en algunas distribuciones Linux. Si al ejecutarlo obtienes un error como `ModuleNotFoundError: No module named 'tkinter'`, instálalo con:
+>
+> ```bash
+> sudo apt install python3-tk    # Debian / Ubuntu
+> sudo dnf install python3-tkinter  # Fedora
+> sudo pacman -S tk              # Arch Linux
+> ```
+
 > **Nota para Docker:** si ejecutas FlaskCast mediante `docker-compose`, el cambio de puerto desde `config_gui.py` no tendrá efecto. El puerto se define en el archivo `docker-compose.yml` mediante el mapeo `ports:`. Para cambiar el puerto en Docker, edita el archivo `docker-compose.yml` y modifica el lado izquierdo del mapeo (ej: `"8080:5000"` para usar el puerto 8080).
 
 ---
