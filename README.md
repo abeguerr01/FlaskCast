@@ -90,7 +90,7 @@ docker-compose up --build
 ```
 .
 ├── app.py                   # Aplicación Flask (rutas, API, BD, FFmpeg)
-├── config_gui.py            # Interfaz gráfica para editar config.json
+├── config_admin.py          # Panel de administración (API, botones, puerto)
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
@@ -313,27 +313,28 @@ http://localhost:5000/live/tv/<indice>
 Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
 - **Marcado automático:** activa o desactiva el cambio automático de estado "Viendo"/"Visto" según el progreso de reproducción.
-- **Habilitar API:** activa o desactiva los endpoints REST. Al activarla, los endpoints requieren sesión de usuario. Un botón informativo (`i`) muestra la documentación completa de la API en un modal.
+- **Habilitar API:** activa o desactiva los endpoints REST. Al activarla, los endpoints requieren sesión de usuario. Un botón informativo (`i`) muestra la documentación completa de la API en un modal. Esta opción se gestiona desde el panel de administración (`config_admin.py`).
 
 ---
 
-## Configuración avanzada (config_gui.py)
+## Panel de administración (config_admin.py)
 
-FlaskCast incluye un panel de configuración gráfico (`config_gui.py`) que permite modificar en tiempo real ciertos parámetros del servidor sin necesidad de editar archivos manualmente.
+FlaskCast incluye un panel de administración gráfico (`config_admin.py`) que permite modificar en tiempo real ciertos parámetros del servidor sin necesidad de editar archivos manualmente. También se puede abrir desde Ajustes en la web (solo si accedes desde la máquina local).
 
 ### Opciones
 
 - **Mostrar botón "Apagar Servidor":** activa/desactiva la visibilidad del botón que apaga solo el proceso de Flask.
 - **Mostrar botón "Apagar Todo":** activa/desactiva la visibilidad del botón que apaga todo el sistema operativo.
+- **Habilitar API REST:** activa/desactiva los endpoints de la API REST.
 - **Puerto:** cambia el puerto en el que escucha el servidor (requiere reiniciar la aplicación).
 
-Los cambios en los botones de apagado se aplican inmediatamente sin necesidad de reiniciar el servidor.
+Los cambios en los botones de apagado y la API se aplican inmediatamente sin necesidad de reiniciar el servidor.
 
 ```bash
-python config_gui.py
+python config_admin.py
 ```
 
-> **Nota para Linux:** `config_gui.py` usa `tkinter`, que no siempre viene incluido por defecto en algunas distribuciones Linux. Si al ejecutarlo obtienes un error como `ModuleNotFoundError: No module named 'tkinter'`, instálalo con:
+> **Nota para Linux:** `config_admin.py` usa `tkinter`, que no siempre viene incluido por defecto en algunas distribuciones Linux. Si al ejecutarlo obtienes un error como `ModuleNotFoundError: No module named 'tkinter'`, instálalo con:
 >
 > ```bash
 > sudo apt install python3-tk    # Debian / Ubuntu
@@ -341,13 +342,13 @@ python config_gui.py
 > sudo pacman -S tk              # Arch Linux
 > ```
 
-> **Nota para Docker:** si ejecutas FlaskCast mediante `docker-compose`, el cambio de puerto desde `config_gui.py` no tendrá efecto. El puerto se define en el archivo `docker-compose.yml` mediante el mapeo `ports:`. Para cambiar el puerto en Docker, edita el archivo `docker-compose.yml` y modifica el lado izquierdo del mapeo (ej: `"8080:5000"` para usar el puerto 8080).
+> **Nota para Docker:** si ejecutas FlaskCast mediante `docker-compose`, el cambio de puerto desde `config_admin.py` no tendrá efecto. El puerto se define en el archivo `docker-compose.yml` mediante el mapeo `ports:`. Para cambiar el puerto en Docker, edita el archivo `docker-compose.yml` y modifica el lado izquierdo del mapeo (ej: `"8080:5000"` para usar el puerto 8080).
 
 ---
 
 **API REST**
 
-FlaskCast incluye una API REST protegida por sesión de usuario y un toggle en Ajustes. Todos los endpoints requieren el encabezado de cookie de sesión y que el usuario tenga la API habilitada.
+FlaskCast incluye una API REST protegida por sesión de usuario y activada desde el panel de administración. Todos los endpoints requieren el encabezado de cookie de sesión y que el usuario tenga la API habilitada.
 
 ### 📤 Agregar Video
 
@@ -545,7 +546,7 @@ curl http://localhost:5000/api/ping
 
 ### ⏻ Apagar Servidor (API)
 
-Detiene únicamente el proceso de FlaskCast. Solo funciona si está habilitado en `config_gui.py`.
+Detiene únicamente el proceso de FlaskCast. Solo funciona si está habilitado en `config_admin.py`.
 
 ```
 GET /api/off
@@ -562,7 +563,7 @@ curl http://localhost:5000/api/off
 
 ### ⏻ Apagar Sistema (API)
 
-Apaga todo el sistema operativo. Solo funciona si está habilitado en `config_gui.py`.
+Apaga todo el sistema operativo. Solo funciona si está habilitado en `config_admin.py`.
 
 ```
 GET /api/off/all

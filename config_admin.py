@@ -16,11 +16,11 @@ def guardar_config(data):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 
-class ConfigGUI:
+class ConfigAdmin:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title('Configuración de FlaskCast')
-        self.root.geometry('400x250')
+        self.root.title('Administración de FlaskCast')
+        self.root.geometry('400x320')
         self.root.resizable(False, False)
 
         cfg = leer_config()
@@ -28,11 +28,12 @@ class ConfigGUI:
         main = ttk.Frame(self.root, padding=20)
         main.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(main, text='Configuración de FlaskCast',
+        ttk.Label(main, text='Administración de FlaskCast',
                   font=('Segoe UI', 14, 'bold')).pack(pady=(0, 15))
 
-        self.apagar_var = tk.BooleanVar(value=cfg['boton_apagar_visible'])
-        self.apagar_todo_var = tk.BooleanVar(value=cfg['boton_apagar_todo_visible'])
+        self.apagar_var = tk.BooleanVar(value=cfg.get('boton_apagar_visible', False))
+        self.apagar_todo_var = tk.BooleanVar(value=cfg.get('boton_apagar_todo_visible', False))
+        self.api_var = tk.BooleanVar(value=cfg.get('api_habilitada', False))
 
         frame_check = ttk.Frame(main)
         frame_check.pack(fill=tk.X, pady=5)
@@ -41,16 +42,23 @@ class ConfigGUI:
         ttk.Checkbutton(frame_check, text='Mostrar botón "Apagar Todo"',
                         variable=self.apagar_todo_var).pack(anchor=tk.W)
 
-        ttk.Separator(main, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+        ttk.Separator(main, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        ttk.Checkbutton(main, text='Habilitar API REST',
+                        variable=self.api_var).pack(anchor=tk.W, pady=5)
+        ttk.Label(main, text='Activa la API para gestionar vídeos externamente.',
+                  foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W)
+
+        ttk.Separator(main, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
         frame_port = ttk.Frame(main)
         frame_port.pack(fill=tk.X)
         ttk.Label(frame_port, text='Puerto:').pack(side=tk.LEFT)
-        self.port_var = tk.StringVar(value=str(cfg['puerto']))
+        self.port_var = tk.StringVar(value=str(cfg.get('puerto', 5000)))
         port_entry = ttk.Entry(frame_port, textvariable=self.port_var, width=10)
         port_entry.pack(side=tk.LEFT, padx=(10, 0))
 
-        ttk.Separator(main, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+        ttk.Separator(main, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
         btn_frame = ttk.Frame(main)
         btn_frame.pack()
@@ -69,12 +77,11 @@ class ConfigGUI:
             messagebox.showerror('Error', 'El puerto debe ser un número entre 1 y 65535.')
             return
 
-        cfg_actual = leer_config()
         data = {
             'boton_apagar_visible': self.apagar_var.get(),
             'boton_apagar_todo_visible': self.apagar_todo_var.get(),
             'puerto': puerto,
-            'api_habilitada': cfg_actual.get('api_habilitada', False)
+            'api_habilitada': self.api_var.get()
         }
         guardar_config(data)
         self.status_label.config(text='Configuración guardada correctamente.')
@@ -85,4 +92,4 @@ class ConfigGUI:
 
 
 if __name__ == '__main__':
-    ConfigGUI().run()
+    ConfigAdmin().run()

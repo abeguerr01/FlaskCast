@@ -343,6 +343,10 @@ def live_tv(indice):
     s = streams[indice]
     return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], urls=s.get('urls', [s['url']]), tipo=s.get('tipo', 'iframe'))
 
+def es_cliente_local():
+    remote = request.remote_addr
+    return remote in ('127.0.0.1', '::1', 'localhost')
+
 @app.route('/ajustes', methods=['GET', 'POST'])
 def ajustes():
     global api_habilitada
@@ -350,11 +354,6 @@ def ajustes():
     
     if request.method == 'POST':
         return_to = request.form.get('return_to', '/')
-        cfg = leer_config()
-        api_habilitada = request.form.get('api_habilitada') == 'on'
-        cfg['api_habilitada'] = api_habilitada
-        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-            json.dump(cfg, f, indent=4, ensure_ascii=False)
 
         if usuario_id:
             conn = conectar_db()
@@ -382,7 +381,7 @@ def ajustes():
             mostrar_progreso = user['mostrar_progreso']
     
     cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, api_habilitada=1 if cfg.get('api_habilitada', False) else 0, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False), return_to=return_to)
+    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False), es_local=es_cliente_local(), return_to=return_to)
 
 def api_habilitada_check():
     global api_habilitada
@@ -391,7 +390,7 @@ def api_habilitada_check():
 @app.route('/api/videos/add', methods=['POST'])
 def api_agregar_video():
     if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
     
     serie = request.form.get('serie', '').strip()
     if not serie:
@@ -431,7 +430,7 @@ def api_agregar_video():
 @app.route('/api/videos/rm', methods=['POST'])
 def api_eliminar_video():
     if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
     
     datos = request.json or {}
     serie = datos.get('serie', '').strip()
@@ -486,7 +485,7 @@ def escanear_estructura_serie(ruta_serie, nombre_serie):
 @app.route('/api/videos/<path:nombre_serie>', methods=['GET'])
 def api_listar_videos(nombre_serie=None):
     if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
     
     if nombre_serie:
         ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
@@ -749,7 +748,7 @@ def serve_video(nombre_serie, filename):
 @app.route('/api/video/<nombre_serie>/<path:filename>')
 def api_obtener_video(nombre_serie, filename):
     if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en Ajustes.'}), 403
+        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_archivo = os.path.join(ruta_serie, filename)
     if not os.path.exists(ruta_archivo):
@@ -802,6 +801,17 @@ def consultar_estados():
     with lock_conversiones:
         return jsonify({'activos': list(conversiones_activas)})
     
+@app.route('/api/abrir_config_admin')
+def abrir_config_admin():
+    if not es_cliente_local():
+        return jsonify({'error': 'Solo disponible en la máquina local.'}), 403
+    config_admin_path = os.path.join(DIRECTORIO_RAIZ, 'config_admin.py')
+    if platform.system() == "Windows":
+        subprocess.Popen(['python', config_admin_path], creationflags=subprocess.DETACHED_PROCESS)
+    else:
+        subprocess.Popen(['python3', config_admin_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return jsonify({'status': 'ok'})
+
 @app.route('/api/ping')
 def ping():
     return jsonify({'status': 'servidor en linea'})
