@@ -69,6 +69,8 @@ pip install -r requirements.txt
 
 Nota: `static-ffmpeg` descargará y configurará los binarios de FFmpeg la primera vez que se ejecute la aplicación. Si prefieres, puedes instalar FFmpeg globalmente en tu sistema.
 
+Nota: `py7zr` se usa para las funciones de exportar/importar contenido multimedia en el panel de administración.
+
 4. Ejecuta la aplicación:
 
 ```bash
@@ -319,20 +321,32 @@ Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
 ## Panel de administración (config_admin.py)
 
-FlaskCast incluye un panel de administración gráfico (`config_admin.py`) que permite modificar en tiempo real ciertos parámetros del servidor sin necesidad de editar archivos manualmente. También se puede abrir desde Ajustes en la web (solo si accedes desde la máquina local).
+FlaskCast incluye un panel de administración (`config_admin.py`) que permite modificar parámetros del servidor y gestionar el contenido multimedia. Tiene dos modos de uso: interfaz gráfica (GUI) y línea de comandos (CLI).
 
-### Opciones
+### Modo gráfico (GUI)
+
+Se abre la ventana de administración sin pasar ningún argumento:
+
+```bash
+python config_admin.py
+```
+
+#### Opciones
 
 - **Mostrar botón "Apagar Servidor":** activa/desactiva la visibilidad del botón que apaga solo el proceso de Flask.
 - **Mostrar botón "Apagar Todo":** activa/desactiva la visibilidad del botón que apaga todo el sistema operativo.
 - **Habilitar API REST:** activa/desactiva los endpoints de la API REST.
 - **Puerto:** cambia el puerto en el que escucha el servidor (requiere reiniciar la aplicación).
 
-Los cambios en los botones de apagado y la API se aplican inmediatamente sin necesidad de reiniciar el servidor.
+#### Gestión de contenido
 
-```bash
-python config_admin.py
-```
+- **Exportar media (.fkmedia):** comprime toda la carpeta `data/media/` en un archivo `.fkmedia` (formato 7z internamente). Permite guardar el archivo en la ubicación que elijas.
+- **Importar media (.fkmedia):** selecciona un archivo `.fkmedia` previamente exportado y lo extrae en `data/media/`. Si ya existen archivos con el mismo nombre, se sobreescribirán (se pide confirmación).
+
+#### Botones
+
+- **Guardar y Cerrar:** aplica los cambios y cierra la ventana.
+- **Salir:** cierra la ventana sin guardar.
 
 > **Nota para Linux:** `config_admin.py` usa `tkinter`, que no siempre viene incluido por defecto en algunas distribuciones Linux. Si al ejecutarlo obtienes un error como `ModuleNotFoundError: No module named 'tkinter'`, instálalo con:
 >
@@ -341,6 +355,49 @@ python config_admin.py
 > sudo dnf install python3-tkinter  # Fedora
 > sudo pacman -S tk              # Arch Linux
 > ```
+
+### Modo línea de comandos (CLI)
+
+Útil para servidores sin interfaz gráfica (headless). Permite modificar la configuración y gestionar archivos multimedia directamente desde la terminal.
+
+```bash
+python config_admin.py [OPCIONES]
+```
+
+| Bandera | Descripción |
+|---------|-------------|
+| `--status` | Muestra la configuración actual del servidor |
+| `--toggle-server` | Activa/desactiva el botón "Apagar Servidor" |
+| `--toggle-all` | Activa/desactiva el botón "Apagar Todo" |
+| `--api` | Activa/desactiva la API REST |
+| `--port PUERTO` | Cambia el puerto del servidor |
+| `--export ARCHIVO` | Exporta `data/media/` a un archivo `.fkmedia` |
+| `--import ARCHIVO` | Importa un archivo `.fkmedia` en `data/media/` |
+
+Se pueden combinar varias banderas en una sola ejecución:
+
+```bash
+python config_admin.py --api --toggle-all --port 8080
+```
+
+Ejemplos prácticos:
+
+```bash
+# Ver configuración actual
+python config_admin.py --status
+
+# Activar la API REST
+python config_admin.py --api
+
+# Cambiar puerto a 8080
+python config_admin.py --port 8080
+
+# Exportar todo el contenido multimedia
+python config_admin.py --export backup.fkmedia
+
+# Importar contenido desde un backup
+python config_admin.py --import backup.fkmedia
+```
 
 > **Nota para Docker:** si ejecutas FlaskCast mediante `docker-compose`, el cambio de puerto desde `config_admin.py` no tendrá efecto. El puerto se define en el archivo `docker-compose.yml` mediante el mapeo `ports:`. Para cambiar el puerto en Docker, edita el archivo `docker-compose.yml` y modifica el lado izquierdo del mapeo (ej: `"8080:5000"` para usar el puerto 8080).
 
