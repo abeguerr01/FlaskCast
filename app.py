@@ -5,11 +5,20 @@ import subprocess
 import threading
 import sqlite3
 from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import static_ffmpeg
 import platform
 
 app = Flask(__name__)
 app.secret_key = 'flaskcast_ultra_secret_key_2026'
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per minute"],
+    storage_uri="memory://"
+)
 
 static_ffmpeg.add_paths()
 
@@ -121,6 +130,7 @@ def usuarios_panel():
     return render_template('usuarios.html', usuarios=todos_usuarios, return_to=return_to)
 
 @app.route('/usuarios/crear', methods=['POST'])
+@limiter.limit("5 per minute")
 def crear_usuario():
     return_to = request.form.get('return_to', '/usuarios_panel')
     nombre = request.form.get('nombre', '').strip()
@@ -154,6 +164,7 @@ def seleccionar_usuario(user_id):
     return redirect(return_to)
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
+@limiter.limit("10 per minute")
 def editar_usuario(user_id):
     return_to = request.form.get('return_to', '/usuarios_panel')
     nombre = request.form.get('nombre', '').strip()
@@ -173,6 +184,7 @@ def editar_usuario(user_id):
     return redirect(return_to)
 
 @app.route('/usuarios/eliminar/<int:user_id>', methods=['POST'])
+@limiter.limit("5 per minute")
 def eliminar_usuario(user_id):
     return_to = request.form.get('return_to', '/usuarios_panel')
     conn = conectar_db()
@@ -389,6 +401,7 @@ def api_habilitada_check():
     return api_habilitada
 
 @app.route('/api/videos/add', methods=['POST'])
+@limiter.limit("10 per minute")
 def api_agregar_video():
     if not api_habilitada_check():
         return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
@@ -429,6 +442,7 @@ def api_agregar_video():
     return jsonify({'status': 'ok', 'mensaje': f'Video guardado en {serie}/{ruta_rel}'})
 
 @app.route('/api/videos/rm', methods=['POST'])
+@limiter.limit("10 per minute")
 def api_eliminar_video():
     if not api_habilitada_check():
         return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
@@ -648,6 +662,7 @@ def reproductor_tv(nombre_serie, filename):
     return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename, segundo_inicio=segundo_inicio)
 
 @app.route('/api/progreso/guardar', methods=['POST'])
+@limiter.limit("60 per minute")
 def api_guardar_progreso():
     usuario_id = session.get('usuario_id')
     if not usuario_id:
@@ -757,6 +772,7 @@ def api_obtener_video(nombre_serie, filename):
     return send_from_directory(ruta_serie, filename)
 
 @app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
+@limiter.limit("5 per minute")
 def desencadenar_conversion(nombre_serie, filename):
     global conversiones_activas
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
@@ -782,6 +798,7 @@ def desencadenar_conversion(nombre_serie, filename):
     return jsonify({'status': 'procesando'})
 
 @app.route('/api/eliminar/<nombre_serie>/<path:filename>', methods=['POST'])
+@limiter.limit("10 per minute")
 def eliminar_archivo(nombre_serie, filename):
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_archivo = os.path.join(ruta_serie, filename)
@@ -818,6 +835,7 @@ def ping():
     return jsonify({'status': 'servidor en linea'})
 
 @app.route('/api/off')
+@limiter.limit("2 per minute")
 def off():
     cfg = leer_config()
     if not cfg.get('boton_apagar_visible', False):
@@ -829,6 +847,7 @@ def _apagar_servidor():
     os.kill(os.getpid(), signal.SIGINT)
 
 @app.route('/api/off/all')
+@limiter.limit("1 per minute")
 def off_all():
     cfg = leer_config()
     if not cfg.get('boton_apagar_todo_visible', False):

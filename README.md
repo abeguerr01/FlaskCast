@@ -41,6 +41,7 @@
 - Base de datos: SQLite3 (`flaskcast.db`)
 - Procesamiento de vídeo: FFmpeg (gestión automática con `static-ffmpeg`)
 - Concurrencia: `threading` para evitar colisiones en conversiones
+- Rate Limiting: Flask-Limiter (protección contra abuso de API)
 - Frontend: HTML5, CSS3 y JavaScript
 
 ---
@@ -70,6 +71,8 @@ pip install -r requirements.txt
 Nota: `static-ffmpeg` descargará y configurará los binarios de FFmpeg la primera vez que se ejecute la aplicación. Si prefieres, puedes instalar FFmpeg globalmente en tu sistema.
 
 Nota: `py7zr` se usa para las funciones de exportar/importar contenido multimedia en el panel de administración.
+
+Nota: `Flask-Limiter` proporciona rate limiting para proteger contra abuso de la API.
 
 4. Ejecuta la aplicación:
 
@@ -319,6 +322,40 @@ Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
 ---
 
+**Rate Limiting (Protección contra abuso)**
+
+FlaskCast incluye rate limiting mediante `Flask-Limiter` para proteger la API y las rutas web contra floods de requests y abuso.
+
+### Límites configurados
+
+| Endpoint | Límite | Razón |
+|----------|--------|-------|
+| General (todas las rutas) | 200/min | Protección base |
+| `POST /api/videos/add` | 10/min | Evitar uploads masivos |
+| `POST /api/videos/rm` | 10/min | Evitar eliminaciones masivas |
+| `POST /api/convertir/...` | 5/min | Las conversiones son pesadas |
+| `POST /api/eliminar/...` | 10/min | Evitar eliminaciones masivas |
+| `POST /api/progreso/guardar` | 60/min | Se llama frecuentemente durante reproducción |
+| `POST /usuarios/crear` | 5/min | Evitar creación masiva de usuarios |
+| `POST /usuarios/editar` | 10/min | Moderado |
+| `POST /usuarios/eliminar` | 5/min | Operación destructiva |
+| `GET /api/off` | 2/min | Crítico |
+| `GET /api/off/all` | 1/min | Crítico |
+
+### Respuesta cuando se supera el límite
+
+```json
+{
+  "error": "Too Many Requests",
+  "message": "You have exceeded the rate limit. Please slow down.",
+  "retry_after": 42
+}
+```
+
+Código de estado HTTP: `429 Too Many Requests`
+
+---
+
 ## Panel de administración (config_admin.py)
 
 FlaskCast incluye un panel de administración (`config_admin.py`) que permite modificar parámetros del servidor y gestionar el contenido multimedia. Tiene dos modos de uso: interfaz gráfica (GUI) y línea de comandos (CLI).
@@ -405,7 +442,7 @@ python config_admin.py --import backup.fkmedia
 
 **API REST**
 
-FlaskCast incluye una API REST protegida por sesión de usuario y activada desde el panel de administración. Todos los endpoints requieren el encabezado de cookie de sesión y que el usuario tenga la API habilitada.
+FlaskCast incluye una API REST protegida por sesión de usuario y activada desde el panel de administración. Todos los endpoints requieren el encabezado de cookie de sesión y que el usuario tenga la API habilitada. **Todos los endpoints están protegidos con rate limiting** (ver sección "Rate Limiting" más abajo).
 
 ### 📤 Agregar Video
 
@@ -717,21 +754,21 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 
 ### API REST (requieren sesión + API habilitada)
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/api/videos/add` | Subir vídeo a una serie |
-| POST | `/api/videos/rm` | Eliminar vídeo por nombre |
-| GET | `/api/videos` | Listar todas las series |
-| GET | `/api/videos/<serie>` | Obtener estructura de una serie |
-| GET | `/api/video/<serie>/<archivo>` | Descargar/archivo de vídeo |
-| POST | `/api/convertir/<serie>/<archivo>` | Convertir vídeo incompatible a MP4 |
-| POST | `/api/eliminar/<serie>/<archivo>` | Eliminar archivo directo |
-| GET | `/api/estados` | Consultar conversiones activas |
-| POST | `/api/progreso/guardar` | Guardar posición de reproducción |
-| GET | `/api/progreso/obtener` | Obtener posición guardada |
-| GET | `/api/ping` | Verificar estado del servidor |
-| GET | `/api/off` | Apagar servidor (si habilitado) |
-| GET | `/api/off/all` | Apagar sistema (si habilitado) |
+| Método | Ruta | Descripción | Rate Limit |
+|--------|------|-------------|------------|
+| POST | `/api/videos/add` | Subir vídeo a una serie | 10/min |
+| POST | `/api/videos/rm` | Eliminar vídeo por nombre | 10/min |
+| GET | `/api/videos` | Listar todas las series | 200/min |
+| GET | `/api/videos/<serie>` | Obtener estructura de una serie | 200/min |
+| GET | `/api/video/<serie>/<archivo>` | Descargar/archivo de vídeo | 200/min |
+| POST | `/api/convertir/<serie>/<archivo>` | Convertir vídeo incompatible a MP4 | 5/min |
+| POST | `/api/eliminar/<serie>/<archivo>` | Eliminar archivo directo | 10/min |
+| GET | `/api/estados` | Consultar conversiones activas | 200/min |
+| POST | `/api/progreso/guardar` | Guardar posición de reproducción | 60/min |
+| GET | `/api/progreso/obtener` | Obtener posición guardada | 200/min |
+| GET | `/api/ping` | Verificar estado del servidor | 200/min |
+| GET | `/api/off` | Apagar servidor (si habilitado) | 2/min |
+| GET | `/api/off/all` | Apagar sistema (si habilitado) | 1/min |
 
 ### Endpoints de contenido
 
