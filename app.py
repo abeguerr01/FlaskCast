@@ -31,8 +31,9 @@ def leer_config():
         return {}
 
 def conectar_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 def inicializar_base_datos():
