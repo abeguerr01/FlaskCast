@@ -1,10 +1,12 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlaskCast TV - {{ filename.split('/')[-1] }}</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+{% extends 'base.html' %}
+
+{% block title %}FlaskCast TV - {{ filename.split('/')[-1] }}{% endblock %}
+
+{% block body_class %}{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block head %}
     <style>
         body {
             background-color: #000000;
@@ -68,8 +70,9 @@
             transform: scale(1.02);
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 
     <div class="tv-player-wrapper">
         <video id="tvPlayer" controls autoplay preload="auto" 
@@ -77,16 +80,16 @@
                data-filename="{{ filename }}" 
                data-inicio="{{ segundo_inicio }}">
             <source src="{{ url_for('serve_video', nombre_serie=serie, filename=filename) }}" type="video/mp4">
-            Tu Smart TV no soporta la decodificación de este archivo de vídeo.
+            Tu Smart TV no soporta la decodificacion de este archivo de video.
         </video>
     </div>
 
     <div class="tv-footer">
-        <div class="video-name">🍿 Viendo: {{ filename.split('/')[-1] }}</div>
+        <div class="video-name">Viendo: {{ filename.split('/')[-1] }}</div>
         <div class="tv-actions">
-            <a href="/serie/{{ serie }}" class="btn-tv btn-tv-back">⬅ Volver a la Lista</a>
+            <a href="/serie/{{ serie }}" class="btn-tv btn-tv-back">Volver a la Lista</a>
             {% if next_filename %}
-                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=next_filename) }}" class="btn-tv btn-tv-next">⏭️ Siguiente Capítulo</a>
+                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=next_filename) }}" class="btn-tv btn-tv-next">Siguiente Capitulo</a>
             {% endif %}
         </div>
     </div>
@@ -99,14 +102,12 @@
         
         let ultimoTiempoGuardado = 0;
 
-        // Saltar automáticamente al segundo guardado al arrancar
         player.addEventListener('loadedmetadata', () => {
             if (segundoInicio > 5) {
                 player.currentTime = segundoInicio;
             }
         });
 
-        // Reportar el progreso al servidor cada 5 segundos
         player.addEventListener('timeupdate', () => {
             const tiempoActual = Math.floor(player.currentTime);
             if (tiempoActual % 5 === 0 && tiempoActual !== ultimoTiempoGuardado) {
@@ -125,7 +126,6 @@
             }
         });
 
-        // Marcar como visto al finalizar
         player.addEventListener('ended', () => {
             fetch('/api/progreso/guardar', {
                 method: 'POST',
@@ -137,7 +137,6 @@
                     visto: 1
                 })
             }).then(() => {
-                // Si hay un botón de siguiente capítulo, ir a él automáticamente al terminar
                 const btnNext = document.querySelector('.btn-tv-next');
                 if (btnNext) {
                     window.location.href = btnNext.href;
@@ -145,5 +144,5 @@
             });
         });
     </script>
-</body>
-</html>
+
+{% endblock %}

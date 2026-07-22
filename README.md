@@ -43,6 +43,7 @@
 - Concurrencia: `threading` para evitar colisiones en conversiones
 - Rate Limiting: Flask-Limiter (protección contra abuso de API)
 - Frontend: HTML5, CSS3 y JavaScript
+- Template Engine: Jinja2 con herencia de plantillas (`base.html`)
 
 ---
 
@@ -110,15 +111,40 @@ docker-compose up --build
 │   └── js/
 │       └── reproductor.js
 └── templates/
-    ├── index.html           # Catálogo principal
-    ├── serie.html           # Detalle de serie con capítulos
-    ├── player_tv.html       # Reproductor SmartTV
-    ├── live.html            # Lista de streams en vivo
-    ├── live_tv.html         # Reproductor SmartTV para streams
-    ├── usuarios.html        # Panel de gestión de usuarios
-    ├── ajustes.html         # Panel de configuración
+    ├── base.html            # Plantilla base (sidebar, head, layout)
+    ├── index.html           # Catálogo principal (extiende base.html)
+    ├── serie.html           # Detalle de serie con capítulos (extiende base.html)
+    ├── player_tv.html       # Reproductor SmartTV (extiende base.html, sin sidebar)
+    ├── live.html            # Lista de streams en vivo (extiende base.html)
+    ├── live_tv.html         # Reproductor SmartTV para streams (extiende base.html, sin sidebar)
+    ├── usuarios.html        # Panel de gestión de usuarios (extiende base.html)
+    ├── ajustes.html         # Panel de configuración (extiende base.html)
     └── base.html            # Plantilla base
 ```
+
+---
+
+**Herencia de Plantillas**
+
+Todas las plantillas heredan de `base.html` usando Jinja2:
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}Mi Página{% endblock %}
+
+{% block head %}
+    <style>/* Estilos específicos */</style>
+{% endblock %}
+
+{% block content %}
+    <!-- Contenido de la página -->
+{% endblock %}
+```
+
+`base.html` incluye:
+- Sidebar de navegación (se oculta en reproductores SmartTV)
+- Bloques extensibles: `title`, `head`, `content`, `body_class`, `sidebar`
 
 ---
 

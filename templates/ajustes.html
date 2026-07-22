@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ajustes de FlaskCast</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+﻿{% extends 'base.html' %}
+
+{% block title %}Ajustes de FlaskCast{% endblock %}
+
+{% block head %}
     <style>
         .settings-box {
             background-color: #111;
@@ -99,11 +96,6 @@
         }
         .btn-shutdown-all:hover { background-color: #cc6a00; color: #fff; }
 
-        .form-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
         .form-divider {
             border: none;
             border-top: 1px solid #333;
@@ -170,12 +162,13 @@
             color: #aaa;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 
     <header>
-        <h1>⚙️ Panel de Ajustes</h1>
-        <a href="{{ return_to }}" class="btn-back">⬅ Cancelar y Volver</a>
+        <h1>Panel de Ajustes</h1>
+        <a href="{{ return_to }}" class="btn-back">Cancelar y Volver</a>
     </header>
 
     <div class="container">
@@ -183,14 +176,14 @@
             <form action="/ajustes" method="POST">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="form-group">
-                    <label for="auto_marcar">Marcar estado del capítulo automático</label>
+                    <label for="auto_marcar">Marcar estado del capitulo automatico</label>
                     <label class="switch">
                         <input type="checkbox" id="auto_marcar" name="auto_marcar" {% if auto_marcar == 1 %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Si está activado, el sistema marcará el capítulo como <strong>"Viendo"</strong> al alcanzar el 10% reproducido, y como <strong>"Visto"</strong> al pasar del 85%. Si se desactiva, los estados solo cambiarán al hacer click manual sobre la etiqueta.
+                    Si esta activado, el sistema marcara el capitulo como <strong>Viendo</strong> al alcanzar el 10% reproducido, y como <strong>Visto</strong> al pasar del 85%. Si se desactiva, los estados solo cambiaran al hacer click manual sobre la etiqueta.
                 </p>
 
                 <hr class="form-divider">
@@ -203,14 +196,14 @@
                     </label>
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Muestra una barra de progreso debajo de cada capítulo indicando el porcentaje visto. Si se desactiva, las barras no se mostrarán en las tarjetas de episodios.
+                    Muestra una barra de progreso debajo de cada capitulo indicando el porcentaje visto. Si se desactiva, las barras no se mostraran en las tarjetas de episodios.
                 </p>
 
-                <button type="submit" class="btn-save">Guardar Configuración</button>
+                <button type="submit" class="btn-save">Guardar Configuracion</button>
             </form>
             {% if es_local %}
             <hr class="form-divider">
-            <button type="button" class="btn-save" style="background-color: #0d6efd;" onclick="abrirConfigAdmin()">Abrir Panel de Administración</button>
+            <button type="button" class="btn-save" style="background-color: #0d6efd;" onclick="abrirConfigAdmin()">Abrir Panel de Administracion</button>
             <p style="color: #888; font-size: 0.85rem; margin-top: 10px; margin-bottom: 0; line-height: 1.4;">
                 Abre <code>config_admin.py</code> para gestionar la API, botones de apagado y puerto.
             </p>
@@ -219,38 +212,37 @@
             {% if boton_apagar_visible or boton_apagar_todo_visible %}
             <hr class="form-divider">
             <p style="color: #888; font-size: 0.85rem; margin-bottom: 15px; line-height: 1.4;">
-                Los botones de apagado solo están disponibles si se activan desde el panel de administración (<code>config_admin.py</code>).
+                Los botones de apagado solo estan disponibles si se activan desde el panel de administracion (<code>config_admin.py</code>).
             </p>
             {% if boton_apagar_visible %}
-            <button type="button" class="btn-shutdown" onclick="apagarServidor()">⏻ Apagar Servidor</button>
+            <button type="button" class="btn-shutdown" onclick="apagarServidor()">Apagar Servidor</button>
             {% endif %}
             {% if boton_apagar_todo_visible %}
-            <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">⏻ Apagar Todo</button>
+            <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">Apagar Todo</button>
             {% endif %}
             {% endif %}
         </div>
     </div>
 
-    <!-- Modal de documentación API -->
     <div class="modal-overlay" id="apiInfoModal" onclick="if(event.target===this)this.style.display='none'">
         <div class="modal-box api-modal">
             <span class="modal-close-btn" onclick="document.getElementById('apiInfoModal').style.display='none'">&times;</span>
-            <h2 style="color: #1fcc72; margin-bottom: 20px;">📡 API REST - FlaskCast</h2>
+            <h2 style="color: #1fcc72; margin-bottom: 20px;">API REST - FlaskCast</h2>
             <div class="api-docs-content">
                 <div class="api-note">
-                    Para usar la API, debes tener una sesión activa en FlaskCast y tener la opción <strong>"Habilitar API REST"</strong> activada en el panel de administración (<code>config_admin.py</code>).
+                    Para usar la API, debes tener una sesion activa en FlaskCast y tener la opcion <strong>Habilitar API REST</strong> activada en el panel de administracion (<code>config_admin.py</code>).
                 </div>
 
-                <h3>📤 Agregar Video</h3>
-                <p>Sube un archivo de vídeo a una serie y temporada específica.</p>
-                <h4>Petición</h4>
+                <h3> Agregar Video</h3>
+                <p>Sube un archivo de video a una serie y temporada especifica.</p>
+                <h4>Peticion</h4>
                 <pre>POST /api/videos/add
 Content-Type: multipart/form-data</pre>
-                <h4>Parámetros</h4>
+                <h4>Parametros</h4>
                 <ul>
-                    <li><code>serie</code> (obligatorio) — Nombre de la serie</li>
-                    <li><code>temporada</code> — Nombre de la temporada (obligatorio si la serie tiene subcarpetas, no uses si no las tiene)</li>
-                    <li><code>archivo</code> (obligatorio) — Archivo de vídeo</li>
+                    <li><code>serie</code> (obligatorio) - Nombre de la serie</li>
+                    <li><code>temporada</code> - Nombre de la temporada (obligatorio si la serie tiene subcarpetas, no uses si no las tiene)</li>
+                    <li><code>archivo</code> (obligatorio) - Archivo de video</li>
                 </ul>
                 <h4>Ejemplo con curl (con temporada)</h4>
                 <pre>curl -X POST http://localhost:5000/api/videos/add \
@@ -264,26 +256,11 @@ Content-Type: multipart/form-data</pre>
   -F "serie=Mi Serie" \
   -F "archivo=@/ruta/al/video.mp4"</pre>
 
-                <h3>📋 Listar Estructura</h3>
-                <p>Obtén la estructura completa de todas las series o de una específica.</p>
-                <h4>Petición</h4>
-                <pre>GET /api/videos              → Todas las series
-GET /api/videos/Mi Serie     → Una serie específica</pre>
-                <h4>Respuesta (ejemplo)</h4>
-                <pre>{
-  "status": "ok",
-  "series": [
-    {
-      "nombre": "Mi Serie",
-      "temporadas": {
-        "Temporada 1": {
-          "nombre": "Temporada 1",
-          "capitulos": ["cap1.mp4", "cap2.mp4"]
-        }
-      }
-    }
-  ]
-}</pre>
+                <h3> Listar Estructura</h3>
+                <p>Obtén la estructura completa de todas las series o de una especifica.</p>
+                <h4>Peticion</h4>
+                <pre>GET /api/videos              -> Todas las series
+GET /api/videos/Mi Serie     -> Una serie especifica</pre>
                 <h4>Ejemplo con curl</h4>
                 <pre>curl http://localhost:5000/api/videos \
   -b "session=TU_SESSION"
@@ -291,24 +268,24 @@ GET /api/videos/Mi Serie     → Una serie específica</pre>
 curl http://localhost:5000/api/videos/Mi%20Serie \
   -b "session=TU_SESSION"</pre>
 
-                <h3>🎬 Obtener Video</h3>
-                <p>Devuelve el archivo de vídeo para reproducir o descargar.</p>
-                <h4>Petición</h4>
+                <h3> Obtener Video</h3>
+                <p>Devuelve el archivo de video para reproducir o descargar.</p>
+                <h4>Peticion</h4>
                 <pre>GET /api/video/Mi Serie/Temporada 1/cap1.mp4</pre>
                 <h4>Ejemplo con curl</h4>
                 <pre>curl http://localhost:5000/api/video/Mi%20Serie/Temporada%201/cap1.mp4 \
   -b "session=TU_SESSION" \
   -o cap1.mp4</pre>
 
-                <h3>🗑️ Eliminar Video</h3>
-                <p>Elimina un archivo de vídeo de una serie.</p>
-                <h4>Petición</h4>
+                <h3> Eliminar Video</h3>
+                <p>Elimina un archivo de video de una serie.</p>
+                <h4>Peticion</h4>
                 <pre>POST /api/videos/rm
 Content-Type: application/json</pre>
-                <h4>Parámetros (JSON)</h4>
+                <h4>Parametros (JSON)</h4>
                 <ul>
-                    <li><code>serie</code> (obligatorio) — Nombre de la serie</li>
-                    <li><code>filename</code> (obligatorio) — Ruta del archivo dentro de la serie (ej: <code>Temporada 1/video.mp4</code>)</li>
+                    <li><code>serie</code> (obligatorio) - Nombre de la serie</li>
+                    <li><code>filename</code> (obligatorio) - Ruta del archivo dentro de la serie (ej: <code>Temporada 1/video.mp4</code>)</li>
                 </ul>
                 <h4>Ejemplo con curl</h4>
                 <pre>curl -X POST http://localhost:5000/api/videos/rm \
@@ -321,34 +298,34 @@ Content-Type: application/json</pre>
 
     <script>
         function apagarServidor() {
-            if (!confirm('¿Estás seguro de que quieres apagar el servidor?')) return;
+            if (!confirm('Estas seguro de que quieres apagar el servidor?')) return;
             fetch('/api/off')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
                         alert('Error: ' + data.error);
                     } else {
-                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Servidor apagándose...</div>';
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Servidor apagandose...</div>';
                     }
                 })
                 .catch(function() {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Servidor apagándose...</div>';
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Servidor apagandose...</div>';
                 });
         }
 
         function apagarTodo() {
-            if (!confirm('¿Estás seguro? Esto apagará todo el sistema.')) return;
+            if (!confirm('Estas seguro? Esto apagara todo el sistema.')) return;
             fetch('/api/off/all')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
                         alert('Error: ' + data.error);
                     } else {
-                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Sistema apagándose...</div>';
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Sistema apagandose...</div>';
                     }
                 })
                 .catch(function() {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">⏻ Sistema apagándose...</div>';
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Sistema apagandose...</div>';
                 });
         }
 
@@ -361,7 +338,7 @@ Content-Type: application/json</pre>
                     }
                 })
                 .catch(function() {
-                    alert('No se pudo abrir el panel de administración.');
+                    alert('No se pudo abrir el panel de administracion.');
                 });
         }
 
@@ -372,5 +349,4 @@ Content-Type: application/json</pre>
         });
     </script>
 
-</body>
-</html>
+{% endblock %}

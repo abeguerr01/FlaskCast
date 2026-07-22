@@ -8,8 +8,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
     {% block head %}{% endblock %}
 </head>
-<body class="sidebar-layout">
+<body class="{% block body_class %}sidebar-layout{% endblock %}">
 
+    {% block sidebar %}
     <div class="sidebar">
         <div class="sidebar-header">
             <a href="/" class="sidebar-logo">FLASKCAST</a>
@@ -25,6 +26,7 @@
             </a>
         </nav>
     </div>
+    {% endblock %}
 
     <div class="main-content">
         {% block content %}{% endblock %}

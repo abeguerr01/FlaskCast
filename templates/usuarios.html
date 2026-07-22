@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlaskCast - Quién está viendo</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
-</head>
-<body>
+{% extends 'base.html' %}
+
+{% block title %}FlaskCast - Quién está viendo{% endblock %}
+
+{% block content %}
 
     <div class="profile-container">
         <h1 style="color: #fff; font-size: 2.2rem;">¿Quién está viendo ahora?</h1>
@@ -98,13 +93,11 @@
             document.getElementById('inputEditarEmoji').value = emoji;
             document.getElementById('previewEmojiActual').innerText = emoji;
             
-            // Inyectamos las rutas de acción correctas usando la ID del usuario
             document.getElementById('formEditarPerfil').action = `/usuarios/editar/${id}`;
             document.getElementById('formEliminarPerfil').action = `/usuarios/eliminar/${id}`;
             
             modal.style.display = 'flex';
             
-            // Marcar visualmente el tile del emoji activo en el popup
             resaltarEmojiActivo(emoji);
         }
 
@@ -131,7 +124,6 @@
             });
         }
 
-        // Cerrar modal si se hace clic fuera del recuadro contenedor
         window.onclick = function(event) {
             const modal = document.getElementById('modalEditarPerfil');
             if (event.target == modal) {
@@ -139,5 +131,5 @@
             }
         }
     </script>
-</body>
-</html>
+
+{% endblock %}
