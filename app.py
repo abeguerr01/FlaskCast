@@ -851,12 +851,12 @@ if __name__ == '__main__':
     
     if sistema == "Windows":
         from waitress import serve
-        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}.")
+        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}")
         serve(app, host='0.0.0.0', port=puerto, threads=6)
         
     else:
         import subprocess
-        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}.")
+        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}")
         subprocess.run([
             "gunicorn", 
             "--bind", f"0.0.0.0:{puerto}", 
