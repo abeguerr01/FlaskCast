@@ -1,6 +1,13 @@
 # 📺 FlaskCast — Plataforma Multimedia Local
 
-FlaskCast es un portal de streaming multimedia personal y local construido con Python y Flask. Permite organizar catálogos de series por carpetas, generar miniaturas automáticamente, transcodificar formatos incompatibles en segundo plano con FFmpeg, guardar el progreso de reproducción por usuario y gestionar el contenido mediante una API REST.
+<table>
+  <tr>
+    <td><img src="static/logo.png" alt="FlaskCast Logo" width="500"></td>
+    <td style="vertical-align: middle; padding-left: 20px;">
+      <p>FlaskCast es un portal de streaming multimedia personal y local construido con Python y Flask. Permite organizar catálogos de series por carpetas, generar miniaturas automáticamente, transcodificar formatos incompatibles en segundo plano con FFmpeg, guardar el progreso de reproducción por usuario y gestionar el contenido mediante una API REST.</p>
+    </td>
+  </tr>
+</table>
 
 ---
 
