@@ -222,16 +222,25 @@ def salir_usuario():
 
 @app.route('/')
 def index():
-    lista_series = []
+    todas_las_series = []
     if os.path.exists(DIRECTORIO_MEDIA):
         for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
             ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
             if os.path.isdir(ruta_item):
                 tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
-                lista_series.append({
+                todas_las_series.append({
                     'nombre_carpeta': item,
                     'tiene_portada': tiene_portada
                 })
+
+    POR_PAGINA = 24
+    total_series = len(todas_las_series)
+    total_paginas = max(1, (total_series + POR_PAGINA - 1) // POR_PAGINA)
+    pagina_actual = request.args.get('page', 1, type=int)
+    pagina_actual = max(1, min(pagina_actual, total_paginas))
+    inicio = (pagina_actual - 1) * POR_PAGINA
+    fin = inicio + POR_PAGINA
+    lista_series = todas_las_series[inicio:fin]
 
     continuar_viendo = []
     usuario_id = session.get('usuario_id')
@@ -279,15 +288,37 @@ def index():
         continuar_viendo.sort(key=lambda x: x['segundos'], reverse=True)
         continuar_viendo = continuar_viendo[:12]
 
-    favoritos = []
+    favoritos_nombres = []
+    favoritos_detalle = []
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
-        favoritos = [fila['serie'] for fila in cursor.fetchall()]
+        favoritos_nombres = [fila['serie'] for fila in cursor.fetchall()]
         conn.close()
 
-    return render_template('index.html', series=lista_series, active_section='catalogo', continuar_viendo=continuar_viendo, favoritos=favoritos)
+        series_map = {s['nombre_carpeta']: s for s in todas_las_series}
+        for fav_nombre in favoritos_nombres:
+            if fav_nombre in series_map:
+                favoritos_detalle.append(series_map[fav_nombre])
+            else:
+                ruta_fav = os.path.join(DIRECTORIO_MEDIA, fav_nombre)
+                if os.path.isdir(ruta_fav):
+                    tiene_portada = os.path.exists(os.path.join(ruta_fav, '_img.png'))
+                    favoritos_detalle.append({
+                        'nombre_carpeta': fav_nombre,
+                        'tiene_portada': tiene_portada
+                    })
+
+    return render_template('index.html',
+        series=lista_series,
+        active_section='catalogo',
+        continuar_viendo=continuar_viendo,
+        favoritos=favoritos_detalle,
+        pagina_actual=pagina_actual,
+        total_paginas=total_paginas,
+        total_series=total_series
+    )
 
 LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
 

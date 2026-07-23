@@ -199,26 +199,22 @@
         <div class="favorites-section">
             <h2 class="section-title">⭐ Favoritos</h2>
             <div class="continue-grid">
-                {% for fav_nombre in favoritos %}
-                    {% for serie in series %}
-                        {% if serie.nombre_carpeta == fav_nombre %}
-                        <a href="/serie/{{ serie.nombre_carpeta }}" class="continue-card fav-card">
-                            <div class="continue-thumb">
-                                {% if serie.tiene_portada %}
-                                    <img class="continue-img" src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
-                                {% else %}
-                                    <div class="continue-no-cover">📺</div>
-                                {% endif %}
-                                <div class="continue-overlay">
-                                    <span class="continue-play">▶</span>
-                                </div>
-                            </div>
-                            <div class="continue-info">
-                                <div class="continue-serie">{{ serie.nombre_carpeta }}</div>
-                            </div>
-                        </a>
+                {% for serie in favoritos %}
+                <a href="/serie/{{ serie.nombre_carpeta }}" class="continue-card fav-card">
+                    <div class="continue-thumb">
+                        {% if serie.tiene_portada %}
+                            <img class="continue-img" src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                        {% else %}
+                            <div class="continue-no-cover">📺</div>
                         {% endif %}
-                    {% endfor %}
+                        <div class="continue-overlay">
+                            <span class="continue-play">▶</span>
+                        </div>
+                    </div>
+                    <div class="continue-info">
+                        <div class="continue-serie">{{ serie.nombre_carpeta }}</div>
+                    </div>
+                </a>
                 {% endfor %}
             </div>
         </div>
@@ -248,6 +244,50 @@
                 <p style="color: #888; text-align: center; width: 100%; padding: 40px;">No se encontraron carpetas dentro de <code>data/media</code>.</p>
             {% endfor %}
         </div>
+
+        {% if total_paginas > 1 %}
+        <div class="pagination">
+            {% if pagina_actual > 1 %}
+                <a href="?page={{ pagina_actual - 1 }}" class="pagination-btn">&laquo; Anterior</a>
+            {% else %}
+                <span class="pagination-btn disabled">&laquo; Anterior</span>
+            {% endif %}
+
+            {% set pagina_inicio = [1, pagina_actual - 2] | max %}
+            {% set pagina_fin = [total_paginas, pagina_actual + 2] | min %}
+
+            {% if pagina_inicio > 1 %}
+                <a href="?page=1" class="pagination-btn">1</a>
+                {% if pagina_inicio > 2 %}
+                    <span class="pagination-ellipsis">...</span>
+                {% endif %}
+            {% endif %}
+
+            {% for p in range(pagina_inicio, pagina_fin + 1) %}
+                {% if p == pagina_actual %}
+                    <span class="pagination-btn active">{{ p }}</span>
+                {% else %}
+                    <a href="?page={{ p }}" class="pagination-btn">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if pagina_fin < total_paginas %}
+                {% if pagina_fin < total_paginas - 1 %}
+                    <span class="pagination-ellipsis">...</span>
+                {% endif %}
+                <a href="?page={{ total_paginas }}" class="pagination-btn">{{ total_paginas }}</a>
+            {% endif %}
+
+            {% if pagina_actual < total_paginas %}
+                <a href="?page={{ pagina_actual + 1 }}" class="pagination-btn">Siguiente &raquo;</a>
+            {% else %}
+                <span class="pagination-btn disabled">Siguiente &raquo;</span>
+            {% endif %}
+        </div>
+        <div class="pagination-info">
+            Mostrando {{ [(pagina_actual - 1) * 24 + 1, total_series] | min }}–{{ [pagina_actual * 24, total_series] | min }} de {{ total_series }} series
+        </div>
+        {% endif %}
     </div>
 
     <script>
