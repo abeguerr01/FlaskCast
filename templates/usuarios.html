@@ -5,7 +5,7 @@
 {% block content %}
 
     <div class="profile-container">
-        <h1 style="color: #fff; font-size: 2.2rem;">¿Quién está viendo ahora?</h1>
+        <h1 style="color: var(--text-primary); font-size: 2.2rem;">¿Quién está viendo ahora?</h1>
         
         <div class="profile-grid">
             {% for usuario in usuarios %}
@@ -27,7 +27,7 @@
         </div>
 
         <div class="form-crear-user">
-            <h3 style="margin-bottom: 15px; color: #ccc;">Añadir nuevo perfil:</h3>
+            <h3 style="margin-bottom: 15px; color: var(--text-secondary);">Añadir nuevo perfil:</h3>
             <form action="/usuarios/crear" method="POST">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <input type="text" name="nombre" placeholder="Nombre del usuario..." required autocomplete="off">
@@ -36,15 +36,15 @@
         </div>
         
         <div style="margin-top: 30px;">
-            <a href="{{ return_to }}" style="color: #888; text-decoration: none;">← Cancelar y volver</a>
+            <a href="{{ return_to }}" style="color: var(--text-muted); text-decoration: none;">← Cancelar y volver</a>
         </div>
     </div>
 
     <div id="modalEditarPerfil" class="modal-overlay">
         <div class="modal-box">
             <span class="modal-close-btn" onclick="cerrarModalEditar()">&times;</span>
-            <h2 style="margin-top: 0; color: #fff;">Configuración del Perfil</h2>
-            <p style="color: #666; font-size: 0.85rem; margin-top: -5px;">Modifica los detalles de tu cuenta</p>
+            <h2 style="margin-top: 0; color: var(--text-primary);">Configuración del Perfil</h2>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: -5px;">Modifica los detalles de tu cuenta</p>
             
             <form id="formEditarPerfil" method="POST" action="">
                 <input type="hidden" name="return_to" value="{{ return_to }}">

@@ -32,6 +32,12 @@ lock_conversiones = threading.Lock()
 api_habilitada = False
 
 
+@app.context_processor
+def inject_tema():
+    tema = session.get('usuario_tema', 'oscuro')
+    return {'tema_actual': tema}
+
+
 def leer_config():
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -70,6 +76,8 @@ def inicializar_base_datos():
         cursor.execute("ALTER TABLE usuarios ADD COLUMN auto_marcar INTEGER DEFAULT 1")
     if 'mostrar_progreso' not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN mostrar_progreso INTEGER DEFAULT 1")
+    if 'tema' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN tema TEXT DEFAULT 'oscuro'")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progreso (
@@ -171,6 +179,7 @@ def seleccionar_usuario(user_id):
         session['usuario_emoji'] = user['emoji']
         session['usuario_auto_marcar'] = user['auto_marcar']
         session['usuario_mostrar_progreso'] = user['mostrar_progreso']
+        session['usuario_tema'] = user['tema'] if user['tema'] else 'oscuro'
     return redirect(return_to)
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
@@ -208,6 +217,7 @@ def eliminar_usuario(user_id):
         session.pop('usuario_emoji', None)
         session.pop('usuario_auto_marcar', None)
         session.pop('usuario_mostrar_progreso', None)
+        session.pop('usuario_tema', None)
     return redirect(return_to)
 
 @app.route('/usuarios/salir')
@@ -218,6 +228,7 @@ def salir_usuario():
     session.pop('usuario_emoji', None)
     session.pop('usuario_auto_marcar', None)
     session.pop('usuario_mostrar_progreso', None)
+    session.pop('usuario_tema', None)
     return redirect(return_to)
 
 @app.route('/')
@@ -422,28 +433,37 @@ def ajustes():
             cursor = conn.cursor()
             auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
             mostrar_progreso = 1 if request.form.get('mostrar_progreso') == 'on' else 0
-            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ? WHERE id = ?', (auto_marcar, mostrar_progreso, usuario_id))
+            tema = request.form.get('tema', 'oscuro')
+            if tema not in ('oscuro', 'claro'):
+                tema = 'oscuro'
+            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ?, tema = ? WHERE id = ?', (auto_marcar, mostrar_progreso, tema, usuario_id))
             conn.commit()
             session['usuario_auto_marcar'] = auto_marcar
             session['usuario_mostrar_progreso'] = mostrar_progreso
+            session['usuario_tema'] = tema
 
         return redirect(return_to)
     
     return_to = request.args.get('return_to', '/')
     auto_marcar = 1
     mostrar_progreso = 1
+    tema = 'oscuro'
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT auto_marcar, mostrar_progreso FROM usuarios WHERE id = ?', (usuario_id,))
+        cursor.execute('SELECT auto_marcar, mostrar_progreso, tema FROM usuarios WHERE id = ?', (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         if user:
             auto_marcar = user['auto_marcar']
             mostrar_progreso = user['mostrar_progreso']
+            tema = user['tema'] if user['tema'] else 'oscuro'
     
     cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, boton_apagar_visible=cfg.get('boton_apagar_visible', False), boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False), es_local=es_cliente_local(), return_to=return_to)
+    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema,
+        boton_apagar_visible=cfg.get('boton_apagar_visible', False),
+        boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
+        es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
 
 def api_habilitada_check():
     global api_habilitada
