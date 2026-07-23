@@ -1174,3 +1174,269 @@ body.sidebar-layout {
     font-size: 0.85rem;
     padding-bottom: 30px;
 }
+
+/* ==========================================================================
+   HAMBURGER TOGGLE (solo visible en móvil)
+   ========================================================================== */
+
+.sidebar-toggle-input {
+    display: none;
+}
+
+.sidebar-toggle-label {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 200;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-surface-3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.hamburger-line {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-primary);
+    border-radius: 2px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 99;
+}
+
+/* ==========================================================================
+   RESPONSIVE — TABLET (max-width: 900px)
+   ========================================================================== */
+
+@media (max-width: 900px) {
+    .user-status-bar {
+        padding: 10px 20px;
+        margin: -30px -20px 30px -20px;
+    }
+}
+
+/* ==========================================================================
+   RESPONSIVE — MÓVIL (max-width: 768px)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    body {
+        padding: 0;
+    }
+
+    /* --- SIDEBAR --- */
+    .sidebar-toggle-label {
+        display: flex;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: -260px;
+        width: 250px;
+        transition: left 0.3s ease;
+        z-index: 150;
+    }
+
+    .sidebar-toggle-input:checked ~ .sidebar {
+        left: 0;
+    }
+
+    .sidebar-toggle-input:checked ~ .sidebar-overlay {
+        display: block;
+    }
+
+    .sidebar-toggle-input:checked ~ .sidebar-toggle-label .hamburger-line:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+    .sidebar-toggle-input:checked ~ .sidebar-toggle-label .hamburger-line:nth-child(2) {
+        opacity: 0;
+    }
+    .sidebar-toggle-input:checked ~ .sidebar-toggle-label .hamburger-line:nth-child(3) {
+        transform: rotate(-45deg) translate(5px, -5px);
+    }
+
+    /* --- MAIN CONTENT --- */
+    .main-content {
+        margin-left: 0;
+        padding: 20px 16px;
+        padding-top: 60px;
+    }
+
+    /* --- USER STATUS BAR --- */
+    .user-status-bar {
+        margin: 0 0 20px 0;
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* --- HEADER --- */
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    /* --- VIDEO GRID --- */
+    .video-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+        padding: 10px 0;
+    }
+
+    /* --- CONTINUE CARDS --- */
+    .continue-card {
+        flex: 0 0 200px;
+    }
+
+    /* --- SECTION TITLE --- */
+    .section-title {
+        font-size: 1.1rem;
+    }
+
+    /* --- HEADER ACTIONS (serie.html back + fav buttons) --- */
+    .header-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    /* --- PLAYER CONTROLS --- */
+    .player-controls {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 14px;
+    }
+
+    /* --- LIVE ITEMS --- */
+    .live-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+    }
+
+    .live-item-btn {
+        margin-left: 0;
+        width: 100%;
+        text-align: center;
+    }
+
+    /* --- PAGINATION --- */
+    .pagination {
+        gap: 4px;
+        padding: 20px 0 10px 0;
+    }
+
+    .pagination-btn {
+        min-width: 34px;
+        height: 34px;
+        padding: 0 8px;
+        font-size: 0.8rem;
+    }
+
+    /* --- PROFILE CONTAINER --- */
+    .profile-container {
+        margin: 30px auto;
+        padding: 0 10px;
+    }
+
+    .profile-grid {
+        gap: 20px;
+    }
+
+    /* --- SETTINGS BOX --- */
+    .settings-box {
+        margin: 20px auto;
+        padding: 20px;
+    }
+
+    /* --- FORM CREAR USER --- */
+    .form-crear-user input[type="text"] {
+        width: 55%;
+    }
+
+    /* --- SEARCH CONTAINER (index.html) --- */
+    .search-container {
+        max-width: 100%;
+    }
+
+    /* --- FILTER BAR --- */
+    .filter-bar {
+        gap: 6px;
+    }
+
+    .filter-btn {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+    }
+}
+
+/* ==========================================================================
+   RESPONSIVE — MÓVIL PEQUEÑO (max-width: 480px)
+   ========================================================================== */
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 14px 12px;
+        padding-top: 56px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .video-grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
+    }
+
+    .continue-card {
+        flex: 0 0 170px;
+    }
+
+    .user-status-bar {
+        padding: 8px 12px;
+    }
+
+    .profile-name {
+        font-size: 0.85rem;
+    }
+
+    .btn-settings {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    .form-crear-user input[type="text"] {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+
+    .form-crear-user {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .pagination-btn {
+        min-width: 30px;
+        height: 30px;
+        padding: 0 6px;
+        font-size: 0.75rem;
+    }
+}

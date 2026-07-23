@@ -60,6 +60,7 @@
             align-items: center;
             gap: 12px;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .btn-settings {
@@ -130,6 +131,21 @@
         .video-card.capitulo-visto { border: 2px solid #1fcc72; background-color: #0f2617 !important; }
         .video-card.capitulo-viendo { border: 2px solid #0d6efd; background-color: #0b1a30 !important; }
         .video-card.capitulo-novisto { border: 1px solid #333; background-color: #111111; }
+
+        @media (max-width: 768px) {
+            header h1 { font-size: 1.5rem; }
+            .header-actions { gap: 8px; }
+            .btn-back, .btn-fav { font-size: 0.8rem; padding: 5px 10px; }
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 12px; }
+            .season-header { padding: 12px 14px; font-size: 0.95rem; }
+            .filter-bar { gap: 5px; }
+            .filter-btn { padding: 5px 10px; font-size: 0.75rem; }
+            .player-container video { max-height: 300px; }
+        }
+        @media (max-width: 480px) {
+            header h1 { font-size: 1.3rem; }
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; padding: 8px; }
+        }
     </style>
 {% endblock %}
 

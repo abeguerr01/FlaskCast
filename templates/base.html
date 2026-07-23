@@ -11,6 +11,13 @@
 <body class="{% block body_class %}sidebar-layout{% endblock %}">
 
     {% block sidebar %}
+    <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle-input">
+    <label for="sidebar-toggle" class="sidebar-toggle-label">
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+    </label>
+    <label for="sidebar-toggle" class="sidebar-overlay"></label>
     <div class="sidebar">
         <div class="sidebar-header">
             <a href="/" class="sidebar-logo">FLASKCAST</a>
