@@ -6,6 +6,10 @@ services:
       - "5000:5000"
     volumes:
       - .:/app
+      - flaskcast-data:/app/data
     environment:
       - FLASK_ENV=development
     command: python app.py
+
+volumes:
+  flaskcast-data:

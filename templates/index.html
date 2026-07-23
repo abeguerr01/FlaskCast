@@ -195,6 +195,35 @@
         </div>
         {% endif %}
 
+        {% if favoritos %}
+        <div class="favorites-section">
+            <h2 class="section-title">⭐ Favoritos</h2>
+            <div class="continue-grid">
+                {% for fav_nombre in favoritos %}
+                    {% for serie in series %}
+                        {% if serie.nombre_carpeta == fav_nombre %}
+                        <a href="/serie/{{ serie.nombre_carpeta }}" class="continue-card fav-card">
+                            <div class="continue-thumb">
+                                {% if serie.tiene_portada %}
+                                    <img class="continue-img" src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                                {% else %}
+                                    <div class="continue-no-cover">📺</div>
+                                {% endif %}
+                                <div class="continue-overlay">
+                                    <span class="continue-play">▶</span>
+                                </div>
+                            </div>
+                            <div class="continue-info">
+                                <div class="continue-serie">{{ serie.nombre_carpeta }}</div>
+                            </div>
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="search-container">
             <input type="text" id="realtime-search" class="search-input" placeholder="Buscar una serie o carpeta...">
         </div>

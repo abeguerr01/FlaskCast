@@ -89,6 +89,16 @@ def inicializar_base_datos():
     if 'duracion' not in col_progreso:
         cursor.execute("ALTER TABLE progreso ADD COLUMN duracion REAL DEFAULT 0")
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS favoritos (
+            usuario_id INTEGER,
+            serie TEXT NOT NULL,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (usuario_id, serie),
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -269,7 +279,15 @@ def index():
         continuar_viendo.sort(key=lambda x: x['segundos'], reverse=True)
         continuar_viendo = continuar_viendo[:12]
 
-    return render_template('index.html', series=lista_series, active_section='catalogo', continuar_viendo=continuar_viendo)
+    favoritos = []
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+        favoritos = [fila['serie'] for fila in cursor.fetchall()]
+        conn.close()
+
+    return render_template('index.html', series=lista_series, active_section='catalogo', continuar_viendo=continuar_viendo, favoritos=favoritos)
 
 LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
 
@@ -623,8 +641,16 @@ def vista_serie(nombre_serie):
                     })
         if videos_raiz:
             estructura_temporadas['Contenido Disponible'] = videos_raiz
+
+    es_favorito = False
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1 FROM favoritos WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
+        es_favorito = cursor.fetchone() is not None
+        conn.close()
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
@@ -736,6 +762,43 @@ def api_obtener_progreso():
     if fila:
         return jsonify({'segundos': fila['segundos'], 'visto': int(fila['visto'])})
     return jsonify({'segundos': 0, 'visto': 0})
+
+@app.route('/api/favoritos', methods=['GET'])
+def api_obtener_favoritos():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return jsonify({'favoritos': []})
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    filas = cursor.fetchall()
+    conn.close()
+    return jsonify({'favoritos': [fila['serie'] for fila in filas]})
+
+@app.route('/api/favoritos/toggle', methods=['POST'])
+@limiter.limit("30 per minute")
+def api_toggle_favorito():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return jsonify({'error': 'Inicia sesión para usar favoritos'}), 401
+    datos = request.json or {}
+    serie = datos.get('serie', '').strip()
+    if not serie:
+        return jsonify({'error': 'El campo "serie" es requerido'}), 400
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM favoritos WHERE usuario_id = ? AND serie = ?', (usuario_id, serie))
+    existe = cursor.fetchone()
+    if existe:
+        cursor.execute('DELETE FROM favoritos WHERE usuario_id = ? AND serie = ?', (usuario_id, serie))
+        conn.commit()
+        conn.close()
+        return jsonify({'favorito': False})
+    else:
+        cursor.execute('INSERT INTO favoritos (usuario_id, serie) VALUES (?, ?)', (usuario_id, serie))
+        conn.commit()
+        conn.close()
+        return jsonify({'favorito': True})
 
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):

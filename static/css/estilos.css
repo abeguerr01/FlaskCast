@@ -1017,3 +1017,54 @@ body.sidebar-layout {
     text-align: right;
     margin-top: 2px;
 }
+
+/* --- FAVORITOS --- */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-fav {
+    display: inline-block;
+    padding: 8px 18px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 14px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1f1f1f;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.btn-fav:hover {
+    color: #fff;
+    border-color: #e5a800;
+    background: #2a2200;
+}
+
+.btn-fav-active {
+    background: #2a2200;
+    color: #e5a800;
+    border-color: #e5a800;
+}
+
+.btn-fav-active:hover {
+    background: #332b00;
+}
+
+.favorites-section {
+    margin-bottom: 35px;
+}
+
+.fav-card {
+    border: 1px solid #3d3100 !important;
+}
+
+.fav-card:hover {
+    border-color: #e5a800 !important;
+    box-shadow: 0 6px 20px rgba(229, 168, 0, 0.25) !important;
+}

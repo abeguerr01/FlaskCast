@@ -55,6 +55,13 @@
             overflow-wrap: break-word; 
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: center;
+        }
+
         .btn-settings {
             background-color: #222;
             color: #fff;
@@ -152,7 +159,14 @@
 
     <header>
         <h1>{{ serie }}</h1>
-        <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+        <div class="header-actions">
+            <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+            {% if session.get('usuario_id') %}
+            <button class="btn-fav {% if es_favorito %}btn-fav-active{% endif %}" onclick="toggleFavorito('{{ serie }}', this)">
+                {% if es_favorito %}⭐ Favorito{% else %}☆ Añadir a Favoritos{% endif %}
+            </button>
+            {% endif %}
+        </div>
     </header>
 
     <div class="container" id="serieContainer" 
@@ -292,6 +306,26 @@
                     card.style.display = card.classList.contains('capitulo-visto') ? '' : 'none';
                 }
             }
+        }
+
+        function toggleFavorito(serie, btn) {
+            fetch('/api/favoritos/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serie: serie })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.favorito !== undefined) {
+                    if (data.favorito) {
+                        btn.classList.add('btn-fav-active');
+                        btn.innerHTML = '⭐ Favorito';
+                    } else {
+                        btn.classList.remove('btn-fav-active');
+                        btn.innerHTML = '☆ Añadir a Favoritos';
+                    }
+                }
+            });
         }
     </script>
 
