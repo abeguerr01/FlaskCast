@@ -173,44 +173,73 @@
         {% endif %}
     </div>
 
-    <header>
-        <h1>{% if tipo == 'pelicula' %}🎬 {% endif %}{{ serie }}</h1>
-        <div class="header-actions">
-            <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
-            {% if session.get('usuario_id') %}
-            <button class="btn-fav {% if es_favorito %}btn-fav-active{% endif %}" onclick="toggleFavorito('{{ serie }}', this)">
-                {% if es_favorito %}⭐ Favorito{% else %}☆ Añadir a Favoritos{% endif %}
-            </button>
-            <div class="lista-dropdown-wrapper">
-                <button class="btn-lista {% if lista_estado >= 0 %}btn-lista-active{% endif %}" id="btnLista" onclick="toggleListaMenu()">
-                    {% if lista_estado == 0 %}📋 Pendiente{% elif lista_estado == 1 %}👁️ Viendo{% elif lista_estado == 2 %}✅ Visto{% else %}＋ Añadir{% endif %}
-                </button>
-                <div class="lista-dropdown" id="listaDropdown">
-                    <div class="lista-option {% if lista_estado == 0 %}lista-option-active{% endif %}" data-estado="0" onclick="guardarLista('{{ serie }}', 0)">
-                        <span class="lista-dot" style="background:#888;"></span> Pendiente
-                    </div>
-                    <div class="lista-option {% if lista_estado == 1 %}lista-option-active{% endif %}" data-estado="1" onclick="guardarLista('{{ serie }}', 1)">
-                        <span class="lista-dot" style="background:#0d6efd;"></span> Viendo
-                    </div>
-                    <div class="lista-option {% if lista_estado == 2 %}lista-option-active{% endif %}" data-estado="2" onclick="guardarLista('{{ serie }}', 2)">
-                        <span class="lista-dot" style="background:#1fcc72;"></span> Visto
-                    </div>
-                    {% if lista_estado >= 0 %}
-                    <div class="lista-option lista-option-remove" data-estado="-1" onclick="guardarLista('{{ serie }}', -1)">
-                        <span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas
+    <div class="movie-hero">
+        {% if tiene_portada %}
+        <div class="movie-hero-bg" style="background-image: url('/portada/{{ serie }}');"></div>
+        {% else %}
+        <div class="movie-hero-bg movie-hero-bg-empty"></div>
+        {% endif %}
+        <div class="movie-hero-content">
+            <div class="movie-hero-poster">
+                {% if tiene_portada %}
+                    <img src="/portada/{{ serie }}" alt="{{ serie }}">
+                {% else %}
+                    <div class="movie-hero-no-poster">{% if tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
+                {% endif %}
+            </div>
+            <div class="movie-hero-info">
+                <h1 class="movie-hero-title">{{ meta.titulo if meta.titulo else serie }}</h1>
+                <div class="movie-hero-meta">
+                    {% if meta.anio %}<span class="movie-meta-badge">{{ meta.anio }}</span>{% endif %}
+                    {% if meta.genero %}
+                        {% for g in meta.genero %}<span class="movie-meta-badge movie-meta-genero">{{ g }}</span>{% endfor %}
+                    {% endif %}
+                    {% if meta.valoracion %}<span class="movie-meta-badge movie-meta-rating">⭐ {{ meta.valoracion }}</span>{% endif %}
+                    {% if tipo == 'pelicula' and meta.duracion_min %}<span class="movie-meta-badge">{{ meta.duracion_min }} min</span>{% endif %}
+                    {% if tipo == 'serie' and temporadas %}<span class="movie-meta-badge">{{ temporadas|length }} temporada{{ 's' if temporadas|length != 1 }}</span>{% endif %}
+                </div>
+                {% if meta.director %}<p class="movie-hero-director">Dirigida por {{ meta.director }}</p>{% endif %}
+                {% if meta.descripcion %}<p class="movie-hero-desc">{{ meta.descripcion }}</p>{% endif %}
+                <div class="movie-hero-actions">
+                    <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+                    {% if session.get('usuario_id') %}
+                    <button class="btn-fav {% if es_favorito %}btn-fav-active{% endif %}" onclick="toggleFavorito('{{ serie }}', this)">
+                        {% if es_favorito %}⭐ Favorito{% else %}☆ Añadir a Favoritos{% endif %}
+                    </button>
+                    <div class="lista-dropdown-wrapper">
+                        <button class="btn-lista {% if lista_estado >= 0 %}btn-lista-active{% endif %}" id="btnLista" onclick="toggleListaMenu()">
+                            {% if lista_estado == 0 %}📋 Pendiente{% elif lista_estado == 1 %}👁️ Viendo{% elif lista_estado == 2 %}✅ Visto{% else %}＋ Añadir{% endif %}
+                        </button>
+                        <div class="lista-dropdown" id="listaDropdown">
+                            <div class="lista-option {% if lista_estado == 0 %}lista-option-active{% endif %}" data-estado="0" onclick="guardarLista('{{ serie }}', 0)">
+                                <span class="lista-dot" style="background:#888;"></span> Pendiente
+                            </div>
+                            <div class="lista-option {% if lista_estado == 1 %}lista-option-active{% endif %}" data-estado="1" onclick="guardarLista('{{ serie }}', 1)">
+                                <span class="lista-dot" style="background:#0d6efd;"></span> Viendo
+                            </div>
+                            <div class="lista-option {% if lista_estado == 2 %}lista-option-active{% endif %}" data-estado="2" onclick="guardarLista('{{ serie }}', 2)">
+                                <span class="lista-dot" style="background:#1fcc72;"></span> Visto
+                            </div>
+                            {% if lista_estado >= 0 %}
+                            <div class="lista-option lista-option-remove" data-estado="-1" onclick="guardarLista('{{ serie }}', -1)">
+                                <span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                     {% endif %}
                 </div>
             </div>
-            {% endif %}
         </div>
-    </header>
+    </div>
 
     <div class="container" id="serieContainer" 
          data-serie="{{ serie }}" 
          data-user-active="{{ 'true' if session.get('usuario_id') else 'false' }}"
          data-auto-marcar="{{ 'true' if session.get('usuario_auto_marcar', 1) == 1 else 'false' }}"
-         data-mostrar-progreso="{{ mostrar_progreso }}">
+         data-mostrar-progreso="{{ mostrar_progreso }}"
+         data-tipo="{{ tipo }}"
+         data-total-videos="{{ total_videos }}">
         
         <div class="player-container" id="playerContainer">
             <video id="mainPlayer" controls autoplay src=""></video>
@@ -475,6 +504,19 @@
                 }
             });
         }
+
+        (function() {
+            var container = document.getElementById('serieContainer');
+            if (!container) return;
+            var tipo = container.getAttribute('data-tipo');
+            var totalVideos = parseInt(container.getAttribute('data-total-videos')) || 0;
+            if (tipo === 'pelicula' && totalVideos === 1) {
+                var firstCard = document.querySelector('.video-card:not(.incompatible) .card-click-area');
+                if (firstCard) {
+                    setTimeout(function() { firstCard.click(); }, 500);
+                }
+            }
+        })();
     </script>
 
 {% endblock %}

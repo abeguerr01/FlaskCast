@@ -801,8 +801,21 @@ def vista_serie(nombre_serie):
         conn.close()
 
     tipo_contenido = detectar_tipo_contenido(nombre_serie)
+    tiene_portada = os.path.exists(os.path.join(ruta_serie, '_img.png'))
+
+    meta = {}
+    meta_path = os.path.join(ruta_serie, '_meta.json')
+    if os.path.exists(meta_path):
+        try:
+            import json
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+        except Exception:
+            pass
+
+    total_videos = sum(len(v) for v in estructura_temporadas.values())
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado, tipo=tipo_contenido)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado, tipo=tipo_contenido, tiene_portada=tiene_portada, meta=meta, total_videos=total_videos)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
