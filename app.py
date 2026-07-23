@@ -118,8 +118,67 @@ def inicializar_base_datos():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS content_metadata (
+            serie TEXT PRIMARY KEY,
+            tipo TEXT DEFAULT 'auto',
+            FOREIGN KEY(serie) REFERENCES favoritos(serie)
+        )
+    ''')
+
     conn.commit()
     conn.close()
+
+def detectar_tipo_contenido(nombre_carpeta):
+    """Detecta si una carpeta es pelicula o serie.
+    Prioridad: DB > _meta.json > deteccion por estructura.
+    Retorna 'pelicula' o 'serie'.
+    """
+    ruta = os.path.join(DIRECTORIO_MEDIA, nombre_carpeta)
+    if not os.path.isdir(ruta):
+        return 'serie'
+
+    # 1. Buscar en DB
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT tipo FROM content_metadata WHERE serie = ?', (nombre_carpeta,))
+        fila = cursor.fetchone()
+        conn.close()
+        if fila and fila['tipo'] in ('pelicula', 'serie'):
+            return fila['tipo']
+    except Exception:
+        pass
+
+    # 2. Buscar _meta.json
+    meta_path = os.path.join(ruta, '_meta.json')
+    if os.path.exists(meta_path):
+        try:
+            import json
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            if meta.get('tipo') in ('pelicula', 'serie'):
+                # Guardar en DB para futuras consultas
+                try:
+                    conn = conectar_db()
+                    cursor = conn.cursor()
+                    cursor.execute('INSERT OR REPLACE INTO content_metadata (serie, tipo) VALUES (?, ?)',
+                                   (nombre_carpeta, meta['tipo']))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+                return meta['tipo']
+        except Exception:
+            pass
+
+    # 3. Deteccion por estructura: subcarpetas = serie, sin subcarpetas = pelicula
+    formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+    items = os.listdir(ruta)
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta, i)) and not i.startswith('.')]
+    if subcarpetas:
+        return 'serie'
+    return 'pelicula'
 
 def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
     global conversiones_activas
@@ -250,9 +309,11 @@ def index():
             ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
             if os.path.isdir(ruta_item):
                 tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
+                tipo = detectar_tipo_contenido(item)
                 todas_las_series.append({
                     'nombre_carpeta': item,
-                    'tiene_portada': tiene_portada
+                    'tiene_portada': tiene_portada,
+                    'tipo': tipo
                 })
 
     POR_PAGINA = 24
@@ -293,6 +354,7 @@ def index():
         for nombre_serie, capitulos in vistos.items():
             ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
             tiene_portada = os.path.exists(os.path.join(ruta_serie, '_img.png'))
+            tipo = detectar_tipo_contenido(nombre_serie)
             for cap in capitulos:
                 porcentaje = min(int((cap['segundos'] / cap['duracion']) * 100), 100)
                 nombre_limpio = os.path.basename(cap['filename'])
@@ -304,7 +366,8 @@ def index():
                     'duracion': cap['duracion'],
                     'porcentaje': porcentaje,
                     'visto': cap['visto'],
-                    'tiene_portada': tiene_portada
+                    'tiene_portada': tiene_portada,
+                    'tipo': tipo
                 })
 
         continuar_viendo.sort(key=lambda x: x['segundos'], reverse=True)
@@ -420,7 +483,8 @@ def listas():
             ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
             if os.path.isdir(ruta_item):
                 tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
-                series_map[item] = {'nombre_carpeta': item, 'tiene_portada': tiene_portada}
+                tipo = detectar_tipo_contenido(item)
+                series_map[item] = {'nombre_carpeta': item, 'tiene_portada': tiene_portada, 'tipo': tipo}
 
     pendientes = []
     viendo = []
@@ -735,8 +799,10 @@ def vista_serie(nombre_serie):
         if fila_lista:
             lista_estado = fila_lista['estado']
         conn.close()
+
+    tipo_contenido = detectar_tipo_contenido(nombre_serie)
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado, tipo=tipo_contenido)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):

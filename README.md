@@ -24,13 +24,19 @@
 **Características principales**
 
 - **Catálogo por carpetas:** organiza series, temporadas y capítulos directamente desde el sistema de archivos.
+- **Diferenciación Películas/Series:** detección automática por estructura de carpetas, con badge visual 🎬/📺 y filtro en catálogo. Soporte para override manual via `_meta.json` o tabla `content_metadata`.
 - **Transcodificación asíncrona:** convierte `.avi`/`.mkv` a `.mp4` (H.264) en segundo plano usando FFmpeg (`static-ffmpeg`).
 - **Miniaturas dinámicas:** extrae fotogramas como `.jpg` para previsualizaciones.
 - **Seguimiento por usuario:** guarda la posición exacta (segundos), marca "En progreso" y "Visto" según umbrales configurables.
+- **Listas personalizadas:** organiza contenido en Favoritos, Pendiente, Viendo y Visto con pestañas filtrables.
+- **Paginación del catálogo:** 24 elementos por página con controles de navegación.
+- **Tema claro/oscuro:** toggle entre tema oscuro (por defecto) y claro, guardado por usuario.
+- **Transiciones SPA:** navegación entre páginas con fade animations y fetch AJAX.
 - **API REST completa:** añade, elimina, lista, descarga vídeos y gestiona el progreso mediante endpoints protegidos por toggle.
 - **Streaming en Vivo:** reproduce streams en directo (HLS, iframes, vídeos) con soporte para listas M3U, modo SmartTV y **fallback automático con múltiples fuentes**.
 - **Modo SmartTV:** reproductor optimizado para televisores conectados a la red local.
 - **Auto-reproducción:** el reproductor avanza automáticamente al siguiente capítulo de la temporada.
+- **Interfaz responsive:** diseño adaptable con sidebar colapsable en móvil (hamburger menu), breakpoints a 900px, 768px y 480px.
 - **Interfaz ligera:** HTML5, CSS y JavaScript Vanilla para reproducción y búsqueda en tiempo real.
 
 ---
@@ -102,24 +108,25 @@ docker-compose up --build
 ├── docker-compose.yml
 ├── data/
 │   ├── config.json          # Configuración del servidor (puerto, botones de apagado)
-│   ├── flaskcast.db         # Base de datos SQLite (usuarios, progreso)
+│   ├── flaskcast.db         # Base de datos SQLite (usuarios, progreso, listas, favoritos, content_metadata)
 │   ├── live_streams.json    # Configuración de streams en vivo
-│   └── media/               # Contenido multimedia (series / portadas / capítulos)
+│   └── media/               # Contenido multimedia (series/películas / portadas / capítulos)
 ├── static/
 │   ├── css/
-│   │   └── estilos.css
-│   └── js/
-│       └── reproductor.js
+│   │   └── estilos.css      # Estilos globales (tema, responsive, skeletons, badges)
+│   ├── js/
+│   │   └── reproductor.js   # Lógica del reproductor de vídeo
+│   └── logo.png
 └── templates/
-    ├── base.html            # Plantilla base (sidebar, head, layout)
-    ├── index.html           # Catálogo principal (extiende base.html)
-    ├── serie.html           # Detalle de serie con capítulos (extiende base.html)
-    ├── player_tv.html       # Reproductor SmartTV (extiende base.html, sin sidebar)
-    ├── live.html            # Lista de streams en vivo (extiende base.html)
-    ├── live_tv.html         # Reproductor SmartTV para streams (extiende base.html, sin sidebar)
-    ├── usuarios.html        # Panel de gestión de usuarios (extiende base.html)
-    ├── ajustes.html         # Panel de configuración (extiende base.html)
-    └── base.html            # Plantilla base
+    ├── base.html            # Plantilla base (sidebar, SPA transitions, layout)
+    ├── index.html           # Catálogo principal con paginación y filtros (pelis/series)
+    ├── serie.html           # Detalle de serie/película con capítulos
+    ├── listas.html          # Listas personales (Favoritos, Pendiente, Viendo, Visto)
+    ├── player_tv.html       # Reproductor SmartTV (sin sidebar)
+    ├── live.html            # Lista de streams en vivo
+    ├── live_tv.html         # Reproductor SmartTV para streams (sin sidebar)
+    ├── usuarios.html        # Panel de gestión de usuarios
+    └── ajustes.html         # Panel de configuración (tema, marcado automático)
 ```
 
 ---
@@ -150,7 +157,7 @@ Todas las plantillas heredan de `base.html` usando Jinja2:
 
 **Estructura del catálogo multimedia (requerida)**
 
-Coloca tus series en `data/media/` siguiendo este patrón:
+Coloca tu contenido en `data/media/` siguiendo este patrón:
 
 ```
 data/
@@ -163,14 +170,41 @@ data/
     │   └── Temporada 2/
     │       ├── Capitulo_01.mkv
     │       └── Capitulo_02.mp4
-    └── Nombre de la Serie B (Sin Temporadas)/
+    ├── Nombre de la Serie B (Sin Temporadas)/
+    │   ├── _img.png
+    │   ├── Video_Suelto_01.mp4
+    │   └── Video_Suelto_02.mp4
+    └── Mi Pelicula/
         ├── _img.png
-        ├── Video_Suelto_01.mp4
-        └── Video_Suelto_02.mp4
+        └── pelicula.mp4
 ```
 
-- El archivo de portada debe llamarse exactamente `_img.png`. Si no existe, la interfaz mostrará un icono genérico.
-- Si no usas subcarpetas de temporada, los vídeos en la raíz de la serie aparecerán bajo "Contenido Disponible".
+- El archivo de portada debe llamarse exactamente `_img.png`. Si no existe, la interfaz mostrará un icono genérico (🎬 o 📺 según el tipo).
+- Si no usas subcarpetas de temporada, los vídeos en la raíz aparecerán bajo "Contenido Disponible".
+
+### Diferenciación Películas / Series
+
+FlaskCast detecta automáticamente si una carpeta es una película o una serie:
+
+| Condición | Tipo detectado |
+|-----------|---------------|
+| Carpeta con subcarpetas (temporadas) | 📺 Serie |
+| Carpeta sin subcarpetas (solo vídeos en raíz) | 🎬 Película |
+
+**Override manual** — Para forzar el tipo, crea un archivo `_meta.json` dentro de la carpeta:
+
+```json
+{
+  "tipo": "pelicula"
+}
+```
+
+Valores válidos: `"pelicula"` o `"serie"`. El tipo se guarda en la tabla `content_metadata` de la BD para consultas rápidas.
+
+**Diferencias en la UI:**
+
+- **Catálogo:** badge 🎬 (dorado) o 📺 (azul) en cada card, con filtro "Todo / Películas / Series"
+- **Vista detalle:** las películas muestran "🎬 Película" como título de sección y ocultan el acordeón de temporadas; las series muestran "Temporadas Disponibles" con acordeón expandible
 
 ---
 
@@ -190,6 +224,69 @@ data/
   - >10% reproducido → estado "Viendo" (azul).
   - >85% reproducido → estado "Visto" (verde).
 - También puedes marcar manualmente un capítulo como "Visto" desde la UI.
+
+---
+
+**Listas personales**
+
+FlaskCast incluye una página de listas (`/listas`) donde los usuarios pueden organizar su contenido:
+
+### Pestañas de filtrado
+
+| Pestaña | Color | Descripción |
+|---------|-------|-------------|
+| ⭐ Favoritos | Dorado (#f5a623) | Series/películas marcadas como favoritas |
+| 📋 Pendiente | Gris (#888) | Contenido pendiente de ver |
+| 👁️ Viendo | Azul (#0d6efd) | Contenido en progreso |
+| ✅ Visto | Verde (#1fcc72) | Contenido completado |
+
+- Al abrir la página, la pestaña "Favoritos" se muestra seleccionada por defecto.
+- Clic en una pestaña muestra solo esa sección; clic de nuevo la oculta (toggle).
+- Cada card muestra un badge de tipo (🎬/📺) según el contenido.
+- La favoritos se gestionan desde el botón ⭐ en la vista de detalle de cada serie.
+- Pendiente/Viendo/Visto se gestionan desde el botón "＋ Añadir" en la vista de detalle.
+
+---
+
+**Paginación del catálogo**
+
+El catálogo principal muestra 24 elementos por página con controles de navegación:
+
+- Botones de página con ellipsis (`...`) para saltos large.
+- Botones "Anterior" / "Siguiente" para navegación secuencial.
+- Indicador de rango: "Mostrando X–Y de Z elementos".
+- La paginación es server-side; cada página carga su propio subset de datos.
+
+---
+
+**Diseño responsive**
+
+FlaskCast se adapta automáticamente al tamaño de pantalla:
+
+| Breakpoint | Comportamiento |
+|------------|----------------|
+| > 900px | Layout completo con sidebar fijo |
+| ≤ 900px | Sidebar colapsable con hamburger menu |
+| ≤ 768px | Grid de cards ajustado, header compacto |
+| ≤ 480px | Grid de 2 columnas, controles apilados |
+
+- **Hamburger menu:** botón de 3 líneas que abre/cierra el sidebar en móvil.
+- **Overlay:** al abrir el sidebar, se muestra un overlay oscuro que lo cierra al hacer clic.
+- **Transiciones SPA:** la navegación entre páginas usa fade animations con skeleton loading durante la carga.
+
+---
+
+**Transiciones SPA (Single Page Application)**
+
+FlaskCast simula navegación SPA usando AJAX:
+
+1. Al hacer clic en un enlace interno, el contenido actual hace fade-out.
+2. Se muestra un skeleton placeholder mientras se carga la nueva página.
+3. El nuevo contenido se inyecta con fade-in animation.
+4. La URL se actualiza con `history.pushState()`.
+5. El sidebar se actualiza para reflejar la sección activa.
+
+Excluidos de las transiciones: enlaces externos, `#` anchors, modales, reproductores, y elementos con `data-no-transition`.
 
 ---
 
@@ -343,7 +440,9 @@ http://localhost:5000/live/tv/<indice>
 
 Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
+- **Tema:** alterna entre tema oscuro (por defecto) y tema claro. La preferencia se guarda por usuario en la BD.
 - **Marcado automático:** activa o desactiva el cambio automático de estado "Viendo"/"Visto" según el progreso de reproducción.
+- **Mostrar progreso:** activa o desactiva la barra de progreso en las cards de capítulos.
 - **Habilitar API:** activa o desactiva los endpoints REST. Al activarla, los endpoints requieren sesión de usuario. Un botón informativo (`i`) muestra la documentación completa de la API en un modal. Esta opción se gestiona desde el panel de administración (`config_admin.py`).
 
 ---
@@ -770,13 +869,15 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/` | Catálogo principal de series |
-| GET | `/serie/<nombre>` | Detalle de una serie con sus capítulos |
+| GET | `/` | Catálogo principal con paginación y filtros |
+| GET | `/page/<n>` | Catálogo paginado |
+| GET | `/serie/<nombre>` | Detalle de una serie/película con sus capítulos |
+| GET | `/listas` | Listas personales (Favoritos, Pendiente, Viendo, Visto) |
 | GET | `/tv/reproducir/<serie>/<archivo>` | Reproductor SmartTV |
 | GET | `/live` | Lista de streams en vivo |
 | GET | `/live/tv/<indice>` | Reproductor SmartTV para streams en vivo |
 | GET | `/usuarios_panel` | Panel de gestión de usuarios |
-| GET | `/ajustes` | Panel de configuración |
+| GET | `/ajustes` | Panel de configuración (tema, marcado automático) |
 
 ### API REST (requieren sesión + API habilitada)
 
@@ -792,6 +893,11 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 | GET | `/api/estados` | Consultar conversiones activas | 200/min |
 | POST | `/api/progreso/guardar` | Guardar posición de reproducción | 60/min |
 | GET | `/api/progreso/obtener` | Obtener posición guardada | 200/min |
+| POST | `/api/favoritos/toggle` | Añadir/quitar de favoritos | 200/min |
+| GET | `/api/favoritos` | Obtener lista de favoritos | 200/min |
+| GET | `/api/lista/estado` | Obtener estado de lista de una serie | 200/min |
+| POST | `/api/lista/guardar` | Guardar estado en lista (Pendiente/Viendo/Visto) | 200/min |
+| GET | `/api/lista/obtener` | Obtener todas las listas del usuario | 200/min |
 | GET | `/api/ping` | Verificar estado del servidor | 200/min |
 | GET | `/api/off` | Apagar servidor (si habilitado) | 2/min |
 | GET | `/api/off/all` | Apagar sistema (si habilitado) | 1/min |
@@ -802,7 +908,7 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 |--------|------|-------------|
 | GET | `/video/<serie>/<archivo>` | Servir archivo de vídeo |
 | GET | `/thumbnail/<serie>/<archivo>` | Servir/generar miniatura |
-| GET | `/portada/<serie>` | Servir portada de serie |
+| GET | `/portada/<serie>` | Servir portada de serie/película |
 
 ---
 

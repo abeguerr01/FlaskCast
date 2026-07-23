@@ -200,8 +200,9 @@
                         {% if serie.tiene_portada %}
                             <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
                         {% else %}
-                            <div class="lista-card-no-cover">📺</div>
+                            <div class="lista-card-no-cover">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
                         {% endif %}
+                        <span class="tipo-badge {% if serie.tipo == 'pelicula' %}tipo-pelicula{% else %}tipo-serie{% endif %}">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</span>
                     </div>
                     <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
                 </a>
@@ -219,8 +220,9 @@
                         {% if serie.tiene_portada %}
                             <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
                         {% else %}
-                            <div class="lista-card-no-cover">📺</div>
+                            <div class="lista-card-no-cover">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
                         {% endif %}
+                        <span class="tipo-badge {% if serie.tipo == 'pelicula' %}tipo-pelicula{% else %}tipo-serie{% endif %}">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</span>
                     </div>
                     <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
                 </a>
@@ -238,8 +240,9 @@
                         {% if serie.tiene_portada %}
                             <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
                         {% else %}
-                            <div class="lista-card-no-cover">📺</div>
+                            <div class="lista-card-no-cover">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
                         {% endif %}
+                        <span class="tipo-badge {% if serie.tipo == 'pelicula' %}tipo-pelicula{% else %}tipo-serie{% endif %}">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</span>
                     </div>
                     <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
                 </a>
@@ -257,8 +260,9 @@
                         {% if serie.tiene_portada %}
                             <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
                         {% else %}
-                            <div class="lista-card-no-cover">📺</div>
+                            <div class="lista-card-no-cover">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
                         {% endif %}
+                        <span class="tipo-badge {% if serie.tipo == 'pelicula' %}tipo-pelicula{% else %}tipo-serie{% endif %}">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</span>
                     </div>
                     <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
                 </a>

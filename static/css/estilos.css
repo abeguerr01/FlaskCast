@@ -371,10 +371,19 @@ h1 {
     background: var(--bg-body);
 }
 
-.thumb-img {
+.thumb-img, .thumb-placeholder {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     object-fit: cover;
+}
+
+.thumb-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 3rem;
+    background: var(--bg-body);
 }
 
 /* Capas Flotantes de Estado */
@@ -1359,6 +1368,65 @@ body.sidebar-layout {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* --- TIPO BADGE (catalog cards) --- */
+.tipo-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.tipo-pelicula {
+    background: rgba(245, 166, 35, 0.85);
+    color: #fff;
+}
+
+.tipo-serie {
+    background: rgba(13, 110, 253, 0.85);
+    color: #fff;
+}
+
+/* --- CATALOG FILTERS --- */
+.catalog-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.catalog-filter-btn {
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg-surface-3);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.catalog-filter-btn:hover {
+    color: var(--text-primary);
+    border-color: #555;
+}
+
+.catalog-filter-active {
+    background: #e50914;
+    color: #fff;
+    border-color: #e50914;
+}
+
+.catalog-filter-active:hover {
+    color: #fff;
+    border-color: #e50914;
 }
 
 /* ==========================================================================

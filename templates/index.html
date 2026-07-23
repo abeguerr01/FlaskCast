@@ -213,16 +213,23 @@
             <input type="text" id="realtime-search" class="search-input" placeholder="Buscar una serie o carpeta...">
         </div>
 
+        <div class="catalog-filters">
+            <button class="catalog-filter-btn catalog-filter-active" onclick="filtrarCatalogo('todos', this)">Todo ({{ total_series }})</button>
+            <button class="catalog-filter-btn" onclick="filtrarCatalogo('pelicula', this)">🎬 Películas</button>
+            <button class="catalog-filter-btn" onclick="filtrarCatalogo('serie', this)">📺 Series</button>
+        </div>
+
         <div class="video-grid">
             {% for serie in series %}
-                <div class="video-card">
+                <div class="video-card" data-tipo="{{ serie.tipo }}">
                     <a href="/serie/{{ serie.nombre_carpeta }}" style="text-decoration: none; color: inherit;">
                         <div class="thumb">
                             {% if serie.tiene_portada %}
                                 <img class="thumb-img" src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
                             {% else %}
-                                <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; font-size:3rem;">📺</div>
+                                <div class="thumb-placeholder">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</div>
                             {% endif %}
+                            <span class="tipo-badge {% if serie.tipo == 'pelicula' %}tipo-pelicula{% else %}tipo-serie{% endif %}">{% if serie.tipo == 'pelicula' %}🎬{% else %}📺{% endif %}</span>
                         </div>
                         <div class="card-title">
                             {{ serie.nombre_carpeta }}
@@ -274,24 +281,35 @@
             {% endif %}
         </div>
         <div class="pagination-info">
-            Mostrando {{ [(pagina_actual - 1) * 24 + 1, total_series] | min }}–{{ [pagina_actual * 24, total_series] | min }} de {{ total_series }} series
+            Mostrando {{ [(pagina_actual - 1) * 24 + 1, total_series] | min }}–{{ [pagina_actual * 24, total_series] | min }} de {{ total_series }} elementos
         </div>
         {% endif %}
     </div>
 
     <script>
-        document.getElementById('realtime-search').addEventListener('input', function() {
-            var query = this.value.toLowerCase().trim();
+        var filtroActivo = 'todos';
+
+        function filtrarCatalogo(tipo, btn) {
+            filtroActivo = tipo;
+            var btns = document.querySelectorAll('.catalog-filter-btn');
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('catalog-filter-active');
+            btn.classList.add('catalog-filter-active');
+            aplicarFiltros();
+        }
+
+        function aplicarFiltros() {
+            var query = document.getElementById('realtime-search').value.toLowerCase().trim();
             var cards = document.querySelectorAll('.video-card');
             for (var i = 0; i < cards.length; i++) {
+                var cardTipo = cards[i].getAttribute('data-tipo');
                 var titleText = cards[i].querySelector('.card-title').textContent.toLowerCase();
-                if (titleText.indexOf(query) !== -1) {
-                    cards[i].style.display = '';
-                } else {
-                    cards[i].style.display = 'none';
-                }
+                var matchTipo = (filtroActivo === 'todos' || cardTipo === filtroActivo);
+                var matchSearch = (!query || titleText.indexOf(query) !== -1);
+                cards[i].style.display = (matchTipo && matchSearch) ? '' : 'none';
             }
-        });
+        }
+
+        document.getElementById('realtime-search').addEventListener('input', aplicarFiltros);
     </script>
 
 {% endblock %}
