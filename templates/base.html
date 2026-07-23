@@ -31,6 +31,12 @@
                 <span class="sidebar-icon">📡</span>
                 <span>Contenido en directo</span>
             </a>
+            {% if session.get('usuario_id') %}
+            <a href="/listas" class="sidebar-link {% if active_section == 'listas' %}sidebar-link-active{% endif %}">
+                <span class="sidebar-icon">📋</span>
+                <span>Listas</span>
+            </a>
+            {% endif %}
         </nav>
     </div>
     {% endblock %}
@@ -38,6 +44,34 @@
     <div class="main-content">
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+    (function() {
+        var content = document.querySelector('.main-content');
+        if (!content) return;
+
+        document.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href]');
+            if (!link) return;
+
+            var href = link.getAttribute('href');
+            if (!href || href.charAt(0) === '#' || href.indexOf('mailto:') === 0 || href.indexOf('javascript:') === 0) return;
+            if (link.target === '_blank') return;
+            if (link.hasAttribute('data-no-transition')) return;
+            if (link.closest('.modal-overlay') || link.closest('.player-container') || link.closest('.keyboard-indicator')) return;
+            if (link.closest('button') && !href) return;
+
+            var url;
+            try { url = new URL(href, window.location.origin); } catch(ex) { return; }
+            if (url.origin !== window.location.origin) return;
+            if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+
+            e.preventDefault();
+            content.classList.add('page-exit');
+            setTimeout(function() { window.location.href = href; }, 200);
+        });
+    })();
+    </script>
 
 </body>
 </html>

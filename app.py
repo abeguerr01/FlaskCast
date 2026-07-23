@@ -107,6 +107,17 @@ def inicializar_base_datos():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS listas (
+            usuario_id INTEGER,
+            serie TEXT NOT NULL,
+            estado INTEGER DEFAULT 0,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (usuario_id, serie),
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -299,33 +310,10 @@ def index():
         continuar_viendo.sort(key=lambda x: x['segundos'], reverse=True)
         continuar_viendo = continuar_viendo[:12]
 
-    favoritos_nombres = []
-    favoritos_detalle = []
-    if usuario_id:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
-        favoritos_nombres = [fila['serie'] for fila in cursor.fetchall()]
-        conn.close()
-
-        series_map = {s['nombre_carpeta']: s for s in todas_las_series}
-        for fav_nombre in favoritos_nombres:
-            if fav_nombre in series_map:
-                favoritos_detalle.append(series_map[fav_nombre])
-            else:
-                ruta_fav = os.path.join(DIRECTORIO_MEDIA, fav_nombre)
-                if os.path.isdir(ruta_fav):
-                    tiene_portada = os.path.exists(os.path.join(ruta_fav, '_img.png'))
-                    favoritos_detalle.append({
-                        'nombre_carpeta': fav_nombre,
-                        'tiene_portada': tiene_portada
-                    })
-
     return render_template('index.html',
         series=lista_series,
         active_section='catalogo',
         continuar_viendo=continuar_viendo,
-        favoritos=favoritos_detalle,
         pagina_actual=pagina_actual,
         total_paginas=total_paginas,
         total_series=total_series
@@ -415,6 +403,48 @@ def live_tv(indice):
         return abort(404)
     s = streams[indice]
     return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], urls=s.get('urls', [s['url']]), tipo=s.get('tipo', 'iframe'))
+
+@app.route('/listas')
+def listas():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return redirect('/')
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT serie, estado FROM listas WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    filas = cursor.fetchall()
+
+    series_map = {}
+    if os.path.exists(DIRECTORIO_MEDIA):
+        for item in os.listdir(DIRECTORIO_MEDIA):
+            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
+            if os.path.isdir(ruta_item):
+                tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
+                series_map[item] = {'nombre_carpeta': item, 'tiene_portada': tiene_portada}
+
+    pendientes = []
+    viendo = []
+    vistos = []
+    favoritos_detalle = []
+    for fila in filas:
+        nombre = fila['serie']
+        estado = fila['estado']
+        serie_info = series_map.get(nombre, {'nombre_carpeta': nombre, 'tiene_portada': False})
+        if estado == 0:
+            pendientes.append(serie_info)
+        elif estado == 1:
+            viendo.append(serie_info)
+        elif estado == 2:
+            vistos.append(serie_info)
+
+    cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    for fila in cursor.fetchall():
+        fav_nombre = fila['serie']
+        serie_info = series_map.get(fav_nombre, {'nombre_carpeta': fav_nombre, 'tiene_portada': False})
+        favoritos_detalle.append(serie_info)
+    conn.close()
+
+    return render_template('listas.html', pendientes=pendientes, viendo=viendo, vistos=vistos, favoritos=favoritos_detalle, active_section='listas')
 
 def es_cliente_local():
     remote = request.remote_addr
@@ -694,14 +724,19 @@ def vista_serie(nombre_serie):
             estructura_temporadas['Contenido Disponible'] = videos_raiz
 
     es_favorito = False
+    lista_estado = -1
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute('SELECT 1 FROM favoritos WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
         es_favorito = cursor.fetchone() is not None
+        cursor.execute('SELECT estado FROM listas WHERE usuario_id = ? AND serie = ?', (usuario_id, nombre_serie))
+        fila_lista = cursor.fetchone()
+        if fila_lista:
+            lista_estado = fila_lista['estado']
         conn.close()
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
@@ -850,6 +885,54 @@ def api_toggle_favorito():
         conn.commit()
         conn.close()
         return jsonify({'favorito': True})
+
+@app.route('/api/lista/estado')
+def api_lista_estado():
+    usuario_id = session.get('usuario_id')
+    serie = request.args.get('serie', '').strip()
+    if not usuario_id or not serie:
+        return jsonify({'estado': -1})
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT estado FROM listas WHERE usuario_id = ? AND serie = ?', (usuario_id, serie))
+    fila = cursor.fetchone()
+    conn.close()
+    return jsonify({'estado': fila['estado'] if fila else -1})
+
+@app.route('/api/lista/guardar', methods=['POST'])
+@limiter.limit("30 per minute")
+def api_lista_guardar():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return jsonify({'error': 'Inicia sesion para usar listas'}), 401
+    datos = request.json or {}
+    serie = datos.get('serie', '').strip()
+    estado = datos.get('estado')
+    if not serie or estado is None:
+        return jsonify({'error': 'Campos "serie" y "estado" requeridos'}), 400
+    if estado not in (-1, 0, 1, 2):
+        return jsonify({'error': 'Estado invalido'}), 400
+    conn = conectar_db()
+    cursor = conn.cursor()
+    if estado == -1:
+        cursor.execute('DELETE FROM listas WHERE usuario_id = ? AND serie = ?', (usuario_id, serie))
+    else:
+        cursor.execute('INSERT INTO listas (usuario_id, serie, estado) VALUES (?, ?, ?) ON CONFLICT(usuario_id, serie) DO UPDATE SET estado = excluded.estado, fecha = CURRENT_TIMESTAMP', (usuario_id, serie, estado))
+    conn.commit()
+    conn.close()
+    return jsonify({'estado': estado})
+
+@app.route('/api/lista/obtener')
+def api_lista_obtener():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return jsonify({'listas': []})
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT serie, estado FROM listas WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    filas = cursor.fetchall()
+    conn.close()
+    return jsonify({'listas': [{'serie': f['serie'], 'estado': f['estado']} for f in filas]})
 
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):

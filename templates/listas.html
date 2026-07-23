@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis Listas - FlaskCast{% endblock %}
+
+{% block head %}
+    <style>
+        .user-status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-surface-2);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .profile-widget {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 8px;
+        }
+        .profile-widget:hover {
+            background-color: var(--bg-raised);
+        }
+        .profile-avatar {
+            width: 38px;
+            height: 38px;
+            background-color: var(--bg-raised);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            border: 2px solid var(--border);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .profile-avatar.invitado-style {
+            border-color: #e50914;
+            background-color: #221111;
+        }
+        .profile-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .btn-settings {
+            background-color: var(--bg-raised);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+        .btn-settings:hover {
+            opacity: 0.85;
+        }
+
+        /* --- LISTAS TAB MENU --- */
+        .listas-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border);
+            overflow-x: auto;
+        }
+        .listas-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .listas-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-raised);
+        }
+        .listas-tab .tab-count {
+            display: inline-block;
+            margin-left: 6px;
+            background: var(--bg-surface-3);
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: normal;
+        }
+
+        .listas-tab.tab-favoritos.tab-active {
+            color: #f5a623;
+            border-bottom-color: #f5a623;
+            background: rgba(245, 166, 35, 0.08);
+        }
+        .listas-tab.tab-favoritos.tab-active .tab-count {
+            background: rgba(245, 166, 35, 0.2);
+            color: #f5a623;
+        }
+
+        .listas-tab.tab-pendientes.tab-active {
+            color: #888;
+            border-bottom-color: #888;
+            background: rgba(136, 136, 136, 0.08);
+        }
+        .listas-tab.tab-pendientes.tab-active .tab-count {
+            background: rgba(136, 136, 136, 0.2);
+            color: #888;
+        }
+
+        .listas-tab.tab-viendo.tab-active {
+            color: #0d6efd;
+            border-bottom-color: #0d6efd;
+            background: rgba(13, 110, 253, 0.08);
+        }
+        .listas-tab.tab-viendo.tab-active .tab-count {
+            background: rgba(13, 110, 253, 0.2);
+            color: #0d6efd;
+        }
+
+        .listas-tab.tab-vistos.tab-active {
+            color: #1fcc72;
+            border-bottom-color: #1fcc72;
+            background: rgba(31, 204, 114, 0.08);
+        }
+        .listas-tab.tab-vistos.tab-active .tab-count {
+            background: rgba(31, 204, 114, 0.2);
+            color: #1fcc72;
+        }
+
+        .listas-section {
+            display: none;
+        }
+        .listas-section.section-visible {
+            display: block;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+
+    <div class="user-status-bar">
+        {% if session.get('usuario_nombre') %}
+            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="Ir a Panel de Usuarios">
+                <div class="profile-avatar">
+                    {{ session.get('usuario_emoji', '👤') }}
+                </div>
+                <span class="profile-name">{{ session['usuario_nombre'] }}</span>
+            </a>
+            <div>
+                <a href="/ajustes?return_to=/listas" class="btn-settings">⚙️ Ajustes</a>
+            </div>
+        {% else %}
+            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="Iniciar Sesión">
+                <div class="profile-avatar invitado-style">👤</div>
+                <span class="profile-name" style="color: #e50914;">Invitado</span>
+            </a>
+            <div>
+                <a href="/ajustes?return_to=/listas" class="btn-settings">⚙️ Ajustes</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <header>
+        <h1>📋 Mis Listas</h1>
+        <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+    </header>
+
+    <div class="container">
+
+        <div class="listas-tabs">
+            <button class="listas-tab tab-favoritos" onclick="filterListas('favoritos')">
+                ⭐ Favoritos <span class="tab-count">{{ favoritos|length }}</span>
+            </button>
+            <button class="listas-tab tab-pendientes" onclick="filterListas('pendientes')">
+                📋 Pendiente <span class="tab-count">{{ pendientes|length }}</span>
+            </button>
+            <button class="listas-tab tab-viendo" onclick="filterListas('viendo')">
+                👁️ Viendo <span class="tab-count">{{ viendo|length }}</span>
+            </button>
+            <button class="listas-tab tab-vistos" onclick="filterListas('vistos')">
+                ✅ Visto <span class="tab-count">{{ vistos|length }}</span>
+            </button>
+        </div>
+
+        {% if favoritos %}
+        <div class="listas-section" data-section="favoritos">
+            <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; padding: 10px 0;">
+                {% for serie in favoritos %}
+                <a href="/serie/{{ serie.nombre_carpeta }}" class="lista-card lista-card-fav">
+                    <div class="lista-card-thumb">
+                        {% if serie.tiene_portada %}
+                            <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                        {% else %}
+                            <div class="lista-card-no-cover">📺</div>
+                        {% endif %}
+                    </div>
+                    <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if pendientes %}
+        <div class="listas-section" data-section="pendientes">
+            <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; padding: 10px 0;">
+                {% for serie in pendientes %}
+                <a href="/serie/{{ serie.nombre_carpeta }}" class="lista-card">
+                    <div class="lista-card-thumb">
+                        {% if serie.tiene_portada %}
+                            <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                        {% else %}
+                            <div class="lista-card-no-cover">📺</div>
+                        {% endif %}
+                    </div>
+                    <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if viendo %}
+        <div class="listas-section" data-section="viendo">
+            <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; padding: 10px 0;">
+                {% for serie in viendo %}
+                <a href="/serie/{{ serie.nombre_carpeta }}" class="lista-card">
+                    <div class="lista-card-thumb">
+                        {% if serie.tiene_portada %}
+                            <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                        {% else %}
+                            <div class="lista-card-no-cover">📺</div>
+                        {% endif %}
+                    </div>
+                    <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if vistos %}
+        <div class="listas-section" data-section="vistos">
+            <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; padding: 10px 0;">
+                {% for serie in vistos %}
+                <a href="/serie/{{ serie.nombre_carpeta }}" class="lista-card">
+                    <div class="lista-card-thumb">
+                        {% if serie.tiene_portada %}
+                            <img src="/portada/{{ serie.nombre_carpeta }}" alt="{{ serie.nombre_carpeta }}">
+                        {% else %}
+                            <div class="lista-card-no-cover">📺</div>
+                        {% endif %}
+                    </div>
+                    <div class="lista-card-title">{{ serie.nombre_carpeta }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not viendo and not pendientes and not vistos and not favoritos %}
+        <div style="text-align: center; padding: 60px 20px;">
+            <p style="color: var(--text-dim); font-size: 1.1rem;">No tienes series en tus listas aun.</p>
+            <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">Entra en una serie y pulsa <strong>"＋ Añadir"</strong> para empezar.</p>
+            <a href="/" class="btn-back" style="margin-top: 20px;">Ir al Catalogo</a>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        var activeTab = null;
+
+        function filterListas(tab) {
+            var tabs = document.querySelectorAll('.listas-tab');
+            var sections = document.querySelectorAll('.listas-section');
+
+            if (activeTab === tab) {
+                activeTab = null;
+                tabs.forEach(function(t) { t.classList.remove('tab-active'); });
+                sections.forEach(function(s) { s.classList.remove('section-visible'); });
+                return;
+            }
+
+            activeTab = tab;
+            tabs.forEach(function(t) { t.classList.remove('tab-active'); });
+            sections.forEach(function(s) { s.classList.remove('section-visible'); });
+
+            document.querySelector('.tab-' + tab).classList.add('tab-active');
+            var target = document.querySelector('[data-section="' + tab + '"]');
+            if (target) {
+                target.classList.add('section-visible');
+            }
+        }
+
+        filterListas('favoritos');
+    </script>
+
+{% endblock %}

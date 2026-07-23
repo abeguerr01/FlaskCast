@@ -181,6 +181,27 @@
             <button class="btn-fav {% if es_favorito %}btn-fav-active{% endif %}" onclick="toggleFavorito('{{ serie }}', this)">
                 {% if es_favorito %}⭐ Favorito{% else %}☆ Añadir a Favoritos{% endif %}
             </button>
+            <div class="lista-dropdown-wrapper">
+                <button class="btn-lista {% if lista_estado >= 0 %}btn-lista-active{% endif %}" id="btnLista" onclick="toggleListaMenu()">
+                    {% if lista_estado == 0 %}📋 Pendiente{% elif lista_estado == 1 %}👁️ Viendo{% elif lista_estado == 2 %}✅ Visto{% else %}＋ Añadir{% endif %}
+                </button>
+                <div class="lista-dropdown" id="listaDropdown">
+                    <div class="lista-option {% if lista_estado == 0 %}lista-option-active{% endif %}" data-estado="0" onclick="guardarLista('{{ serie }}', 0)">
+                        <span class="lista-dot" style="background:#888;"></span> Pendiente
+                    </div>
+                    <div class="lista-option {% if lista_estado == 1 %}lista-option-active{% endif %}" data-estado="1" onclick="guardarLista('{{ serie }}', 1)">
+                        <span class="lista-dot" style="background:#0d6efd;"></span> Viendo
+                    </div>
+                    <div class="lista-option {% if lista_estado == 2 %}lista-option-active{% endif %}" data-estado="2" onclick="guardarLista('{{ serie }}', 2)">
+                        <span class="lista-dot" style="background:#1fcc72;"></span> Visto
+                    </div>
+                    {% if lista_estado >= 0 %}
+                    <div class="lista-option lista-option-remove" data-estado="-1" onclick="guardarLista('{{ serie }}', -1)">
+                        <span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
         </div>
     </header>
@@ -340,6 +361,61 @@
                         btn.classList.remove('btn-fav-active');
                         btn.innerHTML = '☆ Añadir a Favoritos';
                     }
+                }
+            });
+        }
+
+        function toggleListaMenu() {
+            var dd = document.getElementById('listaDropdown');
+            dd.classList.toggle('lista-dropdown-open');
+        }
+
+        document.addEventListener('click', function(e) {
+            var dd = document.getElementById('listaDropdown');
+            var btn = document.getElementById('btnLista');
+            if (dd && btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('lista-dropdown-open');
+            }
+        });
+
+        function guardarLista(serie, estado) {
+            fetch('/api/lista/guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serie: serie, estado: estado })
+            })
+            .then(res => res.json())
+            .then(function(data) {
+                if (data.error) { alert(data.error); return; }
+                var btn = document.getElementById('btnLista');
+                var dd = document.getElementById('listaDropdown');
+                dd.classList.remove('lista-dropdown-open');
+                var labels = { 0: '📋 Pendiente', 1: '👁️ Viendo', 2: '✅ Visto' };
+                if (data.estado === -1) {
+                    btn.classList.remove('btn-lista-active');
+                    btn.innerHTML = '＋ Añadir';
+                } else {
+                    btn.classList.add('btn-lista-active');
+                    btn.innerHTML = labels[data.estado];
+                }
+                dd.querySelectorAll('.lista-option').forEach(function(opt) {
+                    opt.classList.remove('lista-option-active');
+                    if (parseInt(opt.getAttribute('data-estado')) === data.estado) {
+                        opt.classList.add('lista-option-active');
+                    }
+                });
+                var removeOpt = dd.querySelector('.lista-option-remove');
+                if (removeOpt) {
+                    if (data.estado === -1) {
+                        removeOpt.remove();
+                    }
+                } else if (data.estado >= 0) {
+                    var sep = document.createElement('div');
+                    sep.className = 'lista-option lista-option-remove';
+                    sep.setAttribute('data-estado', '-1');
+                    sep.onclick = function() { guardarLista(serie, -1); };
+                    sep.innerHTML = '<span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas';
+                    dd.appendChild(sep);
                 }
             });
         }

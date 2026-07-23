@@ -47,8 +47,8 @@ body {
 }
 
 @keyframes pageFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 header {
@@ -871,6 +871,12 @@ body.sidebar-layout {
     padding: 30px;
     min-height: 100vh;
     box-sizing: border-box;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.main-content.page-exit {
+    opacity: 0;
+    transform: translateY(8px);
 }
 
 /* --- BOTÓN DE INFORMACIÓN --- */
@@ -1064,7 +1070,12 @@ body.sidebar-layout {
 .header-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
+}
+
+.header-actions .btn-back {
+    flex-basis: 100%;
 }
 
 .btn-fav {
@@ -1173,6 +1184,181 @@ body.sidebar-layout {
     color: var(--text-dim);
     font-size: 0.85rem;
     padding-bottom: 30px;
+}
+
+/* --- LISTA DROPDOWN (serie.html) --- */
+.lista-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.btn-lista {
+    display: inline-block;
+    padding: 6px 14px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-surface-3);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.btn-lista:hover {
+    color: var(--text-primary);
+    border-color: #555;
+}
+
+.btn-lista-active {
+    background: #1a2a1a;
+    color: #1fcc72;
+    border-color: #1fcc72;
+}
+
+.lista-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    min-width: 210px;
+    z-index: 50;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    overflow: hidden;
+    animation: modalSlideIn 0.15s ease-out;
+}
+
+.lista-dropdown-open {
+    display: block;
+}
+
+.lista-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    transition: background 0.15s;
+}
+
+.lista-option:hover {
+    background: var(--bg-raised);
+}
+
+.lista-option-active {
+    background: var(--bg-raised);
+    font-weight: bold;
+}
+
+.lista-option-remove {
+    border-top: 1px solid var(--border);
+    color: #ff4444;
+}
+
+.lista-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* --- PÁGINA DE LISTAS --- */
+.listas-section {
+    margin-bottom: 40px;
+}
+
+.listas-section-title {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.listas-count {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-weight: normal;
+}
+
+.listas-empty {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    padding: 20px 0;
+    font-style: italic;
+}
+
+/* --- LISTA CARDS (grid items en /listas) --- */
+.lista-card {
+    display: block;
+    text-decoration: none;
+    color: var(--text-primary);
+    background: var(--bg-surface-3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.lista-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    border-color: #555;
+}
+
+.lista-card-fav {
+    border-color: #5a3e00;
+}
+
+.lista-card-fav:hover {
+    border-color: #f5a623;
+}
+
+.lista-card-thumb {
+    padding-top: 140%;
+    position: relative;
+    background: var(--bg-surface-2);
+}
+
+.lista-card-thumb img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lista-card-no-cover {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: var(--text-dim);
+}
+
+.lista-card-title {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ==========================================================================
