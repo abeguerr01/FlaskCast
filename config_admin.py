@@ -16,6 +16,13 @@ DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
 LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
 OMDB_API_URL = 'https://www.omdbapi.com/'
 
+_admin_lang = 'es'
+
+
+def t(key):
+    from translations import get_admin_text
+    return get_admin_text(_admin_lang, key)
+
 
 def conectar_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
@@ -385,12 +392,12 @@ def gui():
             frame = ttk.Frame(self, padding=15)
             frame.pack(fill=tk.BOTH, expand=True)
 
-            ttk.Label(frame, text='Título *:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('meta_titulo'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             self.titulo_var = tk.StringVar(value=meta.get('titulo', '') if meta else '')
             ttk.Entry(frame, textvariable=self.titulo_var, width=50).pack(fill=tk.X, pady=(0, 4))
-            ttk.Label(frame, text='* Obligatorio', foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W, pady=(0, 6))
+            ttk.Label(frame, text=t('meta_obligatorio'), foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W, pady=(0, 6))
 
-            ttk.Label(frame, text='Descripción:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('meta_descripcion'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             self.descripcion_text = tk.Text(frame, height=4, width=50, wrap=tk.WORD)
             self.descripcion_text.pack(fill=tk.X, pady=(0, 8))
             if meta and meta.get('descripcion'):
@@ -398,44 +405,44 @@ def gui():
 
             row1 = ttk.Frame(frame)
             row1.pack(fill=tk.X, pady=(0, 8))
-            ttk.Label(row1, text='Año:').pack(side=tk.LEFT)
+            ttk.Label(row1, text=t('meta_anio')).pack(side=tk.LEFT)
             self.anio_var = tk.StringVar(value=meta.get('anio', '') if meta else '')
             ttk.Entry(row1, textvariable=self.anio_var, width=8).pack(side=tk.LEFT, padx=(5, 15))
-            ttk.Label(row1, text='Valoración:').pack(side=tk.LEFT)
+            ttk.Label(row1, text=t('meta_valoracion')).pack(side=tk.LEFT)
             self.valoracion_var = tk.StringVar(value=str(meta.get('valoracion', 0)) if meta else '0')
             ttk.Entry(row1, textvariable=self.valoracion_var, width=6).pack(side=tk.LEFT, padx=(5, 0))
 
             row2 = ttk.Frame(frame)
             row2.pack(fill=tk.X, pady=(0, 8))
-            ttk.Label(row2, text='Director:').pack(side=tk.LEFT)
+            ttk.Label(row2, text=t('meta_director')).pack(side=tk.LEFT)
             self.director_var = tk.StringVar(value=meta.get('director', '') if meta else '')
             ttk.Entry(row2, textvariable=self.director_var, width=35).pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
 
-            ttk.Label(frame, text='Géneros (separados por coma):', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('meta_generos'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             genero_str = ', '.join(meta.get('genero', [])) if meta and isinstance(meta.get('genero'), list) else (meta.get('genero', '') if meta else '')
             self.genero_var = tk.StringVar(value=genero_str)
             ttk.Entry(frame, textvariable=self.genero_var, width=50).pack(fill=tk.X, pady=(0, 8))
 
             row3 = ttk.Frame(frame)
             row3.pack(fill=tk.X, pady=(0, 8))
-            ttk.Label(row3, text='Tipo:').pack(side=tk.LEFT)
+            ttk.Label(row3, text=t('meta_tipo')).pack(side=tk.LEFT)
             self.tipo_var = tk.StringVar(value=meta.get('tipo', 'pelicula') if meta else 'pelicula')
             ttk.Combobox(row3, textvariable=self.tipo_var, values=['pelicula', 'serie'],
                          state='readonly', width=12).pack(side=tk.LEFT, padx=(5, 15))
-            ttk.Label(row3, text='Duración (min):').pack(side=tk.LEFT)
+            ttk.Label(row3, text=t('meta_duracion')).pack(side=tk.LEFT)
             self.duracion_var = tk.StringVar(value=str(meta.get('duracion_min', '')) if meta and meta.get('duracion_min') else '')
             ttk.Entry(row3, textvariable=self.duracion_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
             row4 = ttk.Frame(frame)
             row4.pack(fill=tk.X, pady=(0, 8))
-            ttk.Label(row4, text='Temporadas:').pack(side=tk.LEFT)
+            ttk.Label(row4, text=t('meta_temporadas')).pack(side=tk.LEFT)
             self.temporadas_var = tk.StringVar(value=str(meta.get('temporadas', 1)) if meta and meta.get('temporadas') else '1')
             ttk.Entry(row4, textvariable=self.temporadas_var, width=6).pack(side=tk.LEFT, padx=(5, 0))
 
             btn_frame = ttk.Frame(frame)
             btn_frame.pack(pady=(10, 0))
-            ttk.Button(btn_frame, text='Aceptar', command=self._aceptar).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text='Cancelar', command=self.destroy).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('meta_aceptar'), command=self._aceptar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('meta_cancelar'), command=self.destroy).pack(side=tk.LEFT, padx=5)
 
             self.protocol("WM_DELETE_WINDOW", self.destroy)
             self.wait_window()
@@ -475,18 +482,27 @@ def gui():
             self.destroy()
 
     class ConfigAdmin:
-        def __init__(self):
-            self.root = tk.Tk()
-            self.root.title('Administración de FlaskCast')
+        def __init__(self, root=None):
+            if root is None:
+                self.root = tk.Tk()
+                self._first_init = True
+            else:
+                self.root = root
+                self._first_init = False
+
+            self.root.title(t('window_title'))
             self.root.geometry('750x750')
             self.root.resizable(True, True)
 
-            logo_path = os.path.join(DIRECTORIO_RAIZ, 'static', 'logo.png')
-            if os.path.exists(logo_path):
-                logo = tk.PhotoImage(file=logo_path)
-                self.root.iconphoto(True, logo)
+            if self._first_init:
+                logo_path = os.path.join(DIRECTORIO_RAIZ, 'static', 'logo.png')
+                if os.path.exists(logo_path):
+                    logo = tk.PhotoImage(file=logo_path)
+                    self.root.iconphoto(True, logo)
 
             cfg = leer_config()
+            global _admin_lang
+            _admin_lang = cfg.get('admin_idioma', 'es')
 
             notebook = ttk.Notebook(self.root)
             notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -495,10 +511,30 @@ def gui():
             tab_omdb = ttk.Frame(notebook, padding=15)
             tab_contenido = ttk.Frame(notebook, padding=15)
             tab_streamings = ttk.Frame(notebook, padding=15)
-            notebook.add(tab_general, text=' General ')
-            notebook.add(tab_omdb, text=' OMDb ')
-            notebook.add(tab_contenido, text=' Biblioteca ')
-            notebook.add(tab_streamings, text=' Streamings ')
+            tab_lang = ttk.Frame(notebook, padding=15)
+            notebook.add(tab_general, text=t('tab_general'))
+            notebook.add(tab_omdb, text=t('tab_omdb'))
+            notebook.add(tab_contenido, text=t('tab_biblioteca'))
+            notebook.add(tab_streamings, text=t('tab_streamings'))
+            notebook.add(tab_lang, text=' Language ')
+
+            ttk.Label(tab_lang, text='Language / Idioma', font=('Segoe UI', 14, 'bold')).pack(pady=(20, 15))
+            self.lang_var = tk.StringVar(value=_admin_lang)
+            lang_frame = ttk.Frame(tab_lang)
+            lang_frame.pack()
+            ttk.Radiobutton(lang_frame, text='🇪🇸 Español', variable=self.lang_var, value='es',
+                             command=self._cambiar_idioma).pack(side=tk.LEFT, padx=15)
+            ttk.Radiobutton(lang_frame, text='🇬🇧 English', variable=self.lang_var, value='en',
+                             command=self._cambiar_idioma).pack(side=tk.LEFT, padx=15)
+
+            tab_general = ttk.Frame(notebook, padding=15)
+            tab_omdb = ttk.Frame(notebook, padding=15)
+            tab_contenido = ttk.Frame(notebook, padding=15)
+            tab_streamings = ttk.Frame(notebook, padding=15)
+            notebook.add(tab_general, text=t('tab_general'))
+            notebook.add(tab_omdb, text=t('tab_omdb'))
+            notebook.add(tab_contenido, text=t('tab_biblioteca'))
+            notebook.add(tab_streamings, text=t('tab_streamings'))
 
             self._build_tab_general(tab_general, cfg)
             self._build_tab_omdb(tab_omdb, cfg)
@@ -506,7 +542,7 @@ def gui():
             self._build_tab_streamings(tab_streamings)
 
         def _build_tab_general(self, parent, cfg):
-            ttk.Label(parent, text='Administración de FlaskCast',
+            ttk.Label(parent, text=t('gen_title'),
                       font=('Segoe UI', 14, 'bold')).pack(pady=(0, 12))
 
             self.apagar_var = tk.BooleanVar(value=cfg.get('boton_apagar_visible', False))
@@ -515,37 +551,37 @@ def gui():
 
             frame_check = ttk.Frame(parent)
             frame_check.pack(fill=tk.X, pady=5)
-            ttk.Checkbutton(frame_check, text='Mostrar botón "Apagar Servidor"',
+            ttk.Checkbutton(frame_check, text=t('gen_apagar_servidor'),
                             variable=self.apagar_var).pack(anchor=tk.W)
-            ttk.Checkbutton(frame_check, text='Mostrar botón "Apagar Todo"',
+            ttk.Checkbutton(frame_check, text=t('gen_apagar_todo'),
                             variable=self.apagar_todo_var).pack(anchor=tk.W)
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
-            ttk.Checkbutton(parent, text='Habilitar API REST',
+            ttk.Checkbutton(parent, text=t('gen_api'),
                             variable=self.api_var).pack(anchor=tk.W, pady=4)
-            ttk.Label(parent, text='Activa la API para gestionar vídeos externamente.',
+            ttk.Label(parent, text=t('gen_api_desc'),
                       foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W)
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
             frame_port = ttk.Frame(parent)
             frame_port.pack(fill=tk.X)
-            ttk.Label(frame_port, text='Puerto:').pack(side=tk.LEFT)
+            ttk.Label(frame_port, text=t('gen_puerto')).pack(side=tk.LEFT)
             self.port_var = tk.StringVar(value=str(cfg.get('puerto', 5000)))
             port_entry = ttk.Entry(frame_port, textvariable=self.port_var, width=10)
             port_entry.pack(side=tk.LEFT, padx=(10, 0))
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
-            ttk.Label(parent, text='Gestión de contenido',
+            ttk.Label(parent, text=t('gen_gestion_contenido'),
                       font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, pady=(0, 6))
 
             media_frame = ttk.Frame(parent)
             media_frame.pack(fill=tk.X, pady=4)
-            ttk.Button(media_frame, text='Exportar media (.fkmedia)',
+            ttk.Button(media_frame, text=t('gen_exportar'),
                        command=self.exportar_media).pack(side=tk.LEFT, padx=(0, 5))
-            ttk.Button(media_frame, text='Importar media (.fkmedia)',
+            ttk.Button(media_frame, text=t('gen_importar'),
                        command=self.importar_media).pack(side=tk.LEFT)
 
             self.status_label = ttk.Label(parent, text='', foreground='green')
@@ -553,13 +589,23 @@ def gui():
 
             btn_frame = ttk.Frame(parent)
             btn_frame.pack(pady=(10, 0))
-            ttk.Button(btn_frame, text='Guardar y Cerrar', command=self.guardar_y_cerrar).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text='Salir', command=self.root.destroy).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('gen_guardar_cerrar'), command=self.guardar_y_cerrar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('gen_salir'), command=self.root.destroy).pack(side=tk.LEFT, padx=5)
+
+        def _cambiar_idioma(self, event=None):
+            global _admin_lang
+            _admin_lang = self.lang_var.get()
+            cfg = leer_config()
+            cfg['admin_idioma'] = _admin_lang
+            guardar_config(cfg)
+            for widget in self.root.winfo_children():
+                widget.destroy()
+            ConfigAdmin(self.root)
 
         def _build_tab_omdb(self, parent, cfg):
-            ttk.Label(parent, text='Integración con OMDb',
+            ttk.Label(parent, text=t('omdb_title'),
                       font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
-            ttk.Label(parent, text='Obtén portadas, descripciones y valoraciones automáticamente.',
+            ttk.Label(parent, text=t('omdb_desc'),
                       foreground='#888').pack(pady=(0, 10))
 
             api_frame = ttk.LabelFrame(parent, text=' API Key ', padding=10)
@@ -567,7 +613,7 @@ def gui():
 
             api_row = ttk.Frame(api_frame)
             api_row.pack(fill=tk.X)
-            ttk.Label(api_row, text='OMDb API Key:').pack(side=tk.LEFT)
+            ttk.Label(api_row, text=t('omdb_api_key')).pack(side=tk.LEFT)
             env_data = leer_env()
             self.omdb_api_var = tk.StringVar(value=env_data.get('OMDB_API_KEY', ''))
             api_entry = ttk.Entry(api_row, textvariable=self.omdb_api_var, width=40, show='*')
@@ -575,7 +621,7 @@ def gui():
 
             def abrir_omdb_api():
                 webbrowser.open('https://www.omdbapi.com/apikey.aspx')
-            ttk.Button(api_row, text='Obtener API Key →', command=abrir_omdb_api).pack(side=tk.LEFT, padx=(0, 8))
+            ttk.Button(api_row, text=t('omdb_obtener_key'), command=abrir_omdb_api).pack(side=tk.LEFT, padx=(0, 8))
 
             self.omdb_api_status = ttk.Label(api_row, text='', font=('Segoe UI', 9))
             self.omdb_api_status.pack(side=tk.LEFT)
@@ -583,40 +629,40 @@ def gui():
             def validar_api():
                 key = self.omdb_api_var.get().strip()
                 if not key:
-                    self.omdb_api_status.config(text='Introduce una API key', foreground='#ff8800')
+                    self.omdb_api_status.config(text=t('omdb_intro_key'), foreground='#ff8800')
                     return
-                self.omdb_api_status.config(text='Validando...', foreground='#888')
+                self.omdb_api_status.config(text=t('omdb_validando'), foreground='#888')
                 self.root.update_idletasks()
                 def _hilo():
                     ok = omdb_validar_api_key(key)
                     def _resultado():
                         if ok:
                             guardar_env({'OMDB_API_KEY': key})
-                            self.omdb_api_status.config(text='✓ API key válida (guardada)', foreground='#00cc66')
+                            self.omdb_api_status.config(text=t('omdb_key_valida'), foreground='#00cc66')
                         else:
-                            self.omdb_api_status.config(text='✗ API key inválida', foreground='red')
+                            self.omdb_api_status.config(text=t('omdb_key_invalida'), foreground='red')
                     self.root.after(0, _resultado)
                 threading.Thread(target=_hilo, daemon=True).start()
 
-            ttk.Button(api_row, text='Validar', command=validar_api).pack(side=tk.LEFT)
+            ttk.Button(api_row, text=t('omdb_validar'), command=validar_api).pack(side=tk.LEFT)
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
             lib_header = ttk.Frame(parent)
             lib_header.pack(fill=tk.X, pady=(0, 6))
-            ttk.Label(lib_header, text='Biblioteca detectada',
+            ttk.Label(lib_header, text=t('omdb_biblioteca'),
                       font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT)
-            ttk.Button(lib_header, text='Refrescar', command=self._refrescar_biblioteca).pack(side=tk.RIGHT)
+            ttk.Button(lib_header, text=t('omdb_refrescar'), command=self._refrescar_biblioteca).pack(side=tk.RIGHT)
 
             list_frame = ttk.Frame(parent)
             list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
             cols = ('nombre', 'tipo', 'meta', 'portada')
             self.tree = ttk.Treeview(list_frame, columns=cols, show='headings', selectmode='extended', height=10)
-            self.tree.heading('nombre', text='Carpeta')
-            self.tree.heading('tipo', text='Tipo')
-            self.tree.heading('meta', text='Meta')
-            self.tree.heading('portada', text='Portada')
+            self.tree.heading('nombre', text=t('omdb_carpeta'))
+            self.tree.heading('tipo', text=t('omdb_tipo'))
+            self.tree.heading('meta', text=t('omdb_meta'))
+            self.tree.heading('portada', text=t('omdb_portada'))
             self.tree.column('nombre', width=250)
             self.tree.column('tipo', width=80, anchor=tk.CENTER)
             self.tree.column('meta', width=70, anchor=tk.CENTER)
@@ -635,13 +681,13 @@ def gui():
             apply_frame.pack(fill=tk.X)
 
             self.omdb_descargar_img_var = tk.BooleanVar(value=True)
-            ttk.Checkbutton(apply_frame, text='Descargar portada',
+            ttk.Checkbutton(apply_frame, text=t('omdb_descargar_portada'),
                             variable=self.omdb_descargar_img_var).pack(side=tk.LEFT)
 
             self.omdb_status_label = ttk.Label(apply_frame, text='', font=('Segoe UI', 9))
             self.omdb_status_label.pack(side=tk.LEFT, padx=(10, 0))
 
-            ttk.Button(apply_frame, text='Aplicar OMDb a seleccionados',
+            ttk.Button(apply_frame, text=t('omdb_aplicar'),
                        command=self._aplicar_omdb).pack(side=tk.RIGHT)
 
         def _refrescar_biblioteca(self):
@@ -651,7 +697,7 @@ def gui():
             for c in contenido:
                 estado_meta = '✓' if c['tiene_meta'] else '✗'
                 estado_portada = '✓' if c['tiene_portada'] else '✗'
-                tipo_display = '🎬 Película' if c['tipo'] == 'pelicula' else '📺 Serie'
+                tipo_display = t('bib_pelicula') if c['tipo'] == 'pelicula' else t('bib_serie')
                 self.tree.insert('', tk.END, iid=c['nombre'],
                                  values=(c['nombre'], tipo_display, estado_meta, estado_portada))
 
@@ -663,11 +709,11 @@ def gui():
 
             seleccion = self.tree.selection()
             if not seleccion:
-                messagebox.showinfo('OMDb', 'Selecciona al menos una carpeta de la biblioteca.')
+                messagebox.showinfo('OMDb', t('msg_selecciona_biblioteca'))
                 return
 
             descarga_poster = self.omdb_descargar_img_var.get()
-            self.omdb_status_label.config(text='Procesando...', foreground='#888')
+            self.omdb_status_label.config(text=t('omdb_procesando'), foreground='#888')
             self.root.config(cursor='watch')
             self.root.update_idletasks()
 
@@ -724,18 +770,18 @@ def gui():
             threading.Thread(target=_hilo, daemon=True).start()
 
         def _build_tab_contenido(self, parent):
-            ttk.Label(parent, text='Biblioteca de Contenido',
+            ttk.Label(parent, text=t('bib_title'),
                       font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
-            ttk.Label(parent, text='Gestionar series, películas, temporadas y vídeos locales.',
+            ttk.Label(parent, text=t('bib_desc'),
                       foreground='#888').pack(pady=(0, 10))
 
             tree_frame = ttk.Frame(parent)
             tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
             self.ct_tree = ttk.Treeview(tree_frame, columns=('tipo', 'info'), show='tree headings', selectmode='browse', height=14)
-            self.ct_tree.heading('#0', text='Nombre')
-            self.ct_tree.heading('tipo', text='Tipo')
-            self.ct_tree.heading('info', text='Info')
+            self.ct_tree.heading('#0', text=t('bib_nombre'))
+            self.ct_tree.heading('tipo', text=t('bib_tipo'))
+            self.ct_tree.heading('info', text=t('bib_info'))
             self.ct_tree.column('#0', width=280)
             self.ct_tree.column('tipo', width=100, anchor=tk.CENTER)
             self.ct_tree.column('info', width=200)
@@ -750,17 +796,17 @@ def gui():
             btn_frame = ttk.Frame(parent)
             btn_frame.pack(fill=tk.X, pady=(0, 4))
 
-            ttk.Button(btn_frame, text='+Añadir Película/Serie', command=self._contenido_nuevo).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='+Añadir Temporada', command=self._contenido_nueva_temporada).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='+Añadir Vídeo', command=self._contenido_anadir_video).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('bib_anadir_pelicula_serie'), command=self._contenido_nuevo).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('bib_anadir_temporada'), command=self._contenido_nueva_temporada).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('bib_anadir_video'), command=self._contenido_anadir_video).pack(side=tk.LEFT, padx=(0, 4))
 
             btn_frame2 = ttk.Frame(parent)
             btn_frame2.pack(fill=tk.X)
 
-            ttk.Button(btn_frame2, text='Editar Metadata', command=self._contenido_editar_metadata).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame2, text='Renombrar', command=self._contenido_renombrar).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame2, text='Eliminar', command=self._contenido_eliminar).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame2, text='Refrescar', command=self._contenido_refrescar).pack(side=tk.RIGHT)
+            ttk.Button(btn_frame2, text=t('bib_editar_metadata'), command=self._contenido_editar_metadata).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text=t('bib_renombrar'), command=self._contenido_renombrar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text=t('bib_eliminar'), command=self._contenido_eliminar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text=t('bib_refrescar'), command=self._contenido_refrescar).pack(side=tk.RIGHT)
 
             self._contenido_refrescar()
 
@@ -786,13 +832,13 @@ def gui():
                     except Exception:
                         pass
 
-                display_tipo = '🎬 Película' if tipo == 'pelicula' else '📺 Serie'
+                display_tipo = t('bib_pelicula') if tipo == 'pelicula' else t('bib_serie')
                 info_parts = []
                 if meta.get('titulo'):
                     info_parts.append(meta['titulo'])
                 if meta.get('anio'):
                     info_parts.append(meta['anio'])
-                info_str = ' — '.join(info_parts) if info_parts else 'Sin metadata'
+                info_str = ' — '.join(info_parts) if info_parts else t('bib_sin_metadata')
                 if tiene_portada:
                     info_str += ' 🖼'
 
@@ -806,13 +852,13 @@ def gui():
                         vids = [f for f in os.listdir(ruta_sub)
                                 if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(FORMATOS_VIDEO)]
                         nodo_temp = self.ct_tree.insert(nodo_raiz, tk.END, text=sub,
-                                                        values=('📁 Temporada', f'{len(vids)} vídeo(s)'),
+                                                        values=(t('bib_temporada'), f'{len(vids)} {t("bib_videos")}'),
                                                         open=False)
                         for v in sorted(vids):
                             tam = os.path.getsize(os.path.join(ruta_sub, v))
                             tam_mb = f'{tam / (1024*1024):.1f} MB'
                             self.ct_tree.insert(nodo_temp, tk.END, text=v,
-                                                values=('🎬 Vídeo', tam_mb))
+                                                values=(t('bib_video'), tam_mb))
                 else:
                     vids = [f for f in os.listdir(ruta)
                             if os.path.isfile(os.path.join(ruta, f)) and f.lower().endswith(FORMATOS_VIDEO)]
@@ -820,7 +866,7 @@ def gui():
                         tam = os.path.getsize(os.path.join(ruta, v))
                         tam_mb = f'{tam / (1024*1024):.1f} MB'
                         self.ct_tree.insert(nodo_raiz, tk.END, text=v,
-                                            values=('🎬 Vídeo', tam_mb))
+                                            values=(t('bib_video'), tam_mb))
 
         def _contenido_obtener_seleccion(self):
             sel = self.ct_tree.selection()
@@ -853,7 +899,7 @@ def gui():
             return 'raiz', texto, item_id
 
         def _contenido_nuevo(self):
-            meta_dialog = DialogoMetadata(self.root, 'Añadir Película/Serie', es_nuevo=True)
+            meta_dialog = DialogoMetadata(self.root, t('meta_anadir_title'), es_nuevo=True)
             if not meta_dialog.resultado:
                 return
             meta = meta_dialog.resultado
@@ -1164,20 +1210,23 @@ def gui():
             valores = self.ct_tree.item(item, 'values')
             tipo_display = valores[0] if valores else ''
 
-            if 'Película' in tipo_display or 'Serie' in tipo_display:
-                menu.add_command(label='Editar Metadata', command=self._contenido_editar_metadata)
-                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+            es_pelicula = tipo_display in (t('bib_pelicula'), '🎬 Película', '🎬 Movie')
+            es_serie = tipo_display in (t('bib_serie'), '📺 Serie', '📺 Series')
+
+            if es_pelicula or es_serie:
+                menu.add_command(label=t('bib_editar_metadata'), command=self._contenido_editar_metadata)
+                menu.add_command(label=t('bib_renombrar'), command=self._contenido_renombrar)
                 menu.add_separator()
-                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
-            elif 'Temporada' in tipo_display:
-                menu.add_command(label='Añadir Vídeo', command=self._contenido_anadir_video)
-                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+                menu.add_command(label=t('bib_eliminar'), command=self._contenido_eliminar)
+            elif tipo_display in (t('bib_temporada'), '📁 Temporada', '📁 Season'):
+                menu.add_command(label=t('bib_anadir_video'), command=self._contenido_anadir_video)
+                menu.add_command(label=t('bib_renombrar'), command=self._contenido_renombrar)
                 menu.add_separator()
-                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
-            elif 'Vídeo' in tipo_display:
-                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+                menu.add_command(label=t('bib_eliminar'), command=self._contenido_eliminar)
+            elif tipo_display in (t('bib_video'), '🎬 Vídeo', '🎬 Video'):
+                menu.add_command(label=t('bib_renombrar'), command=self._contenido_renombrar)
                 menu.add_separator()
-                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
+                menu.add_command(label=t('bib_eliminar'), command=self._contenido_eliminar)
 
             try:
                 menu.tk_popup(event.x_root, event.y_root)
@@ -1185,18 +1234,18 @@ def gui():
                 menu.grab_release()
 
         def _build_tab_streamings(self, parent):
-            ttk.Label(parent, text='Gestión de Streamings',
+            ttk.Label(parent, text=t('str_title'),
                       font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
-            ttk.Label(parent, text='Añadir, editar y eliminar enlaces de directo (HLS, iframe, vídeo).',
+            ttk.Label(parent, text=t('str_desc'),
                       foreground='#888').pack(pady=(0, 10))
 
             tree_frame = ttk.Frame(parent)
             tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
             self.st_tree = ttk.Treeview(tree_frame, columns=('url', 'tipo'), show='tree headings', selectmode='browse', height=12)
-            self.st_tree.heading('#0', text='Título')
-            self.st_tree.heading('url', text='URL principal')
-            self.st_tree.heading('tipo', text='Tipo')
+            self.st_tree.heading('#0', text=t('str_titulo'))
+            self.st_tree.heading('url', text=t('str_url_principal'))
+            self.st_tree.heading('tipo', text=t('str_tipo'))
             self.st_tree.column('#0', width=200)
             self.st_tree.column('url', width=320)
             self.st_tree.column('tipo', width=80, anchor=tk.CENTER)
@@ -1209,12 +1258,12 @@ def gui():
             btn_frame = ttk.Frame(parent)
             btn_frame.pack(fill=tk.X, pady=(0, 4))
 
-            ttk.Button(btn_frame, text='+Añadir', command=self._stream_anadir).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='Editar', command=self._stream_editar).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='Eliminar', command=self._stream_eliminar).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='Subir ▲', command=self._stream_subir).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='Bajar ▼', command=self._stream_bajar).pack(side=tk.LEFT, padx=(0, 4))
-            ttk.Button(btn_frame, text='Refrescar', command=self._stream_refrescar).pack(side=tk.RIGHT)
+            ttk.Button(btn_frame, text=t('str_anadir'), command=self._stream_anadir).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('str_editar'), command=self._stream_editar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('str_eliminar'), command=self._stream_eliminar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('str_subir'), command=self._stream_subir).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('str_bajar'), command=self._stream_bajar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text=t('str_refrescar'), command=self._stream_refrescar).pack(side=tk.RIGHT)
 
             self._stream_refrescar()
 
@@ -1223,10 +1272,10 @@ def gui():
                 self.st_tree.delete(item)
             streams = cargar_streams()
             for i, s in enumerate(streams):
-                titulo = s.get('titulo', 'Sin título')
+                titulo = s.get('titulo', t('str_sin_titulo'))
                 url = s.get('url', s.get('urls', [''])[0] if s.get('urls') else '')
                 tipo = s.get('tipo', 'iframe')
-                tipo_display = {'hls': '📡 HLS', 'video': '🎬 Vídeo', 'iframe': '🌐 iFrame'}.get(tipo, tipo)
+                tipo_display = {'hls': t('str_hls'), 'video': t('str_video'), 'iframe': t('str_iframe')}.get(tipo, tipo)
                 self.st_tree.insert('', tk.END, iid=str(i), text=titulo, values=(url, tipo_display))
 
         def _stream_dialogo(self, titulo_ventana='Stream', stream=None):
@@ -1240,15 +1289,15 @@ def gui():
             frame = ttk.Frame(dialogo, padding=15)
             frame.pack(fill=tk.BOTH, expand=True)
 
-            ttk.Label(frame, text='Título:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('str_titulo') + ':', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             titulo_var = tk.StringVar(value=stream.get('titulo', '') if stream else '')
             ttk.Entry(frame, textvariable=titulo_var, width=55).pack(fill=tk.X, pady=(0, 8))
 
-            ttk.Label(frame, text='URL principal:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('str_url_label'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             url_var = tk.StringVar(value=stream.get('url', '') if stream else '')
             ttk.Entry(frame, textvariable=url_var, width=55).pack(fill=tk.X, pady=(0, 8))
 
-            ttk.Label(frame, text='URLs backup (una por línea):', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            ttk.Label(frame, text=t('str_backups'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
             backups_text = tk.Text(frame, height=3, width=55, wrap=tk.WORD)
             backups_text.pack(fill=tk.X, pady=(0, 8))
             if stream:
@@ -1260,7 +1309,7 @@ def gui():
 
             row = ttk.Frame(frame)
             row.pack(fill=tk.X, pady=(0, 8))
-            ttk.Label(row, text='Tipo:').pack(side=tk.LEFT)
+            ttk.Label(row, text=t('meta_tipo')).pack(side=tk.LEFT)
             tipo_var = tk.StringVar(value=stream.get('tipo', 'hls') if stream else 'hls')
             ttk.Combobox(row, textvariable=tipo_var, values=['hls', 'iframe', 'video'],
                          state='readonly', width=10).pack(side=tk.LEFT, padx=(5, 0))
@@ -1271,7 +1320,7 @@ def gui():
                 titulo_val = titulo_var.get().strip()
                 url_val = url_var.get().strip()
                 if not titulo_val or not url_val:
-                    messagebox.showerror('Error', 'Título y URL son obligatorios.', parent=dialogo)
+                    messagebox.showerror(t('msg_error'), t('msg_titulo_url_obligatorios'), parent=dialogo)
                     return
                 backups_raw = backups_text.get('1.0', tk.END).strip()
                 backups_lista = [b.strip() for b in backups_raw.split('\n') if b.strip()]
@@ -1286,15 +1335,15 @@ def gui():
 
             btn_frame = ttk.Frame(frame)
             btn_frame.pack(pady=(10, 0))
-            ttk.Button(btn_frame, text='Aceptar', command=aceptar).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text='Cancelar', command=dialogo.destroy).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('meta_aceptar'), command=aceptar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=t('meta_cancelar'), command=dialogo.destroy).pack(side=tk.LEFT, padx=5)
 
             dialogo.protocol("WM_DELETE_WINDOW", dialogo.destroy)
             self.root.wait_window(dialogo)
             return resultado[0]
 
         def _stream_anadir(self):
-            resultado = self._stream_dialogo('Añadir Stream')
+            resultado = self._stream_dialogo(t('str_anadir_stream'))
             if not resultado:
                 return
             streams = cargar_streams()
@@ -1305,13 +1354,13 @@ def gui():
         def _stream_editar(self):
             sel = self.st_tree.selection()
             if not sel:
-                messagebox.showinfo('Info', 'Selecciona un stream para editar.')
+                messagebox.showinfo(t('msg_info'), t('msg_selecciona_stream_editar'))
                 return
             idx = int(sel[0])
             streams = cargar_streams()
             if idx >= len(streams):
                 return
-            resultado = self._stream_dialogo('Editar Stream', streams[idx])
+            resultado = self._stream_dialogo(t('str_editar_stream'), streams[idx])
             if not resultado:
                 return
             streams[idx] = resultado
@@ -1321,14 +1370,14 @@ def gui():
         def _stream_eliminar(self):
             sel = self.st_tree.selection()
             if not sel:
-                messagebox.showinfo('Info', 'Selecciona un stream para eliminar.')
+                messagebox.showinfo(t('msg_info'), t('msg_selecciona_stream_eliminar'))
                 return
             idx = int(sel[0])
             streams = cargar_streams()
             if idx >= len(streams):
                 return
             titulo = streams[idx].get('titulo', 'Sin título')
-            if not messagebox.askyesno('Eliminar', f'¿Eliminar el stream "{titulo}"?'):
+            if not messagebox.askyesno(t('msg_info'), t('msg_eliminar_stream').format(titulo=titulo)):
                 return
             streams.pop(idx)
             guardar_streams(streams)
