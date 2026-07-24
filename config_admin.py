@@ -13,6 +13,7 @@ CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 MEDIA_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 ENV_PATH = os.path.join(DIRECTORIO_RAIZ, '.env')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
+LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
 OMDB_API_URL = 'https://www.omdbapi.com/'
 
 
@@ -346,6 +347,21 @@ def listar_contenido_media():
     return items
 
 
+def cargar_streams():
+    if not os.path.exists(LIVE_STREAMS_PATH):
+        return []
+    try:
+        with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def guardar_streams(streams):
+    with open(LIVE_STREAMS_PATH, 'w', encoding='utf-8') as f:
+        json.dump(streams, f, indent=4, ensure_ascii=False)
+
+
 def gui():
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog, simpledialog
@@ -478,13 +494,16 @@ def gui():
             tab_general = ttk.Frame(notebook, padding=15)
             tab_omdb = ttk.Frame(notebook, padding=15)
             tab_contenido = ttk.Frame(notebook, padding=15)
+            tab_streamings = ttk.Frame(notebook, padding=15)
             notebook.add(tab_general, text=' General ')
             notebook.add(tab_omdb, text=' OMDb ')
-            notebook.add(tab_contenido, text=' Contenido ')
+            notebook.add(tab_contenido, text=' Biblioteca ')
+            notebook.add(tab_streamings, text=' Streamings ')
 
             self._build_tab_general(tab_general, cfg)
             self._build_tab_omdb(tab_omdb, cfg)
             self._build_tab_contenido(tab_contenido)
+            self._build_tab_streamings(tab_streamings)
 
         def _build_tab_general(self, parent, cfg):
             ttk.Label(parent, text='Administración de FlaskCast',
@@ -705,9 +724,9 @@ def gui():
             threading.Thread(target=_hilo, daemon=True).start()
 
         def _build_tab_contenido(self, parent):
-            ttk.Label(parent, text='Gestión de Contenido',
+            ttk.Label(parent, text='Biblioteca de Contenido',
                       font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
-            ttk.Label(parent, text='Crear, editar y eliminar series, películas, temporadas y vídeos.',
+            ttk.Label(parent, text='Gestionar series, películas, temporadas y vídeos locales.',
                       foreground='#888').pack(pady=(0, 10))
 
             tree_frame = ttk.Frame(parent)
@@ -1164,6 +1183,182 @@ def gui():
                 menu.tk_popup(event.x_root, event.y_root)
             finally:
                 menu.grab_release()
+
+        def _build_tab_streamings(self, parent):
+            ttk.Label(parent, text='Gestión de Streamings',
+                      font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
+            ttk.Label(parent, text='Añadir, editar y eliminar enlaces de directo (HLS, iframe, vídeo).',
+                      foreground='#888').pack(pady=(0, 10))
+
+            tree_frame = ttk.Frame(parent)
+            tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+
+            self.st_tree = ttk.Treeview(tree_frame, columns=('url', 'tipo'), show='tree headings', selectmode='browse', height=12)
+            self.st_tree.heading('#0', text='Título')
+            self.st_tree.heading('url', text='URL principal')
+            self.st_tree.heading('tipo', text='Tipo')
+            self.st_tree.column('#0', width=200)
+            self.st_tree.column('url', width=320)
+            self.st_tree.column('tipo', width=80, anchor=tk.CENTER)
+
+            scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.st_tree.yview)
+            self.st_tree.configure(yscrollcommand=scrollbar.set)
+            self.st_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            btn_frame = ttk.Frame(parent)
+            btn_frame.pack(fill=tk.X, pady=(0, 4))
+
+            ttk.Button(btn_frame, text='+Añadir', command=self._stream_anadir).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='Editar', command=self._stream_editar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='Eliminar', command=self._stream_eliminar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='Subir ▲', command=self._stream_subir).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='Bajar ▼', command=self._stream_bajar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='Refrescar', command=self._stream_refrescar).pack(side=tk.RIGHT)
+
+            self._stream_refrescar()
+
+        def _stream_refrescar(self):
+            for item in self.st_tree.get_children():
+                self.st_tree.delete(item)
+            streams = cargar_streams()
+            for i, s in enumerate(streams):
+                titulo = s.get('titulo', 'Sin título')
+                url = s.get('url', s.get('urls', [''])[0] if s.get('urls') else '')
+                tipo = s.get('tipo', 'iframe')
+                tipo_display = {'hls': '📡 HLS', 'video': '🎬 Vídeo', 'iframe': '🌐 iFrame'}.get(tipo, tipo)
+                self.st_tree.insert('', tk.END, iid=str(i), text=titulo, values=(url, tipo_display))
+
+        def _stream_dialogo(self, titulo_ventana='Stream', stream=None):
+            dialogo = tk.Toplevel(self.root)
+            dialogo.title(titulo_ventana)
+            dialogo.geometry('500x280')
+            dialogo.resizable(False, False)
+            dialogo.transient(self.root)
+            dialogo.grab_set()
+
+            frame = ttk.Frame(dialogo, padding=15)
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(frame, text='Título:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            titulo_var = tk.StringVar(value=stream.get('titulo', '') if stream else '')
+            ttk.Entry(frame, textvariable=titulo_var, width=55).pack(fill=tk.X, pady=(0, 8))
+
+            ttk.Label(frame, text='URL principal:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            url_var = tk.StringVar(value=stream.get('url', '') if stream else '')
+            ttk.Entry(frame, textvariable=url_var, width=55).pack(fill=tk.X, pady=(0, 8))
+
+            ttk.Label(frame, text='URLs backup (una por línea):', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            backups_text = tk.Text(frame, height=3, width=55, wrap=tk.WORD)
+            backups_text.pack(fill=tk.X, pady=(0, 8))
+            if stream:
+                urls = stream.get('urls', [])
+                url_principal = stream.get('url', '')
+                backups = [u for u in urls if u != url_principal]
+                if backups:
+                    backups_text.insert('1.0', '\n'.join(backups))
+
+            row = ttk.Frame(frame)
+            row.pack(fill=tk.X, pady=(0, 8))
+            ttk.Label(row, text='Tipo:').pack(side=tk.LEFT)
+            tipo_var = tk.StringVar(value=stream.get('tipo', 'hls') if stream else 'hls')
+            ttk.Combobox(row, textvariable=tipo_var, values=['hls', 'iframe', 'video'],
+                         state='readonly', width=10).pack(side=tk.LEFT, padx=(5, 0))
+
+            resultado = [None]
+
+            def aceptar():
+                titulo_val = titulo_var.get().strip()
+                url_val = url_var.get().strip()
+                if not titulo_val or not url_val:
+                    messagebox.showerror('Error', 'Título y URL son obligatorios.', parent=dialogo)
+                    return
+                backups_raw = backups_text.get('1.0', tk.END).strip()
+                backups_lista = [b.strip() for b in backups_raw.split('\n') if b.strip()]
+                urls_total = [url_val] + backups_lista
+                resultado[0] = {
+                    'titulo': titulo_val,
+                    'url': url_val,
+                    'urls': urls_total,
+                    'tipo': tipo_var.get(),
+                }
+                dialogo.destroy()
+
+            btn_frame = ttk.Frame(frame)
+            btn_frame.pack(pady=(10, 0))
+            ttk.Button(btn_frame, text='Aceptar', command=aceptar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text='Cancelar', command=dialogo.destroy).pack(side=tk.LEFT, padx=5)
+
+            dialogo.protocol("WM_DELETE_WINDOW", dialogo.destroy)
+            self.root.wait_window(dialogo)
+            return resultado[0]
+
+        def _stream_anadir(self):
+            resultado = self._stream_dialogo('Añadir Stream')
+            if not resultado:
+                return
+            streams = cargar_streams()
+            streams.append(resultado)
+            guardar_streams(streams)
+            self._stream_refrescar()
+
+        def _stream_editar(self):
+            sel = self.st_tree.selection()
+            if not sel:
+                messagebox.showinfo('Info', 'Selecciona un stream para editar.')
+                return
+            idx = int(sel[0])
+            streams = cargar_streams()
+            if idx >= len(streams):
+                return
+            resultado = self._stream_dialogo('Editar Stream', streams[idx])
+            if not resultado:
+                return
+            streams[idx] = resultado
+            guardar_streams(streams)
+            self._stream_refrescar()
+
+        def _stream_eliminar(self):
+            sel = self.st_tree.selection()
+            if not sel:
+                messagebox.showinfo('Info', 'Selecciona un stream para eliminar.')
+                return
+            idx = int(sel[0])
+            streams = cargar_streams()
+            if idx >= len(streams):
+                return
+            titulo = streams[idx].get('titulo', 'Sin título')
+            if not messagebox.askyesno('Eliminar', f'¿Eliminar el stream "{titulo}"?'):
+                return
+            streams.pop(idx)
+            guardar_streams(streams)
+            self._stream_refrescar()
+
+        def _stream_subir(self):
+            sel = self.st_tree.selection()
+            if not sel:
+                return
+            idx = int(sel[0])
+            if idx == 0:
+                return
+            streams = cargar_streams()
+            streams[idx], streams[idx - 1] = streams[idx - 1], streams[idx]
+            guardar_streams(streams)
+            self._stream_refrescar()
+            self.st_tree.selection_set(str(idx - 1))
+
+        def _stream_bajar(self):
+            sel = self.st_tree.selection()
+            if not sel:
+                return
+            idx = int(sel[0])
+            streams = cargar_streams()
+            if idx >= len(streams) - 1:
+                return
+            streams[idx], streams[idx + 1] = streams[idx + 1], streams[idx]
+            guardar_streams(streams)
+            self._stream_refrescar()
+            self.st_tree.selection_set(str(idx + 1))
 
         def guardar_y_cerrar(self):
             try:
