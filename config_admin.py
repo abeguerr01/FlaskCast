@@ -527,15 +527,6 @@ def gui():
             ttk.Radiobutton(lang_frame, text='🇬🇧 English', variable=self.lang_var, value='en',
                              command=self._cambiar_idioma).pack(side=tk.LEFT, padx=15)
 
-            tab_general = ttk.Frame(notebook, padding=15)
-            tab_omdb = ttk.Frame(notebook, padding=15)
-            tab_contenido = ttk.Frame(notebook, padding=15)
-            tab_streamings = ttk.Frame(notebook, padding=15)
-            notebook.add(tab_general, text=t('tab_general'))
-            notebook.add(tab_omdb, text=t('tab_omdb'))
-            notebook.add(tab_contenido, text=t('tab_biblioteca'))
-            notebook.add(tab_streamings, text=t('tab_streamings'))
-
             self._build_tab_general(tab_general, cfg)
             self._build_tab_omdb(tab_omdb, cfg)
             self._build_tab_contenido(tab_contenido)
