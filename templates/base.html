@@ -25,16 +25,16 @@
         <nav class="sidebar-nav">
             <a href="/" class="sidebar-link {% if active_section == 'catalogo' %}sidebar-link-active{% endif %}">
                 <span class="sidebar-icon">🎬</span>
-                <span>Pelis y Series</span>
+                <span>{{ t('nav_pelis_series') }}</span>
             </a>
             <a href="/live" class="sidebar-link {% if active_section == 'directo' %}sidebar-link-active{% endif %}">
                 <span class="sidebar-icon">📡</span>
-                <span>Contenido en directo</span>
+                <span>{{ t('nav_en_directo') }}</span>
             </a>
             {% if session.get('usuario_id') %}
             <a href="/listas" class="sidebar-link {% if active_section == 'listas' %}sidebar-link-active{% endif %}">
                 <span class="sidebar-icon">📋</span>
-                <span>Listas</span>
+                <span>{{ t('nav_listas') }}</span>
             </a>
             {% endif %}
         </nav>

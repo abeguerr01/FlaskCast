@@ -38,6 +38,9 @@
 - **Auto-reproducción:** el reproductor avanza automáticamente al siguiente capítulo de la temporada.
 - **Interfaz responsive:** diseño adaptable con sidebar colapsable en móvil (hamburger menu), breakpoints a 900px, 768px y 480px.
 - **Interfaz ligera:** HTML5, CSS y JavaScript Vanilla para reproducción y búsqueda en tiempo real.
+- **Multi-idioma (i18n):** soporte español/inglés con cambio por usuario. Géneros y descripciones de OMDb se traducen automáticamente.
+- **Integración OMDb:** obtención automática de portadas, descripciones, valoraciones y metadatos desde OMDb API.
+- **Diseño hero:** vista detalle con banner de portada difuminada, metadata visual y botones de acción.
 
 ---
 

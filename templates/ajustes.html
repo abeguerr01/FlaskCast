@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
 
-{% block title %}Ajustes de FlaskCast{% endblock %}
+{% block title %}{{ t('panel_ajustes') }}{% endblock %}
 
 {% block head %}
     <style>
@@ -245,8 +245,8 @@
 {% block content %}
 
     <header>
-        <h1>Panel de Ajustes</h1>
-        <a href="{{ return_to }}" class="btn-back">Cancelar y Volver</a>
+        <h1>{{ t('panel_ajustes') }}</h1>
+        <a href="{{ return_to }}" class="btn-back">{{ t('cancelar_volver') }}</a>
     </header>
 
     <div class="container">
@@ -254,67 +254,85 @@
             <form action="/ajustes" method="POST">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="form-group">
-                    <label for="auto_marcar">Marcar estado del capitulo automatico</label>
+                    <label for="auto_marcar">{{ t('auto_marcar_label') }}</label>
                     <label class="switch">
                         <input type="checkbox" id="auto_marcar" name="auto_marcar" {% if auto_marcar == 1 %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Si esta activado, el sistema marcara el capitulo como <strong>Viendo</strong> al alcanzar el 10% reproducido, y como <strong>Visto</strong> al pasar del 85%. Si se desactiva, los estados solo cambiaran al hacer click manual sobre la etiqueta.
+                    {{ t('auto_marcar_desc') }}
                 </p>
 
                 <hr class="form-divider">
 
                 <div class="form-group">
-                    <label for="mostrar_progreso">Mostrar barra de progreso</label>
+                    <label for="mostrar_progreso">{{ t('mostrar_progreso_label') }}</label>
                     <label class="switch">
                         <input type="checkbox" id="mostrar_progreso" name="mostrar_progreso" {% if mostrar_progreso == 1 %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
                 </div>
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Muestra una barra de progreso debajo de cada capitulo indicando el porcentaje visto. Si se desactiva, las barras no se mostraran en las tarjetas de episodios.
+                    {{ t('mostrar_progreso_desc') }}
                 </p>
 
                 <hr class="form-divider">
 
                 <div class="form-group">
-                    <label>Tema de la interfaz</label>
+                    <label>{{ t('idioma_label') }}</label>
+                </div>
+                <div class="theme-selector">
+                    <button type="button" class="theme-option {% if idioma == 'es' %}theme-active{% endif %}" data-idioma="es" onclick="seleccionarIdioma('es')">
+                        <span class="theme-icon">🇪🇸</span> Español
+                    </button>
+                    <button type="button" class="theme-option {% if idioma == 'en' %}theme-active{% endif %}" data-idioma="en" onclick="seleccionarIdioma('en')">
+                        <span class="theme-icon">🇬🇧</span> English
+                    </button>
+                </div>
+                <input type="hidden" id="idioma-input" name="idioma" value="{{ idioma }}">
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
+                    {{ t('idioma_desc') }}
+                </p>
+
+                <hr class="form-divider">
+
+                <div class="form-group">
+                    <label>{{ t('tema_label') }}</label>
                 </div>
                 <div class="theme-selector">
                     <button type="button" class="theme-option {% if tema == 'oscuro' %}theme-active{% endif %}" data-tema="oscuro" onclick="seleccionarTema('oscuro')">
-                        <span class="theme-icon">🌙</span> Oscuro
+                        <span class="theme-icon">🌙</span> {{ t('tema_oscuro') }}
                     </button>
                     <button type="button" class="theme-option {% if tema == 'claro' %}theme-active{% endif %}" data-tema="claro" onclick="seleccionarTema('claro')">
-                        <span class="theme-icon">☀️</span> Claro
+                        <span class="theme-icon">☀️</span> {{ t('tema_claro') }}
                     </button>
                 </div>
                 <input type="hidden" id="tema-input" name="tema" value="{{ tema }}">
                 <p style="color: #888; font-size: 0.85rem; margin-bottom: 25px; line-height: 1.4;">
-                    Cambia entre el tema oscuro (por defecto) y el tema claro de la interfaz. Se guarda por usuario.
+                    {{ t('tema_desc') }}
                 </p>
 
-                <button type="submit" class="btn-save">Guardar Configuracion</button>
+                <button type="submit" class="btn-save">{{ t('guardar_config') }}</button>
             </form>
             {% if es_local %}
             <hr class="form-divider">
-            <button type="button" class="btn-save" style="background-color: #0d6efd;" onclick="abrirConfigAdmin()">Abrir Panel de Administracion</button>
+            <button type="button" class="btn-save" style="background-color: #0d6efd;" onclick="abrirConfigAdmin()">{{ t('abrir_admin') }}</button>
             <p style="color: #888; font-size: 0.85rem; margin-top: 10px; margin-bottom: 0; line-height: 1.4;">
-                Abre <code>config_admin.py</code> para gestionar la API, botones de apagado y puerto.
+                {{ t('admin_desc') }}
             </p>
             {% endif %}
 
             {% if boton_apagar_visible or boton_apagar_todo_visible %}
             <hr class="form-divider">
             <p style="color: #888; font-size: 0.85rem; margin-bottom: 15px; line-height: 1.4;">
-                Los botones de apagado solo estan disponibles si se activan desde el panel de administracion (<code>config_admin.py</code>).
+                {{ t('botones_apagado_desc') }}
             </p>
             {% if boton_apagar_visible %}
-            <button type="button" class="btn-shutdown" onclick="apagarServidor()">Apagar Servidor</button>
+            <button type="button" class="btn-shutdown" onclick="apagarServidor()">{{ t('apagar_servidor') }}</button>
             {% endif %}
             {% if boton_apagar_todo_visible %}
-            <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">Apagar Todo</button>
+            <button type="button" class="btn-shutdown-all" onclick="apagarTodo()">{{ t('apagar_todo') }}</button>
             {% endif %}
             {% endif %}
         </div>
@@ -322,9 +340,9 @@
 
     <div class="guest-modal-overlay" id="guestThemeModal" onclick="if(event.target===this)this.style.display='none'">
         <div class="guest-modal-box">
-            <h3>👤 Inicia sesion</h3>
-            <p>Debes tener un usuario para cambiar el tema.</p>
-            <button class="guest-modal-btn" onclick="document.getElementById('guestThemeModal').style.display='none'">Entendido</button>
+            <h3>{{ t('inicia_sesion_tema') }}</h3>
+            <p>{{ t('debes_usuario') }}</p>
+            <button class="guest-modal-btn" onclick="document.getElementById('guestThemeModal').style.display='none'">{{ t('entendido') }}</button>
         </div>
     </div>
 
@@ -401,35 +419,46 @@ Content-Type: application/json</pre>
     </div>
 
     <script>
+        var tr = {{ T[idioma_actual] | tojson }};
+
+        function seleccionarIdioma(idioma) {
+            document.getElementById('idioma-input').value = idioma;
+            var botones = document.querySelectorAll('[data-idioma]');
+            for (var i = 0; i < botones.length; i++) {
+                botones[i].classList.remove('theme-active');
+            }
+            document.querySelector('[data-idioma="' + idioma + '"]').classList.add('theme-active');
+        }
+
         function apagarServidor() {
-            if (!confirm('Estas seguro de que quieres apagar el servidor?')) return;
+            if (!confirm(tr.confirmar_apagar)) return;
             fetch('/api/off')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
                         alert('Error: ' + data.error);
                     } else {
-                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Servidor apagandose...</div>';
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.servidor_apagando + '</div>';
                     }
                 })
                 .catch(function() {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Servidor apagandose...</div>';
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.servidor_apagando + '</div>';
                 });
         }
 
         function apagarTodo() {
-            if (!confirm('Estas seguro? Esto apagara todo el sistema.')) return;
+            if (!confirm(tr.confirmar_apagar_todo)) return;
             fetch('/api/off/all')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
                         alert('Error: ' + data.error);
                     } else {
-                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Sistema apagandose...</div>';
+                        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.sistema_apagando + '</div>';
                     }
                 })
                 .catch(function() {
-                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">Sistema apagandose...</div>';
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.sistema_apagando + '</div>';
                 });
         }
 
@@ -442,7 +471,7 @@ Content-Type: application/json</pre>
                     }
                 })
                 .catch(function() {
-                    alert('No se pudo abrir el panel de administracion.');
+                    alert(tr.no_abrir_admin);
                 });
         }
 

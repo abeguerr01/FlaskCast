@@ -83,6 +83,7 @@
             <video controls autoplay preload="auto"
                    data-urls="{{ urls | tojson | forceescape }}"></video>
             <script>
+                var tr = {{ T[idioma_actual] | tojson }};
                 (function() {
                     var v = document.querySelector('.tv-player-wrapper video');
                     var urls = JSON.parse(v.getAttribute('data-urls'));
@@ -93,7 +94,7 @@
                             idx++;
                             v.src = urls[idx];
                         } else {
-                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">' + tr.todas_fuentes_fallaron + '<br><br><a href="/live" style="color:#e50914;">' + tr.volver_lista + '</a></div>';
                         }
                     };
                 })();
@@ -102,6 +103,7 @@
         {% elif tipo == 'hls' %}
             <video id="tvPlayerHls" controls autoplay preload="auto"></video>
             <script>
+                var tr = {{ T[idioma_actual] | tojson }};
                 (function() {
                     var v = document.getElementById('tvPlayerHls');
                     var urls = {{ urls | tojson }};
@@ -114,7 +116,7 @@
                                 if (i < urls.length - 1) {
                                     intentarURL(i + 1);
                                 } else {
-                                    document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes HLS fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                                    document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">' + tr.todas_hls_fallaron + '<br><br><a href="/live" style="color:#e50914;">' + tr.volver_lista + '</a></div>';
                                 }
                             };
                         } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
@@ -127,12 +129,12 @@
                                     if (i < urls.length - 1) {
                                         intentarURL(i + 1);
                                     } else {
-                                        document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Todas las fuentes HLS fallaron.<br><br><a href="/live" style="color:#e50914;">Volver a la lista</a></div>';
+                                        document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">' + tr.todas_hls_fallaron + '<br><br><a href="/live" style="color:#e50914;">' + tr.volver_lista + '</a></div>';
                                     }
                                 }
                             });
                         } else {
-                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">Tu navegador no soporta este stream HLS.<br><br><a href="' + urls[i] + '" style="color:#e50914;">Abrir enlace directo</a></div>';
+                            document.querySelector('.tv-player-wrapper').innerHTML = '<div class="tv-msg">' + tr.navegador_no_soporta + '<br><br><a href="' + urls[i] + '" style="color:#e50914;">' + tr.abrir_enlace_directo + '</a></div>';
                         }
                     }
                     intentarURL(0);
@@ -144,7 +146,7 @@
 
         {% else %}
             <div class="tv-msg">
-                <div>Tipo de stream no soportado en modo SmartTV.<br><br><a href="{{ urls[0] }}" style="color:#e50914;">Abrir enlace directo</a></div>
+                <div>{{ t('stream_no_soportado') }}<br><br><a href="{{ urls[0] }}" style="color:#e50914;">{{ t('abrir_enlace_directo') }}</a></div>
             </div>
         {% endif %}
     </div>
@@ -152,7 +154,7 @@
     <div class="tv-footer">
         <div class="video-name">{{ titulo }}</div>
         <div>
-            <a href="/live" class="btn-tv">Volver a la lista</a>
+            <a href="/live" class="btn-tv">{{ t('volver_lista') }}</a>
         </div>
     </div>
 

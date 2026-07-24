@@ -1,0 +1,383 @@
+TRANSLATIONS = {
+    'es': {
+        # Base / Sidebar
+        'app_name': 'FLASKCAST',
+        'nav_pelis_series': 'Pelis y Series',
+        'nav_en_directo': 'Contenido en directo',
+        'nav_listas': 'Listas',
+        # Comunes
+        'ajustes': '⚙️ Ajustes',
+        'iniciar_sesion': 'Iniciar Sesión',
+        'invitado': 'Invitado',
+        'ir_panel_usuarios': 'Ir a Panel de Usuarios',
+        'volver_catalogo': '⬅ Volver al Catálogo',
+        'guardar': 'Guardar',
+        'cancelar': 'Cancelar',
+        'eliminar': 'Eliminar',
+        'cerrar': 'Cerrar',
+        'ver': 'Ver',
+        'anadir': 'Añadir',
+        'buscar': 'Buscar...',
+        'procesando': 'Procesando...',
+        'error': 'Error',
+        'entendido': 'Entendido',
+        'si': 'Sí',
+        'no': 'No',
+        # Index
+        'continuar_viendo': '▶ Continuar viendo',
+        'placeholder_buscar': 'Buscar una serie o carpeta...',
+        'todo': 'Todo',
+        'peliculas': '🎬 Películas',
+        'series': '📺 Series',
+        'no_encontrado': 'No se encontraron carpetas dentro de',
+        'anterior': '« Anterior',
+        'siguiente': 'Siguiente »',
+        'mostrando': 'Mostrando',
+        'de': 'de',
+        'elementos': 'elementos',
+        # Serie
+        'capitulos': 'Capítulos',
+        'temporada': 'temporada',
+        'temporadas': 'temporadas',
+        'dirigida_por': 'Dirigida por',
+        'favorito': '⭐ Favorito',
+        'anadir_favoritos': '☆ Añadir a Favoritos',
+        'pendiente': '📋 Pendiente',
+        'viendo': '👁️ Viendo',
+        'visto': '✅ Visto',
+        'anadir_lista': '＋ Añadir',
+        'eliminar_listas': 'Eliminar de las listas',
+        'pelicula_section': '🎬 Película',
+        'temporadas_disponibles': 'Temporadas Disponibles',
+        'todos': 'Todos',
+        'no_vistos': '👁️ No vistos',
+        'viendo_caps': '⏳ Viendo',
+        'vistos': '✔️ Vistos',
+        'colapsar_expandir': '📂 Colapsar / Expandir',
+        'modo_smarttv': '📺 Modo SmartTV',
+        'convirtiendo': 'Convirtiendo...',
+        'incompatible': 'Incompatible',
+        'convertir': 'Convertir',
+        'archivos': 'archivos',
+        'sin_video_compat': 'Esta serie no contiene archivos de vídeo compatibles ni carpetas de temporadas.',
+        # Listas
+        'mis_listas': '📋 Mis Listas',
+        'favoritos_tab': '⭐ Favoritos',
+        'pendiente_tab': '📋 Pendiente',
+        'viendo_tab': '👁️ Viendo',
+        'visto_tab': '✅ Visto',
+        'listas_vacia': 'No tienes series en tus listas aun.',
+        'listas_instruccion': 'Entra en una serie y pulsa "＋ Añadir" para empezar.',
+        'ir_catalogo': 'Ir al Catálogo',
+        # Live
+        'contenido_directo': 'Contenido en directo',
+        'pulsa_ver': 'Pulsa en Ver para abrir el reproductor',
+        'fuentes_disponibles': 'fuente(s) disponible(s)',
+        'smarttv': 'SmartTV',
+        'no_streams': 'No hay streams en directo disponibles en este momento.',
+        'agrega_enlaces': 'Agrega enlaces en',
+        'sitio_terceros': 'Se va a abrir un sitio de terceros:',
+        'acceder': 'Acceder',
+        'rechazar': 'Rechazar',
+        'todas_fuentes_fallaron': 'Todas las fuentes fallaron.',
+        'no_puede_reproducir': 'No se puede reproducir este stream.',
+        'abrir_enlace': 'Abrir enlace',
+        'todas_hls_fallaron': 'Todas las fuentes HLS fallaron.',
+        # Live TV
+        'volver_lista': 'Volver a la lista',
+        'navegador_no_soporta': 'Tu navegador no soporta este stream HLS.',
+        'abrir_enlace_directo': 'Abrir enlace directo',
+        'stream_no_soportado': 'Tipo de stream no soportado en modo SmartTV.',
+        # Player TV
+        'smarttv_no_soporta': 'Tu Smart TV no soporta la decodificacion de este archivo de video.',
+        'viendo_cap': 'Viendo:',
+        'volver_lista_tv': 'Volver a la Lista',
+        'siguiente_capitulo': 'Siguiente Capitulo',
+        # Ajustes
+        'panel_ajustes': 'Panel de Ajustes',
+        'cancelar_volver': 'Cancelar y Volver',
+        'auto_marcar_label': 'Marcar estado del capitulo automatico',
+        'auto_marcar_desc': 'Si esta activado, el sistema marcara el capitulo como <strong>Viendo</strong> al alcanzar el 10% reproducido, y como <strong>Visto</strong> al pasar del 85%. Si se desactiva, los estados solo cambiaran al hacer click manual sobre la etiqueta.',
+        'mostrar_progreso_label': 'Mostrar barra de progreso',
+        'mostrar_progreso_desc': 'Muestra una barra de progreso debajo de cada capitulo indicando el porcentaje visto. Si se desactiva, las barras no se mostraran en las tarjetas de episodios.',
+        'tema_label': 'Tema de la interfaz',
+        'tema_oscuro': 'Oscuro',
+        'tema_claro': 'Claro',
+        'tema_desc': 'Cambia entre el tema oscuro (por defecto) y el tema claro de la interfaz. Se guarda por usuario.',
+        'guardar_config': 'Guardar Configuracion',
+        'abrir_admin': 'Abrir Panel de Administracion',
+        'admin_desc': 'Abre <code>config_admin.py</code> para gestionar la API, botones de apagado y puerto.',
+        'botones_apagado_desc': 'Los botones de apagado solo estan disponibles si se activan desde el panel de administracion',
+        'apagar_servidor': 'Apagar Servidor',
+        'apagar_todo': 'Apagar Todo',
+        'confirmar_apagar': '¿Estas seguro de que quieres apagar el servidor?',
+        'servidor_apagando': 'Servidor apagandose...',
+        'confirmar_apagar_todo': '¿Estas seguro? Esto apagara todo el sistema.',
+        'sistema_apagando': 'Sistema apagandose...',
+        'no_abrir_admin': 'No se pudo abrir el panel de administracion.',
+        'inicia_sesion_tema': '👤 Inicia sesion',
+        'debes_usuario': 'Debes tener un usuario para cambiar el tema.',
+        # Idioma
+        'idioma_label': 'Idioma de la interfaz',
+        'idioma_es': '🇪🇸 Español',
+        'idioma_en': '🇬🇧 English',
+        'idioma_desc': 'Cambia el idioma de toda la interfaz. Se guarda por usuario.',
+        # Usuarios
+        'quien_viendo': '¿Quién está viendo ahora?',
+        'editar': '⚙️ Editar',
+        'anadir_perfil': 'Añadir nuevo perfil:',
+        'nombre_placeholder': 'Nombre del usuario...',
+        'config_perfil': 'Configuración del Perfil',
+        'modifica_cuenta': 'Modifica los detalles de tu cuenta',
+        'nombre_perfil': 'Nombre del Perfil:',
+        'elige_avatar': 'Elige tu Avatar (Emoji):',
+        'seleccionado': 'Seleccionado:',
+        'guardar_cambios': 'Guardar Cambios',
+        'confirmar_eliminar': '⚠️ ¿Estás completamente seguro de eliminar este perfil?\nSe borrarán de forma PERMANENTE todos los capítulos vistos y marcas de reproducción.',
+        'eliminar_perfil': '❌ Eliminar este perfil por completo',
+        # API docs
+        'api_titulo': 'API REST - FlaskCast',
+        'api_nota': 'Para usar la API, debes tener una sesion activa en FlaskCast y tener la opcion <strong>Habilitar API REST</strong> activada en el panel de administracion',
+        'api_agregar': 'Agregar Video',
+        'api_agregar_desc': 'Sube un archivo de video a una serie y temporada especifica.',
+        'api_peticion': 'Peticion',
+        'api_parametros': 'Parametros',
+        'api_obligatorio': '(obligatorio)',
+        'api_nombre_serie': 'Nombre de la serie',
+        'api_subcarpetas': 'obligatorio si la serie tiene subcarpetas, no uses si no las tiene',
+        'api_archivo_video': 'Archivo de video',
+        'api_ejemplo_temp': 'Ejemplo con curl (con temporada)',
+        'api_ejemplo_sin_temp': 'Ejemplo (sin temporada)',
+        'api_listar': 'Listar Estructura',
+        'api_listar_desc': 'Obtén la estructura completa de todas las series o de una especifica.',
+        'api_todas_series': 'Todas las series',
+        'api_una_serie': 'Una serie especifica',
+        'api_ejemplo': 'Ejemplo con curl',
+        'api_obtener': 'Obtener Video',
+        'api_obtener_desc': 'Devuelve el archivo de video para reproducir o descargar.',
+        'api_eliminar': 'Eliminar Video',
+        'api_eliminar_desc': 'Elimina un archivo de video de una serie.',
+        'api_parametros_json': 'Parametros (JSON)',
+        'api_ruta_archivo': 'Ruta del archivo dentro de la serie (ej: Temporada 1/video.mp4)',
+    },
+    'en': {
+        # Base / Sidebar
+        'app_name': 'FLASKCAST',
+        'nav_pelis_series': 'Movies & Series',
+        'nav_en_directo': 'Live Content',
+        'nav_listas': 'Lists',
+        # Common
+        'ajustes': '⚙️ Settings',
+        'iniciar_sesion': 'Log In',
+        'invitado': 'Guest',
+        'ir_panel_usuarios': 'Go to User Panel',
+        'volver_catalogo': '⬅ Back to Catalog',
+        'guardar': 'Save',
+        'cancelar': 'Cancel',
+        'eliminar': 'Delete',
+        'cerrar': 'Close',
+        'ver': 'Watch',
+        'anadir': 'Add',
+        'buscar': 'Search...',
+        'procesando': 'Processing...',
+        'error': 'Error',
+        'entendido': 'Got it',
+        'si': 'Yes',
+        'no': 'No',
+        # Index
+        'continuar_viendo': '▶ Continue Watching',
+        'placeholder_buscar': 'Search for a series or folder...',
+        'todo': 'All',
+        'peliculas': '🎬 Movies',
+        'series': '📺 Series',
+        'no_encontrado': 'No folders found inside',
+        'anterior': '« Previous',
+        'siguiente': 'Next »',
+        'mostrando': 'Showing',
+        'de': 'of',
+        'elementos': 'items',
+        # Serie
+        'capitulos': 'Episodes',
+        'temporada': 'season',
+        'temporadas': 'seasons',
+        'dirigida_por': 'Directed by',
+        'favorito': '⭐ Favorite',
+        'anadir_favoritos': '☆ Add to Favorites',
+        'pendiente': '📋 Pending',
+        'viendo': '👁️ Watching',
+        'visto': '✅ Watched',
+        'anadir_lista': '＋ Add to List',
+        'eliminar_listas': 'Remove from lists',
+        'pelicula_section': '🎬 Movie',
+        'temporadas_disponibles': 'Available Seasons',
+        'todos': 'All',
+        'no_vistos': '👁️ Unseen',
+        'viendo_caps': '⏳ Watching',
+        'vistos': '✔️ Seen',
+        'colapsar_expandir': '📂 Collapse / Expand',
+        'modo_smarttv': '📺 SmartTV Mode',
+        'convirtiendo': 'Converting...',
+        'incompatible': 'Incompatible',
+        'convertir': 'Convert',
+        'archivos': 'files',
+        'sin_video_compat': 'This series has no compatible video files or season folders.',
+        # Listas
+        'mis_listas': '📋 My Lists',
+        'favoritos_tab': '⭐ Favorites',
+        'pendiente_tab': '📋 Pending',
+        'viendo_tab': '👁️ Watching',
+        'visto_tab': '✅ Watched',
+        'listas_vacia': "You don't have any series in your lists yet.",
+        'listas_instruccion': 'Open a series and tap "+ Add to List" to get started.',
+        'ir_catalogo': 'Go to Catalog',
+        # Live
+        'contenido_directo': 'Live Content',
+        'pulsa_ver': 'Tap Watch to open the player',
+        'fuentes_disponibles': 'source(s) available',
+        'smarttv': 'SmartTV',
+        'no_streams': 'No live streams available at the moment.',
+        'agrega_enlaces': 'Add links in',
+        'sitio_terceros': 'A third-party site will open:',
+        'acceder': 'Open',
+        'rechazar': 'Cancel',
+        'todas_fuentes_fallaron': 'All sources failed.',
+        'no_puede_reproducir': 'Cannot play this stream.',
+        'abrir_enlace': 'Open link',
+        'todas_hls_fallaron': 'All HLS sources failed.',
+        # Live TV
+        'volver_lista': 'Back to list',
+        'navegador_no_soporta': 'Your browser does not support this HLS stream.',
+        'abrir_enlace_directo': 'Open direct link',
+        'stream_no_soportado': 'Stream type not supported in SmartTV mode.',
+        # Player TV
+        'smarttv_no_soporta': 'Your Smart TV cannot decode this video file.',
+        'viendo_cap': 'Watching:',
+        'volver_lista_tv': 'Back to List',
+        'siguiente_capitulo': 'Next Episode',
+        # Ajustes
+        'panel_ajustes': 'Settings Panel',
+        'cancelar_volver': 'Cancel and Go Back',
+        'auto_marcar_label': 'Auto-mark episode status',
+        'auto_marcar_desc': 'When enabled, the system will mark an episode as <strong>Watching</strong> at 10% played, and as <strong>Watched</strong> past 85%. When disabled, status only changes by clicking the label manually.',
+        'mostrar_progreso_label': 'Show progress bar',
+        'mostrar_progreso_desc': 'Displays a progress bar under each episode showing the watched percentage. When disabled, bars won\'t appear on episode cards.',
+        'tema_label': 'Interface theme',
+        'tema_oscuro': 'Dark',
+        'tema_claro': 'Light',
+        'tema_desc': 'Switch between dark (default) and light interface theme. Saved per user.',
+        'guardar_config': 'Save Settings',
+        'abrir_admin': 'Open Admin Panel',
+        'admin_desc': 'Opens <code>config_admin.py</code> to manage the API, shutdown buttons, and port.',
+        'botones_apagado_desc': 'Shutdown buttons are only available when enabled from the admin panel',
+        'apagar_servidor': 'Shut Down Server',
+        'apagar_todo': 'Shut Down Everything',
+        'confirmar_apagar': 'Are you sure you want to shut down the server?',
+        'servidor_apagando': 'Shutting down server...',
+        'confirmar_apagar_todo': 'Are you sure? This will shut down the entire system.',
+        'sistema_apagando': 'Shutting down system...',
+        'no_abrir_admin': 'Could not open the admin panel.',
+        'inicia_sesion_tema': '👤 Log in',
+        'debes_usuario': 'You need an account to change the theme.',
+        # Language
+        'idioma_label': 'Interface language',
+        'idioma_es': '🇪🇸 Español',
+        'idioma_en': '🇬🇧 English',
+        'idioma_desc': 'Change the interface language. Saved per user.',
+        # Usuarios
+        'quien_viendo': "Who's watching?",
+        'editar': '⚙️ Edit',
+        'anadir_perfil': 'Add new profile:',
+        'nombre_placeholder': 'Username...',
+        'config_perfil': 'Profile Settings',
+        'modifica_cuenta': 'Modify your account details',
+        'nombre_perfil': 'Profile Name:',
+        'elige_avatar': 'Choose your Avatar (Emoji):',
+        'seleccionado': 'Selected:',
+        'guardar_cambios': 'Save Changes',
+        'confirmar_eliminar': '⚠️ Are you absolutely sure you want to delete this profile?\nAll watched episodes and playback marks will be PERMANENTLY deleted.',
+        'eliminar_perfil': '❌ Delete this profile permanently',
+        # API docs
+        'api_titulo': 'REST API - FlaskCast',
+        'api_nota': 'To use the API, you need an active FlaskCast session and the <strong>Enable REST API</strong> option activated in the admin panel',
+        'api_agregar': 'Add Video',
+        'api_agregar_desc': 'Upload a video file to a specific series and season.',
+        'api_peticion': 'Request',
+        'api_parametros': 'Parameters',
+        'api_obligatorio': '(required)',
+        'api_nombre_serie': 'Series name',
+        'api_subcarpetas': 'required if the series has subfolders, don\'t use if it doesn\'t',
+        'api_archivo_video': 'Video file',
+        'api_ejemplo_temp': 'Example with curl (with season)',
+        'api_ejemplo_sin_temp': 'Example (without season)',
+        'api_listar': 'List Structure',
+        'api_listar_desc': 'Get the complete structure of all series or a specific one.',
+        'api_todas_series': 'All series',
+        'api_una_serie': 'A specific series',
+        'api_ejemplo': 'Example with curl',
+        'api_obtener': 'Get Video',
+        'api_obtener_desc': 'Returns the video file for playback or download.',
+        'api_eliminar': 'Delete Video',
+        'api_eliminar_desc': 'Delete a video file from a series.',
+        'api_parametros_json': 'Parameters (JSON)',
+        'api_ruta_archivo': 'File path within the series (e.g.: Season 1/video.mp4)',
+    },
+}
+
+
+GENRE_TRANSLATIONS = {
+    'es': {
+        'Action': 'Acción', 'Adventure': 'Aventura', 'Animation': 'Animación',
+        'Comedy': 'Comedia', 'Crime': 'Crimen', 'Documentary': 'Documental',
+        'Drama': 'Drama', 'Family': 'Familia', 'Fantasy': 'Fantasía',
+        'History': 'Historia', 'Horror': 'Terror', 'Music': 'Musical',
+        'Mystery': 'Misterio', 'Romance': 'Romance', 'Science Fiction': 'Ciencia Ficción',
+        'TV Movie': 'Película de TV', 'Thriller': 'Thriller', 'War': 'Bélico',
+        'Western': 'Western', 'Biography': 'Biografía', 'Sport': 'Deporte',
+        'Game-Show': 'Game Show', 'Reality-TV': 'Reality Show',
+        'Talk-Show': 'Programa de entrevistas', 'News': 'Noticias',
+        'Short': 'Cortometraje', 'Film-Noir': 'Cine Negro',
+    },
+    'en': {},
+}
+
+
+import urllib.request
+import urllib.parse
+import json
+
+
+MYMEMORY_URL = 'https://api.mymemory.translated.net/get'
+
+
+def traducir_texto(texto, src_lang='en', dest_lang='es'):
+    if not texto or not texto.strip():
+        return texto
+    params = urllib.parse.urlencode({'q': texto, 'langpair': f'{src_lang}|{dest_lang}'})
+    url = f'{MYMEMORY_URL}?{params}'
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('responseStatus') == 200:
+                return data['responseData']['translatedText']
+    except Exception:
+        pass
+    return texto
+
+
+def translate_metadata(meta, lang):
+    if not meta or lang == 'en':
+        return meta
+    translated = dict(meta)
+    if 'genero' in translated and isinstance(translated['genero'], list):
+        genre_map = GENRE_TRANSLATIONS.get(lang, {})
+        translated['genero'] = [genre_map.get(g, g) for g in translated['genero']]
+    if 'descripcion' in translated and translated['descripcion']:
+        translated['descripcion'] = traducir_texto(translated['descripcion'])
+    return translated
+
+
+def get_text(lang, key):
+    if lang not in TRANSLATIONS:
+        lang = 'es'
+    return TRANSLATIONS[lang].get(key, TRANSLATIONS['es'].get(key, key))

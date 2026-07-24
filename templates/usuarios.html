@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 
-{% block title %}FlaskCast - Quién está viendo{% endblock %}
+{% block title %}FlaskCast - {{ t('quien_viendo') }}{% endblock %}
 
 {% block content %}
 
     <div class="profile-container">
-        <h1 style="color: var(--text-primary); font-size: 2.2rem;">¿Quién está viendo ahora?</h1>
+        <h1 style="color: var(--text-primary); font-size: 2.2rem;">{{ t('quien_viendo') }}</h1>
         
         <div class="profile-grid">
             {% for usuario in usuarios %}
@@ -14,44 +14,44 @@
                         <div class="profile-circle">{{ usuario.emoji if usuario.emoji else '👤' }}</div>
                         <div class="profile-name-txt">{{ usuario.nombre }}</div>
                     </a>
-                    <button class="btn-profile-edit-trigger" onclick="abrirModalEditar('{{ usuario.id }}', '{{ usuario.nombre }}', '{{ usuario.emoji }}')">⚙️ Editar</button>
+                    <button class="btn-profile-edit-trigger" onclick="abrirModalEditar('{{ usuario.id }}', '{{ usuario.nombre }}', '{{ usuario.emoji }}')">{{ t('editar') }}</button>
                 </div>
             {% endfor %}
             
             <div class="profile-card">
                 <a href="/usuarios/salir?return_to={{ return_to }}" class="profile-link">
                     <div class="profile-circle" style="background-color: #e5091444; color: #e50914;">🕶️</div>
-                    <div class="profile-name-txt" style="color: #e50914;">Invitado</div>
+                    <div class="profile-name-txt" style="color: #e50914;">{{ t('invitado') }}</div>
                 </a>
                 <div style="height: 28px;"></div> </div>
         </div>
 
         <div class="form-crear-user">
-            <h3 style="margin-bottom: 15px; color: var(--text-secondary);">Añadir nuevo perfil:</h3>
+            <h3 style="margin-bottom: 15px; color: var(--text-secondary);">{{ t('anadir_perfil') }}</h3>
             <form action="/usuarios/crear" method="POST">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
-                <input type="text" name="nombre" placeholder="Nombre del usuario..." required autocomplete="off">
-                <button type="submit" class="btn-submit-user">Añadir</button>
+                <input type="text" name="nombre" placeholder="{{ t('nombre_placeholder') }}" required autocomplete="off">
+                <button type="submit" class="btn-submit-user">{{ t('anadir') }}</button>
             </form>
         </div>
         
         <div style="margin-top: 30px;">
-            <a href="{{ return_to }}" style="color: var(--text-muted); text-decoration: none;">← Cancelar y volver</a>
+            <a href="{{ return_to }}" style="color: var(--text-muted); text-decoration: none;">{{ t('cancelar_volver') }}</a>
         </div>
     </div>
 
     <div id="modalEditarPerfil" class="modal-overlay">
         <div class="modal-box">
             <span class="modal-close-btn" onclick="cerrarModalEditar()">&times;</span>
-            <h2 style="margin-top: 0; color: var(--text-primary);">Configuración del Perfil</h2>
-            <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: -5px;">Modifica los detalles de tu cuenta</p>
+            <h2 style="margin-top: 0; color: var(--text-primary);">{{ t('config_perfil') }}</h2>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: -5px;">{{ t('modifica_cuenta') }}</p>
             
             <form id="formEditarPerfil" method="POST" action="">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
-                <label class="modal-label">Nombre del Perfil:</label>
+                <label class="modal-label">{{ t('nombre_perfil') }}</label>
                 <input type="text" id="inputEditarNombre" name="nombre" class="modal-input-text" required autocomplete="off">
                 
-                <label class="modal-label">Elige tu Avatar (Emoji):</label>
+                <label class="modal-label">{{ t('elige_avatar') }}</label>
                 <input type="hidden" id="inputEditarEmoji" name="emoji" value="👤">
                 
                 <div class="emoji-selector-grid">
@@ -70,18 +70,18 @@
                 </div>
                 
                 <div class="emoji-preview-container">
-                    <span>Seleccionado: </span>
+                    <span>{{ t('seleccionado') }} </span>
                     <span id="previewEmojiActual" style="font-size: 2rem; margin-left: 10px;">👤</span>
                 </div>
 
-                <button type="submit" class="btn-submit-user" style="width: 100%; margin-top: 10px;">Guardar Cambios</button>
+                <button type="submit" class="btn-submit-user" style="width: 100%; margin-top: 10px;">{{ t('guardar_cambios') }}</button>
             </form>
             
             <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
             
-            <form id="formEliminarPerfil" method="POST" action="" onsubmit="return confirm('⚠️ ¿Estás completamente seguro de eliminar este perfil?\nSe borrarán de forma PERMANENTE todos los capítulos vistos y marcas de reproducción.')">
+            <form id="formEliminarPerfil" method="POST" action="" onsubmit="return confirm('{{ t('confirmar_eliminar') }}')">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
-                <button type="submit" class="btn-delete-profile-submit">❌ Eliminar este perfil por completo</button>
+                <button type="submit" class="btn-delete-profile-submit">{{ t('eliminar_perfil') }}</button>
             </form>
         </div>
     </div>

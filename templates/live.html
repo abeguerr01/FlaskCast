@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Contenido en directo - FLASKCAST{% endblock %}
+{% block title %}{{ t('contenido_directo') }} - FLASKCAST{% endblock %}
 
 {% block head %}
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
@@ -225,29 +225,29 @@
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
-            <a href="/usuarios_panel?return_to=/live" class="profile-widget" title="Ir a Panel de Usuarios">
+            <a href="/usuarios_panel?return_to=/live" class="profile-widget" title="{{ t('ir_panel_usuarios') }}">
                 <div class="profile-avatar">
                     {{ session.get('usuario_emoji', '👤') }}
                 </div>
                 <span class="profile-name">{{ session['usuario_nombre'] }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/live" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/live" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% else %}
-            <a href="/usuarios_panel?return_to=/live" class="profile-widget" title="Iniciar Sesión">
+            <a href="/usuarios_panel?return_to=/live" class="profile-widget" title="{{ t('iniciar_sesion') }}">
                 <div class="profile-avatar invitado-style">👤</div>
-                <span class="profile-name" style="color: #e50914;">Invitado</span>
+                <span class="profile-name" style="color: #e50914;">{{ t('invitado') }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/live" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/live" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% endif %}
     </div>
 
     <div class="live-header">
-        <h1>Contenido en directo</h1>
-        <p>Pulsa en Ver para abrir el reproductor</p>
+        <h1>{{ t('contenido_directo') }}</h1>
+        <p>{{ t('pulsa_ver') }}</p>
     </div>
 
     <div class="live-list">
@@ -256,22 +256,22 @@
                 <div class="live-item">
                     <div class="live-item-info">
                         <span class="live-item-title">{{ stream.titulo }}</span>
-                        <span class="live-item-url">{{ stream.urls | length }} fuente(s) disponible(s)</span>
+                        <span class="live-item-url">{{ stream.urls | length }} {{ t('fuentes_disponibles') }}</span>
                     </div>
                     <div style="display:flex; gap:8px; margin-left:20px;">
                         <button class="live-item-btn"
                             data-urls="{{ stream.urls | tojson | forceescape }}"
                             data-tipo="{{ stream.tipo }}"
                             data-titulo="{{ stream.titulo }}"
-                            onclick="abrirReproductor(this)">Ver</button>
-                        <a href="/live/tv/{{ loop.index0 }}" class="live-item-btn" style="background:#333; text-decoration:none; display:inline-block; padding:10px 16px; font-size:0.8rem;">SmartTV</a>
+                            onclick="abrirReproductor(this)">{{ t('ver') }}</button>
+                        <a href="/live/tv/{{ loop.index0 }}" class="live-item-btn" style="background:#333; text-decoration:none; display:inline-block; padding:10px 16px; font-size:0.8rem;">{{ t('smarttv') }}</a>
                     </div>
                 </div>
             {% endfor %}
         {% else %}
             <div class="live-empty">
-                No hay streams en directo disponibles en este momento.<br>
-                Agrega enlaces en <code>data/live_streams.json</code>.
+                {{ t('no_streams') }}<br>
+                {{ t('agrega_enlaces') }} <code>data/live_streams.json</code>.
             </div>
         {% endif %}
     </div>
@@ -287,6 +287,7 @@
     </div>
 
     <script>
+        var tr = {{ T[idioma_actual] | tojson }};
         var hlsActivo = null;
         var urlsActuales = [];
         var indiceUrlActual = 0;
@@ -322,7 +323,7 @@
                 ifr.style.display = 'block';
                 body.appendChild(ifr);
             } else {
-                body.innerHTML = '<div class="enlace-msg"><p>Se va a abrir un sitio de terceros:</p><p>' + urlsActuales[0] + '</p><a href="' + urlsActuales[0] + '" target="_blank">Acceder</a> <a href="javascript:cerrarReproductor()" class="btn-cancelar">Rechazar</a></div>';
+                body.innerHTML = '<div class="enlace-msg"><p>' + tr.sitio_terceros + '</p><p>' + urlsActuales[0] + '</p><a href="' + urlsActuales[0] + '" target="_blank">' + tr.acceder + '</a> <a href="javascript:cerrarReproductor()" class="btn-cancelar">' + tr.rechazar + '</a></div>';
             }
 
             document.getElementById('player-overlay').style.display = 'flex';
@@ -344,7 +345,7 @@
                     indiceUrlActual++;
                     vid.src = urlsActuales[indiceUrlActual];
                 } else {
-                    body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+                    body.innerHTML = '<div class="enlace-msg"><p>' + tr.todas_fuentes_fallaron + '</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">' + tr.cerrar + '</a></div>';
                 }
             };
         }
@@ -367,7 +368,7 @@
             } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
                 intentarFallbackHlsJS(vid);
             } else {
-                body.innerHTML = '<div class="enlace-msg"><p>No se puede reproducir este stream.</p><a href="' + urlsActuales[0] + '" target="_blank">Abrir enlace</a></div>';
+                body.innerHTML = '<div class="enlace-msg"><p>' + tr.no_puede_reproducir + '</p><a href="' + urlsActuales[0] + '" target="_blank">' + tr.abrir_enlace + '</a></div>';
             }
         }
 
@@ -380,7 +381,7 @@
                 };
             } else {
                 var body = document.getElementById('pm-body');
-                body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes HLS fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+                body.innerHTML = '<div class="enlace-msg"><p>' + tr.todas_hls_fallaron + '</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">' + tr.cerrar + '</a></div>';
             }
         }
 
@@ -402,7 +403,7 @@
                         } else {
                             if (hlsActivo) { hlsActivo.destroy(); hlsActivo = null; }
                             var body = document.getElementById('pm-body');
-                            body.innerHTML = '<div class="enlace-msg"><p>Todas las fuentes HLS fallaron.</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">Cerrar</a></div>';
+                            body.innerHTML = '<div class="enlace-msg"><p>' + tr.todas_hls_fallaron + '</p><a href="javascript:cerrarReproductor()" class="btn-cancelar">' + tr.cerrar + '</a></div>';
                         }
                     }
                 }

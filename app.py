@@ -9,6 +9,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import static_ffmpeg
 import platform
+from translations import get_text, TRANSLATIONS, translate_metadata
 
 app = Flask(__name__)
 app.secret_key = 'flaskcast_ultra_secret_key_2026'
@@ -35,7 +36,10 @@ api_habilitada = False
 @app.context_processor
 def inject_tema():
     tema = session.get('usuario_tema', 'oscuro')
-    return {'tema_actual': tema}
+    idioma = session.get('usuario_idioma', 'es')
+    def t(key):
+        return get_text(idioma, key)
+    return {'tema_actual': tema, 'idioma_actual': idioma, 't': t, 'T': TRANSLATIONS}
 
 
 def leer_config():
@@ -78,6 +82,8 @@ def inicializar_base_datos():
         cursor.execute("ALTER TABLE usuarios ADD COLUMN mostrar_progreso INTEGER DEFAULT 1")
     if 'tema' not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN tema TEXT DEFAULT 'oscuro'")
+    if 'idioma' not in columnas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN idioma TEXT DEFAULT 'es'")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progreso (
@@ -250,6 +256,7 @@ def seleccionar_usuario(user_id):
         session['usuario_auto_marcar'] = user['auto_marcar']
         session['usuario_mostrar_progreso'] = user['mostrar_progreso']
         session['usuario_tema'] = user['tema'] if user['tema'] else 'oscuro'
+        session['usuario_idioma'] = user['idioma'] if user['idioma'] else 'es'
     return redirect(return_to)
 
 @app.route('/usuarios/editar/<int:user_id>', methods=['POST'])
@@ -530,11 +537,15 @@ def ajustes():
             tema = request.form.get('tema', 'oscuro')
             if tema not in ('oscuro', 'claro'):
                 tema = 'oscuro'
-            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ?, tema = ? WHERE id = ?', (auto_marcar, mostrar_progreso, tema, usuario_id))
+            idioma = request.form.get('idioma', 'es')
+            if idioma not in ('es', 'en'):
+                idioma = 'es'
+            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ?, tema = ?, idioma = ? WHERE id = ?', (auto_marcar, mostrar_progreso, tema, idioma, usuario_id))
             conn.commit()
             session['usuario_auto_marcar'] = auto_marcar
             session['usuario_mostrar_progreso'] = mostrar_progreso
             session['usuario_tema'] = tema
+            session['usuario_idioma'] = idioma
 
         return redirect(return_to)
     
@@ -542,19 +553,21 @@ def ajustes():
     auto_marcar = 1
     mostrar_progreso = 1
     tema = 'oscuro'
+    idioma = 'es'
     if usuario_id:
         conn = conectar_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT auto_marcar, mostrar_progreso, tema FROM usuarios WHERE id = ?', (usuario_id,))
+        cursor.execute('SELECT auto_marcar, mostrar_progreso, tema, idioma FROM usuarios WHERE id = ?', (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         if user:
             auto_marcar = user['auto_marcar']
             mostrar_progreso = user['mostrar_progreso']
             tema = user['tema'] if user['tema'] else 'oscuro'
+            idioma = user['idioma'] if user['idioma'] else 'es'
     
     cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema,
+    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema, idioma=idioma,
         boton_apagar_visible=cfg.get('boton_apagar_visible', False),
         boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
         es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
@@ -814,8 +827,10 @@ def vista_serie(nombre_serie):
             pass
 
     total_videos = sum(len(v) for v in estructura_temporadas.values())
+    idioma = session.get('usuario_idioma', 'es')
+    meta_traducido = translate_metadata(meta, idioma)
             
-    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado, tipo=tipo_contenido, tiene_portada=tiene_portada, meta=meta, total_videos=total_videos)
+    return render_template('serie.html', serie=nombre_serie, temporadas=estructura_temporadas, mostrar_progreso=mostrar_progreso, es_favorito=es_favorito, lista_estado=lista_estado, tipo=tipo_contenido, tiene_portada=tiene_portada, meta=meta_traducido, total_videos=total_videos)
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):

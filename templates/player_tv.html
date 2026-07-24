@@ -80,16 +80,16 @@
                data-filename="{{ filename }}" 
                data-inicio="{{ segundo_inicio }}">
             <source src="{{ url_for('serve_video', nombre_serie=serie, filename=filename) }}" type="video/mp4">
-            Tu Smart TV no soporta la decodificacion de este archivo de video.
+            {{ t('smarttv_no_soporta') }}
         </video>
     </div>
 
     <div class="tv-footer">
-        <div class="video-name">Viendo: {{ filename.split('/')[-1] }}</div>
+        <div class="video-name">{{ t('viendo_cap') }} {{ filename.split('/')[-1] }}</div>
         <div class="tv-actions">
-            <a href="/serie/{{ serie }}" class="btn-tv btn-tv-back">Volver a la Lista</a>
+            <a href="/serie/{{ serie }}" class="btn-tv btn-tv-back">{{ t('volver_lista_tv') }}</a>
             {% if next_filename %}
-                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=next_filename) }}" class="btn-tv btn-tv-next">Siguiente Capitulo</a>
+                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=next_filename) }}" class="btn-tv btn-tv-next">{{ t('siguiente_capitulo') }}</a>
             {% endif %}
         </div>
     </div>

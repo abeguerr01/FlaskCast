@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ serie }} - Capítulos{% endblock %}
+{% block title %}{{ serie }} - {{ t('capitulos') }}{% endblock %}
 
 {% block head %}
     <style>
@@ -153,22 +153,22 @@
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
-            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="Ir a Panel de Usuarios">
+            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="{{ t('ir_panel_usuarios') }}">
                 <div class="profile-avatar">
                     {{ session.get('usuario_emoji', '👤') }}
                 </div>
                 <span class="profile-name">{{ session['usuario_nombre'] }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% else %}
-            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="Iniciar Sesión">
+            <a href="/usuarios_panel?return_to=/serie/{{ serie }}" class="profile-widget" title="{{ t('iniciar_sesion') }}">
                 <div class="profile-avatar invitado-style">👤</div>
-                <span class="profile-name" style="color: #e50914;">Invitado</span>
+                <span class="profile-name" style="color: #e50914;">{{ t('invitado') }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/serie/{{ serie }}" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% endif %}
     </div>
@@ -196,33 +196,33 @@
                     {% endif %}
                     {% if meta.valoracion %}<span class="movie-meta-badge movie-meta-rating">⭐ {{ meta.valoracion }}</span>{% endif %}
                     {% if tipo == 'pelicula' and meta.duracion_min %}<span class="movie-meta-badge">{{ meta.duracion_min }} min</span>{% endif %}
-                    {% if tipo == 'serie' and temporadas %}<span class="movie-meta-badge">{{ temporadas|length }} temporada{{ 's' if temporadas|length != 1 }}</span>{% endif %}
+                    {% if tipo == 'serie' and temporadas %}<span class="movie-meta-badge">{{ temporadas|length }} {{ t('temporada') if temporadas|length == 1 else t('temporadas') }}</span>{% endif %}
                 </div>
-                {% if meta.director %}<p class="movie-hero-director">Dirigida por {{ meta.director }}</p>{% endif %}
+                {% if meta.director %}<p class="movie-hero-director">{{ t('dirigida_por') }} {{ meta.director }}</p>{% endif %}
                 {% if meta.descripcion %}<p class="movie-hero-desc">{{ meta.descripcion }}</p>{% endif %}
                 <div class="movie-hero-actions">
-                    <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+                    <a href="/" class="btn-back">{{ t('volver_catalogo') }}</a>
                     {% if session.get('usuario_id') %}
                     <button class="btn-fav {% if es_favorito %}btn-fav-active{% endif %}" onclick="toggleFavorito('{{ serie }}', this)">
-                        {% if es_favorito %}⭐ Favorito{% else %}☆ Añadir a Favoritos{% endif %}
+                        {% if es_favorito %}{{ t('favorito') }}{% else %}{{ t('anadir_favoritos') }}{% endif %}
                     </button>
                     <div class="lista-dropdown-wrapper">
                         <button class="btn-lista {% if lista_estado >= 0 %}btn-lista-active{% endif %}" id="btnLista" onclick="toggleListaMenu()">
-                            {% if lista_estado == 0 %}📋 Pendiente{% elif lista_estado == 1 %}👁️ Viendo{% elif lista_estado == 2 %}✅ Visto{% else %}＋ Añadir{% endif %}
+                            {% if lista_estado == 0 %}{{ t('pendiente') }}{% elif lista_estado == 1 %}{{ t('viendo') }}{% elif lista_estado == 2 %}{{ t('visto') }}{% else %}{{ t('anadir_lista') }}{% endif %}
                         </button>
                         <div class="lista-dropdown" id="listaDropdown">
                             <div class="lista-option {% if lista_estado == 0 %}lista-option-active{% endif %}" data-estado="0" onclick="guardarLista('{{ serie }}', 0)">
-                                <span class="lista-dot" style="background:#888;"></span> Pendiente
+                                <span class="lista-dot" style="background:#888;"></span> {{ t('pendiente') }}
                             </div>
                             <div class="lista-option {% if lista_estado == 1 %}lista-option-active{% endif %}" data-estado="1" onclick="guardarLista('{{ serie }}', 1)">
-                                <span class="lista-dot" style="background:#0d6efd;"></span> Viendo
+                                <span class="lista-dot" style="background:#0d6efd;"></span> {{ t('viendo') }}
                             </div>
                             <div class="lista-option {% if lista_estado == 2 %}lista-option-active{% endif %}" data-estado="2" onclick="guardarLista('{{ serie }}', 2)">
-                                <span class="lista-dot" style="background:#1fcc72;"></span> Visto
+                                <span class="lista-dot" style="background:#1fcc72;"></span> {{ t('visto') }}
                             </div>
                             {% if lista_estado >= 0 %}
                             <div class="lista-option lista-option-remove" data-estado="-1" onclick="guardarLista('{{ serie }}', -1)">
-                                <span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas
+                                <span class="lista-dot" style="background:#ff4444;"></span> {{ t('eliminar_listas') }}
                             </div>
                             {% endif %}
                         </div>
@@ -257,22 +257,22 @@
         </div>
 
         {% if tipo == 'pelicula' %}
-        <h2 class="grid-title">🎬 Película</h2>
+        <h2 class="grid-title">{{ t('pelicula_section') }}</h2>
         {% else %}
-        <h2 class="grid-title">Temporadas Disponibles</h2>
+        <h2 class="grid-title">{{ t('temporadas_disponibles') }}</h2>
         {% endif %}
 
         {% if session.get('usuario_id') %}
         <div class="filter-bar">
-            <button class="filter-btn filter-btn-active" onclick="filtrarEpisodios('todos', this)">Todos</button>
-            <button class="filter-btn" onclick="filtrarEpisodios('novisto', this)">👁️ No vistos</button>
-            <button class="filter-btn" onclick="filtrarEpisodios('viendo', this)">⏳ Viendo</button>
-            <button class="filter-btn" onclick="filtrarEpisodios('visto', this)">✔️ Vistos</button>
+            <button class="filter-btn filter-btn-active" onclick="filtrarEpisodios('todos', this)">{{ t('todos') }}</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('novisto', this)">{{ t('no_vistos') }}</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('viendo', this)">{{ t('viendo_caps') }}</button>
+            <button class="filter-btn" onclick="filtrarEpisodios('visto', this)">{{ t('vistos') }}</button>
         </div>
         {% endif %}
 
         {% if tipo != 'pelicula' and temporadas|length > 1 %}
-        <button class="btn-toggle-seasons" onclick="toggleAllSeasons(this)">📂 Colapsar / Expandir</button>
+        <button class="btn-toggle-seasons" onclick="toggleAllSeasons(this)">{{ t('colapsar_expandir') }}</button>
         {% endif %}
 
         {% if tipo == 'pelicula' %}
@@ -304,20 +304,20 @@
                                     {% endif %}
                                     <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                                 </div>
-                                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">📺 Modo SmartTV</a>
+                                <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">{{ t('modo_smarttv') }}</a>
                             </div>
                         {% else %}
                             <div class="video-card incompatible {% if video.estado == 'procesando' %}converting{% endif %}" data-filename="{{ video.ruta_relativa }}">
                                 <div class="thumb">
                                     <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
                                     <div class="lock-overlay">⚠️</div>
-                                    <div class="loader-txt">Convirtiendo...</div>
+                                    <div class="loader-txt">{{ t('convirtiendo') }}</div>
                                 </div>
-                                <div class="badge">Incompatible</div>
+                                <div class="badge">{{ t('incompatible') }}</div>
                                 <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                                 <div class="actions-overlay">
-                                    <button class="btn-convert" onclick="convertirVideo('{{ video.ruta_relativa }}', this)">Convertir</button>
-                                    <button class="btn-delete" onclick="eliminarVideo('{{ video.ruta_relativa }}', this)">Eliminar</button>
+                                    <button class="btn-convert" onclick="convertirVideo('{{ video.ruta_relativa }}', this)">{{ t('convertir') }}</button>
+                                    <button class="btn-delete" onclick="eliminarVideo('{{ video.ruta_relativa }}', this)">{{ t('eliminar') }}</button>
                                 </div>
                             </div>
                         {% endif %}
@@ -330,7 +330,7 @@
         <details class="season-accordion" open>
             <summary class="season-header">
                 <span class="season-title-text"><span class="season-arrow">▾</span> 📂 {{ nombre_temporada }}</span>
-                <span class="season-count">{{ videos|length }} archivos</span>
+                <span class="season-count">{{ videos|length }} {{ t('archivos') }}</span>
             </summary>
             
             <div class="video-grid">
@@ -361,21 +361,21 @@
                                 {% endif %}
                                 <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                             </div>
-                            <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">📺 Modo SmartTV</a>
+                            <a href="{{ url_for('reproductor_tv', nombre_serie=serie, filename=video.ruta_relativa) }}" class="btn-tv-fallback">{{ t('modo_smarttv') }}</a>
                         </div>
                     {% else %}
                         <div class="video-card incompatible {% if video.estado == 'procesando' %}converting{% endif %}" data-filename="{{ video.ruta_relativa }}">
                             <div class="thumb">
                                 <img class="thumb-img" src="{{ url_for('serve_thumbnail', nombre_serie=serie, filename=video.ruta_relativa) }}" alt="Preview" onerror="this.style.display='none';">
                                 <div class="lock-overlay">⚠️</div>
-                                <div class="loader-txt">Convirtiendo...</div>
+                                <div class="loader-txt">{{ t('convirtiendo') }}</div>
                             </div>
-                            <div class="badge">Incompatible</div>
+                            <div class="badge">{{ t('incompatible') }}</div>
                             <div class="card-title" title="{{ video.nombre_real }}">{{ video.nombre_real }}</div>
                             
                             <div class="actions-overlay">
-                                <button class="btn-convert" onclick="convertirVideo('{{ video.ruta_relativa }}', this)">Convertir</button>
-                                <button class="btn-delete" onclick="eliminarVideo('{{ video.ruta_relativa }}', this)">Eliminar</button>
+                                <button class="btn-convert" onclick="convertirVideo('{{ video.ruta_relativa }}', this)">{{ t('convertir') }}</button>
+                                <button class="btn-delete" onclick="eliminarVideo('{{ video.ruta_relativa }}', this)">{{ t('eliminar') }}</button>
                             </div>
                         </div>
                     {% endif %}
@@ -383,13 +383,15 @@
             </div>
         </details>
         {% else %}
-            <p style="color: #888; text-align: center; padding-top: 20px;">Esta serie no contiene archivos de vídeo compatibles ni carpetas de temporadas.</p>
+            <p style="color: #888; text-align: center; padding-top: 20px;">{{ t('sin_video_compat') }}</p>
         {% endfor %}
         {% endif %}
     </div>
 
     <script src="{{ url_for('static', filename='js/reproductor.js') }}"></script>
     <script>
+        var tr = {{ T[idioma_actual] | tojson }};
+
         function toggleAllSeasons(btn) {
             var details = document.querySelectorAll('.season-accordion');
             var allOpen = true;
@@ -441,10 +443,10 @@
                 if (data.favorito !== undefined) {
                     if (data.favorito) {
                         btn.classList.add('btn-fav-active');
-                        btn.innerHTML = '⭐ Favorito';
+                        btn.innerHTML = tr.favorito;
                     } else {
                         btn.classList.remove('btn-fav-active');
-                        btn.innerHTML = '☆ Añadir a Favoritos';
+                        btn.innerHTML = tr.anadir_favoritos;
                     }
                 }
             });
@@ -475,10 +477,10 @@
                 var btn = document.getElementById('btnLista');
                 var dd = document.getElementById('listaDropdown');
                 dd.classList.remove('lista-dropdown-open');
-                var labels = { 0: '📋 Pendiente', 1: '👁️ Viendo', 2: '✅ Visto' };
+                var labels = { 0: tr.pendiente, 1: tr.viendo, 2: tr.visto };
                 if (data.estado === -1) {
                     btn.classList.remove('btn-lista-active');
-                    btn.innerHTML = '＋ Añadir';
+                    btn.innerHTML = tr.anadir_lista;
                 } else {
                     btn.classList.add('btn-lista-active');
                     btn.innerHTML = labels[data.estado];
@@ -499,7 +501,7 @@
                     sep.className = 'lista-option lista-option-remove';
                     sep.setAttribute('data-estado', '-1');
                     sep.onclick = function() { guardarLista(serie, -1); };
-                    sep.innerHTML = '<span class="lista-dot" style="background:#ff4444;"></span> Eliminar de las listas';
+                    sep.innerHTML = '<span class="lista-dot" style="background:#ff4444;"></span> ' + tr.eliminar_listas;
                     dd.appendChild(sep);
                 }
             });

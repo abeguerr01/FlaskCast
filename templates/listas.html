@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Mis Listas - FlaskCast{% endblock %}
+{% block title %}{{ t('mis_listas') }} - FlaskCast{% endblock %}
 
 {% block head %}
     <style>
@@ -149,45 +149,45 @@
 
     <div class="user-status-bar">
         {% if session.get('usuario_nombre') %}
-            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="Ir a Panel de Usuarios">
+            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="{{ t('ir_panel_usuarios') }}">
                 <div class="profile-avatar">
                     {{ session.get('usuario_emoji', '👤') }}
                 </div>
                 <span class="profile-name">{{ session['usuario_nombre'] }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/listas" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/listas" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% else %}
-            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="Iniciar Sesión">
+            <a href="/usuarios_panel?return_to=/listas" class="profile-widget" title="{{ t('iniciar_sesion') }}">
                 <div class="profile-avatar invitado-style">👤</div>
-                <span class="profile-name" style="color: #e50914;">Invitado</span>
+                <span class="profile-name" style="color: #e50914;">{{ t('invitado') }}</span>
             </a>
             <div>
-                <a href="/ajustes?return_to=/listas" class="btn-settings">⚙️ Ajustes</a>
+                <a href="/ajustes?return_to=/listas" class="btn-settings">{{ t('ajustes') }}</a>
             </div>
         {% endif %}
     </div>
 
     <header>
-        <h1>📋 Mis Listas</h1>
-        <a href="/" class="btn-back">⬅ Volver al Catálogo</a>
+        <h1>{{ t('mis_listas') }}</h1>
+        <a href="/" class="btn-back">{{ t('volver_catalogo') }}</a>
     </header>
 
     <div class="container">
 
         <div class="listas-tabs">
             <button class="listas-tab tab-favoritos" onclick="filterListas('favoritos')">
-                ⭐ Favoritos <span class="tab-count">{{ favoritos|length }}</span>
+                {{ t('favoritos_tab') }} <span class="tab-count">{{ favoritos|length }}</span>
             </button>
             <button class="listas-tab tab-pendientes" onclick="filterListas('pendientes')">
-                📋 Pendiente <span class="tab-count">{{ pendientes|length }}</span>
+                {{ t('pendiente_tab') }} <span class="tab-count">{{ pendientes|length }}</span>
             </button>
             <button class="listas-tab tab-viendo" onclick="filterListas('viendo')">
-                👁️ Viendo <span class="tab-count">{{ viendo|length }}</span>
+                {{ t('viendo_tab') }} <span class="tab-count">{{ viendo|length }}</span>
             </button>
             <button class="listas-tab tab-vistos" onclick="filterListas('vistos')">
-                ✅ Visto <span class="tab-count">{{ vistos|length }}</span>
+                {{ t('visto_tab') }} <span class="tab-count">{{ vistos|length }}</span>
             </button>
         </div>
 
@@ -273,9 +273,9 @@
 
         {% if not viendo and not pendientes and not vistos and not favoritos %}
         <div style="text-align: center; padding: 60px 20px;">
-            <p style="color: var(--text-dim); font-size: 1.1rem;">No tienes series en tus listas aun.</p>
-            <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">Entra en una serie y pulsa <strong>"＋ Añadir"</strong> para empezar.</p>
-            <a href="/" class="btn-back" style="margin-top: 20px;">Ir al Catalogo</a>
+            <p style="color: var(--text-dim); font-size: 1.1rem;">{{ t('listas_vacia') }}</p>
+            <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 10px;">{{ t('listas_instruccion') }}</p>
+            <a href="/" class="btn-back" style="margin-top: 20px;">{{ t('ir_catalogo') }}</a>
         </div>
         {% endif %}
 
