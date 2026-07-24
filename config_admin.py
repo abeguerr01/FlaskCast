@@ -6,12 +6,21 @@ import threading
 import urllib.request
 import urllib.parse
 import urllib.error
+import sqlite3
 
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 MEDIA_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 ENV_PATH = os.path.join(DIRECTORIO_RAIZ, '.env')
+DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
 OMDB_API_URL = 'https://www.omdbapi.com/'
+
+
+def conectar_db():
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
 
 
 def leer_env():
@@ -339,15 +348,121 @@ def listar_contenido_media():
 
 def gui():
     import tkinter as tk
-    from tkinter import ttk, messagebox, filedialog
+    from tkinter import ttk, messagebox, filedialog, simpledialog
     import webbrowser
+    import shutil
     import py7zr
+
+    FORMATOS_VIDEO = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+
+    class DialogoMetadata(tk.Toplevel):
+        def __init__(self, parent, titulo_ventana='Metadata', meta=None, es_nuevo=False):
+            super().__init__(parent)
+            self.title(titulo_ventana)
+            self.geometry('450x500')
+            self.resizable(False, False)
+            self.transient(parent)
+            self.grab_set()
+            self.resultado = None
+            self.es_nuevo = es_nuevo
+
+            frame = ttk.Frame(self, padding=15)
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(frame, text='Título *:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            self.titulo_var = tk.StringVar(value=meta.get('titulo', '') if meta else '')
+            ttk.Entry(frame, textvariable=self.titulo_var, width=50).pack(fill=tk.X, pady=(0, 4))
+            ttk.Label(frame, text='* Obligatorio', foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W, pady=(0, 6))
+
+            ttk.Label(frame, text='Descripción:', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            self.descripcion_text = tk.Text(frame, height=4, width=50, wrap=tk.WORD)
+            self.descripcion_text.pack(fill=tk.X, pady=(0, 8))
+            if meta and meta.get('descripcion'):
+                self.descripcion_text.insert('1.0', meta['descripcion'])
+
+            row1 = ttk.Frame(frame)
+            row1.pack(fill=tk.X, pady=(0, 8))
+            ttk.Label(row1, text='Año:').pack(side=tk.LEFT)
+            self.anio_var = tk.StringVar(value=meta.get('anio', '') if meta else '')
+            ttk.Entry(row1, textvariable=self.anio_var, width=8).pack(side=tk.LEFT, padx=(5, 15))
+            ttk.Label(row1, text='Valoración:').pack(side=tk.LEFT)
+            self.valoracion_var = tk.StringVar(value=str(meta.get('valoracion', 0)) if meta else '0')
+            ttk.Entry(row1, textvariable=self.valoracion_var, width=6).pack(side=tk.LEFT, padx=(5, 0))
+
+            row2 = ttk.Frame(frame)
+            row2.pack(fill=tk.X, pady=(0, 8))
+            ttk.Label(row2, text='Director:').pack(side=tk.LEFT)
+            self.director_var = tk.StringVar(value=meta.get('director', '') if meta else '')
+            ttk.Entry(row2, textvariable=self.director_var, width=35).pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
+
+            ttk.Label(frame, text='Géneros (separados por coma):', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            genero_str = ', '.join(meta.get('genero', [])) if meta and isinstance(meta.get('genero'), list) else (meta.get('genero', '') if meta else '')
+            self.genero_var = tk.StringVar(value=genero_str)
+            ttk.Entry(frame, textvariable=self.genero_var, width=50).pack(fill=tk.X, pady=(0, 8))
+
+            row3 = ttk.Frame(frame)
+            row3.pack(fill=tk.X, pady=(0, 8))
+            ttk.Label(row3, text='Tipo:').pack(side=tk.LEFT)
+            self.tipo_var = tk.StringVar(value=meta.get('tipo', 'pelicula') if meta else 'pelicula')
+            ttk.Combobox(row3, textvariable=self.tipo_var, values=['pelicula', 'serie'],
+                         state='readonly', width=12).pack(side=tk.LEFT, padx=(5, 15))
+            ttk.Label(row3, text='Duración (min):').pack(side=tk.LEFT)
+            self.duracion_var = tk.StringVar(value=str(meta.get('duracion_min', '')) if meta and meta.get('duracion_min') else '')
+            ttk.Entry(row3, textvariable=self.duracion_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+
+            row4 = ttk.Frame(frame)
+            row4.pack(fill=tk.X, pady=(0, 8))
+            ttk.Label(row4, text='Temporadas:').pack(side=tk.LEFT)
+            self.temporadas_var = tk.StringVar(value=str(meta.get('temporadas', 1)) if meta and meta.get('temporadas') else '1')
+            ttk.Entry(row4, textvariable=self.temporadas_var, width=6).pack(side=tk.LEFT, padx=(5, 0))
+
+            btn_frame = ttk.Frame(frame)
+            btn_frame.pack(pady=(10, 0))
+            ttk.Button(btn_frame, text='Aceptar', command=self._aceptar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text='Cancelar', command=self.destroy).pack(side=tk.LEFT, padx=5)
+
+            self.protocol("WM_DELETE_WINDOW", self.destroy)
+            self.wait_window()
+
+        def _aceptar(self):
+            titulo = self.titulo_var.get().strip()
+            if not titulo:
+                messagebox.showerror('Error', 'El título no puede estar vacío.', parent=self)
+                return
+            try:
+                valoracion = round(float(self.valoracion_var.get()), 1)
+            except ValueError:
+                valoracion = 0
+            try:
+                duracion = int(self.duracion_var.get()) if self.duracion_var.get().strip() else 0
+            except ValueError:
+                duracion = 0
+            try:
+                temporadas = int(self.temporadas_var.get()) if self.temporadas_var.get().strip() else 1
+            except ValueError:
+                temporadas = 1
+
+            genero_raw = self.genero_var.get().strip()
+            genero = [g.strip() for g in genero_raw.split(',') if g.strip()] if genero_raw else []
+
+            self.resultado = {
+                'tipo': self.tipo_var.get(),
+                'titulo': titulo,
+                'descripcion': self.descripcion_text.get('1.0', tk.END).strip(),
+                'anio': self.anio_var.get().strip(),
+                'genero': genero,
+                'director': self.director_var.get().strip(),
+                'valoracion': valoracion,
+                'duracion_min': duracion,
+                'temporadas': temporadas,
+            }
+            self.destroy()
 
     class ConfigAdmin:
         def __init__(self):
             self.root = tk.Tk()
             self.root.title('Administración de FlaskCast')
-            self.root.geometry('700x700')
+            self.root.geometry('750x750')
             self.root.resizable(True, True)
 
             logo_path = os.path.join(DIRECTORIO_RAIZ, 'static', 'logo.png')
@@ -362,11 +477,14 @@ def gui():
 
             tab_general = ttk.Frame(notebook, padding=15)
             tab_omdb = ttk.Frame(notebook, padding=15)
+            tab_contenido = ttk.Frame(notebook, padding=15)
             notebook.add(tab_general, text=' General ')
             notebook.add(tab_omdb, text=' OMDb ')
+            notebook.add(tab_contenido, text=' Contenido ')
 
             self._build_tab_general(tab_general, cfg)
             self._build_tab_omdb(tab_omdb, cfg)
+            self._build_tab_contenido(tab_contenido)
 
         def _build_tab_general(self, parent, cfg):
             ttk.Label(parent, text='Administración de FlaskCast',
@@ -454,7 +572,8 @@ def gui():
                     ok = omdb_validar_api_key(key)
                     def _resultado():
                         if ok:
-                            self.omdb_api_status.config(text='✓ API key válida', foreground='#00cc66')
+                            guardar_env({'OMDB_API_KEY': key})
+                            self.omdb_api_status.config(text='✓ API key válida (guardada)', foreground='#00cc66')
                         else:
                             self.omdb_api_status.config(text='✗ API key inválida', foreground='red')
                     self.root.after(0, _resultado)
@@ -584,6 +703,467 @@ def gui():
                 self.root.after(0, _final)
 
             threading.Thread(target=_hilo, daemon=True).start()
+
+        def _build_tab_contenido(self, parent):
+            ttk.Label(parent, text='Gestión de Contenido',
+                      font=('Segoe UI', 14, 'bold')).pack(pady=(0, 6))
+            ttk.Label(parent, text='Crear, editar y eliminar series, películas, temporadas y vídeos.',
+                      foreground='#888').pack(pady=(0, 10))
+
+            tree_frame = ttk.Frame(parent)
+            tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+
+            self.ct_tree = ttk.Treeview(tree_frame, columns=('tipo', 'info'), show='tree headings', selectmode='browse', height=14)
+            self.ct_tree.heading('#0', text='Nombre')
+            self.ct_tree.heading('tipo', text='Tipo')
+            self.ct_tree.heading('info', text='Info')
+            self.ct_tree.column('#0', width=280)
+            self.ct_tree.column('tipo', width=100, anchor=tk.CENTER)
+            self.ct_tree.column('info', width=200)
+
+            scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.ct_tree.yview)
+            self.ct_tree.configure(yscrollcommand=scrollbar.set)
+            self.ct_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            self.ct_tree.bind('<ButtonRelease-3>', self._contenido_menu_contextual)
+
+            btn_frame = ttk.Frame(parent)
+            btn_frame.pack(fill=tk.X, pady=(0, 4))
+
+            ttk.Button(btn_frame, text='+Añadir Película/Serie', command=self._contenido_nuevo).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='+Añadir Temporada', command=self._contenido_nueva_temporada).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame, text='+Añadir Vídeo', command=self._contenido_anadir_video).pack(side=tk.LEFT, padx=(0, 4))
+
+            btn_frame2 = ttk.Frame(parent)
+            btn_frame2.pack(fill=tk.X)
+
+            ttk.Button(btn_frame2, text='Editar Metadata', command=self._contenido_editar_metadata).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text='Renombrar', command=self._contenido_renombrar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text='Eliminar', command=self._contenido_eliminar).pack(side=tk.LEFT, padx=(0, 4))
+            ttk.Button(btn_frame2, text='Refrescar', command=self._contenido_refrescar).pack(side=tk.RIGHT)
+
+            self._contenido_refrescar()
+
+        def _contenido_refrescar(self):
+            for item in self.ct_tree.get_children():
+                self.ct_tree.delete(item)
+            if not os.path.exists(MEDIA_PATH):
+                return
+            for nombre in sorted(os.listdir(MEDIA_PATH)):
+                ruta = os.path.join(MEDIA_PATH, nombre)
+                if not os.path.isdir(ruta) or nombre.startswith('.'):
+                    continue
+                tipo = detectar_tipo_contenido(nombre)
+                tiene_meta = os.path.exists(os.path.join(ruta, '_meta.json'))
+                tiene_portada = os.path.exists(os.path.join(ruta, '_img.png'))
+
+                meta = {}
+                meta_path = os.path.join(ruta, '_meta.json')
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, 'r', encoding='utf-8') as f:
+                            meta = json.load(f)
+                    except Exception:
+                        pass
+
+                display_tipo = '🎬 Película' if tipo == 'pelicula' else '📺 Serie'
+                info_parts = []
+                if meta.get('titulo'):
+                    info_parts.append(meta['titulo'])
+                if meta.get('anio'):
+                    info_parts.append(meta['anio'])
+                info_str = ' — '.join(info_parts) if info_parts else 'Sin metadata'
+                if tiene_portada:
+                    info_str += ' 🖼'
+
+                nodo_raiz = self.ct_tree.insert('', tk.END, text=nombre, values=(display_tipo, info_str), open=True)
+
+                if tipo == 'serie':
+                    subcarpetas = [i for i in sorted(os.listdir(ruta))
+                                   if os.path.isdir(os.path.join(ruta, i)) and not i.startswith('.')]
+                    for sub in subcarpetas:
+                        ruta_sub = os.path.join(ruta, sub)
+                        vids = [f for f in os.listdir(ruta_sub)
+                                if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(FORMATOS_VIDEO)]
+                        nodo_temp = self.ct_tree.insert(nodo_raiz, tk.END, text=sub,
+                                                        values=('📁 Temporada', f'{len(vids)} vídeo(s)'),
+                                                        open=False)
+                        for v in sorted(vids):
+                            tam = os.path.getsize(os.path.join(ruta_sub, v))
+                            tam_mb = f'{tam / (1024*1024):.1f} MB'
+                            self.ct_tree.insert(nodo_temp, tk.END, text=v,
+                                                values=('🎬 Vídeo', tam_mb))
+                else:
+                    vids = [f for f in os.listdir(ruta)
+                            if os.path.isfile(os.path.join(ruta, f)) and f.lower().endswith(FORMATOS_VIDEO)]
+                    for v in sorted(vids):
+                        tam = os.path.getsize(os.path.join(ruta, v))
+                        tam_mb = f'{tam / (1024*1024):.1f} MB'
+                        self.ct_tree.insert(nodo_raiz, tk.END, text=v,
+                                            values=('🎬 Vídeo', tam_mb))
+
+        def _contenido_obtener_seleccion(self):
+            sel = self.ct_tree.selection()
+            if not sel:
+                return None, None, None
+            item_id = sel[0]
+            texto = self.ct_tree.item(item_id, 'text')
+            valores = self.ct_tree.item(item_id, 'values')
+            tipo_display = valores[0] if valores else ''
+            padre_id = self.ct_tree.parent(item_id)
+
+            if not padre_id:
+                return 'raiz', texto, item_id
+            padre_texto = self.ct_tree.item(padre_id, 'text')
+            padre_valores = self.ct_tree.item(padre_id, 'values')
+            padre_tipo = padre_valores[0] if padre_valores else ''
+            abuelo_id = self.ct_tree.parent(padre_id)
+
+            if 'Temporada' in padre_tipo:
+                if 'Vídeo' in tipo_display:
+                    return 'video', texto, item_id
+                return 'temporada', padre_texto, padre_id
+
+            if 'Película' in tipo_display or 'Serie' in tipo_display:
+                return 'raiz', texto, item_id
+
+            if 'Vídeo' in tipo_display:
+                return 'video', texto, item_id
+
+            return 'raiz', texto, item_id
+
+        def _contenido_nuevo(self):
+            meta_dialog = DialogoMetadata(self.root, 'Añadir Película/Serie', es_nuevo=True)
+            if not meta_dialog.resultado:
+                return
+            meta = meta_dialog.resultado
+            nombre = meta['titulo'].strip()
+            if not nombre:
+                return
+            ruta = os.path.join(MEDIA_PATH, nombre)
+            if os.path.exists(ruta):
+                messagebox.showerror('Error', f'Ya existe una carpeta llamada "{nombre}".')
+                return
+
+            os.makedirs(ruta, exist_ok=True)
+            meta_path = os.path.join(ruta, '_meta.json')
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                json.dump(meta, f, indent=4, ensure_ascii=False)
+
+            if meta.get('tipo') == 'serie':
+                num_temp = meta.get('temporadas', 1)
+                if num_temp >= 1:
+                    for t in range(1, num_temp + 1):
+                        os.makedirs(os.path.join(ruta, f'Season {t}'), exist_ok=True)
+
+            self._contenido_refrescar()
+            tipo_texto = 'Película' if meta.get('tipo') == 'pelicula' else 'Serie'
+            extra = f' con {num_temp} temporada(s)' if meta.get('tipo') == 'serie' and num_temp >= 1 else ''
+            messagebox.showinfo('Éxito', f'{tipo_texto} "{nombre}" creada{extra}.\nAhora puedes añadir vídeos con "+Añadir Vídeo".')
+
+        def _contenido_nueva_temporada(self):
+            nivel, nombre, item_id = self._contenido_obtener_seleccion()
+            if nivel != 'raiz':
+                messagebox.showinfo('Info', 'Selecciona una serie (carpeta raíz) en el árbol.')
+                return
+            tipo_display = self.ct_tree.item(item_id, 'values')[0]
+            if 'Película' in tipo_display:
+                messagebox.showinfo('Info', 'Las películas no tienen temporadas.')
+                return
+
+            ruta_serie = os.path.join(MEDIA_PATH, nombre)
+            subcarpetas = [i for i in os.listdir(ruta_serie)
+                           if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
+            num = len(subcarpetas) + 1
+            nombre_temp = f'Season {num}'
+            ruta_temp = os.path.join(ruta_serie, nombre_temp)
+
+            while os.path.exists(ruta_temp):
+                num += 1
+                nombre_temp = f'Season {num}'
+                ruta_temp = os.path.join(ruta_serie, nombre_temp)
+
+            os.makedirs(ruta_temp, exist_ok=True)
+            self._contenido_refrescar()
+            messagebox.showinfo('Éxito', f'Temporada "{nombre_temp}" creada en "{nombre}".')
+
+        def _contenido_anadir_video(self):
+            nivel, nombre, item_id = self._contenido_obtener_seleccion()
+            if nivel is None:
+                messagebox.showinfo('Info', 'Selecciona una serie, película o temporada.')
+                return
+
+            ruta_destino = None
+            if nivel == 'raiz':
+                tipo_display = self.ct_tree.item(item_id, 'values')[0]
+                if 'Serie' in tipo_display:
+                    messagebox.showinfo('Info', 'Selecciona una temporada dentro de la serie para añadir vídeos.')
+                    return
+                ruta_destino = os.path.join(MEDIA_PATH, nombre)
+            elif nivel == 'temporada':
+                serie_nombre = self.ct_tree.item(self.ct_tree.parent(item_id), 'text')
+                ruta_destino = os.path.join(MEDIA_PATH, serie_nombre, nombre)
+            elif nivel == 'video':
+                parent_id = self.ct_tree.parent(item_id)
+                if not parent_id:
+                    messagebox.showinfo('Info', 'Selecciona una temporada o película padre.')
+                    return
+                padre_tipo = self.ct_tree.item(parent_id, 'values')[0]
+                if 'Temporada' in padre_tipo:
+                    serie_nombre = self.ct_tree.item(self.ct_tree.parent(parent_id), 'text')
+                    temporada_nombre = self.ct_tree.item(parent_id, 'text')
+                    ruta_destino = os.path.join(MEDIA_PATH, serie_nombre, temporada_nombre)
+                else:
+                    ruta_destino = os.path.join(MEDIA_PATH, self.ct_tree.item(parent_id, 'text'))
+
+            if not ruta_destino or not os.path.exists(ruta_destino):
+                messagebox.showerror('Error', 'La carpeta destino no existe.')
+                return
+
+            archivos = filedialog.askopenfilenames(
+                title='Seleccionar vídeo(s)',
+                filetypes=[('Vídeos', '*.mp4 *.webm *.ogg *.avi *.mkv'), ('Todos', '*.*')],
+                parent=self.root
+            )
+            if not archivos:
+                return
+
+            self.root.config(cursor='watch')
+            self.root.update_idletasks()
+
+            copiados = 0
+            errores = []
+            for archivo_origen in archivos:
+                nombre_arch = os.path.basename(archivo_origen)
+                destino = os.path.join(ruta_destino, nombre_arch)
+                if os.path.exists(destino):
+                    if not messagebox.askyesno('Sobrescribir',
+                                               f'Ya existe "{nombre_arch}".\n¿Sobrescribir?'):
+                        continue
+                try:
+                    shutil.copy2(archivo_origen, destino)
+                    copiados += 1
+                except Exception as e:
+                    errores.append(f'{nombre_arch}: {e}')
+
+            self.root.config(cursor='')
+            self._contenido_refrescar()
+
+            msg = f'{copiados} vídeo(s) copiado(s).'
+            if errores:
+                msg += f'\n\nErrores:\n' + '\n'.join(errores[:5])
+            messagebox.showinfo('Añadir vídeo', msg)
+
+        def _contenido_editar_metadata(self):
+            nivel, nombre, item_id = self._contenido_obtener_seleccion()
+            if nivel != 'raiz':
+                messagebox.showinfo('Info', 'Selecciona una serie o película (carpeta raíz) para editar su metadata.')
+                return
+
+            ruta = os.path.join(MEDIA_PATH, nombre)
+            meta_path = os.path.join(ruta, '_meta.json')
+            meta = {}
+            if os.path.exists(meta_path):
+                try:
+                    with open(meta_path, 'r', encoding='utf-8') as f:
+                        meta = json.load(f)
+                except Exception:
+                    pass
+
+            tipo_display = self.ct_tree.item(item_id, 'values')[0]
+            titulo_ventana = f'Editar: {nombre}'
+            meta_dialog = DialogoMetadata(self.root, titulo_ventana, meta=meta)
+            if not meta_dialog.resultado:
+                return
+
+            nuevo_meta = meta_dialog.resultado
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                json.dump(nuevo_meta, f, indent=4, ensure_ascii=False)
+
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('INSERT OR REPLACE INTO content_metadata (serie, tipo) VALUES (?, ?)',
+                               (nombre, nuevo_meta.get('tipo', 'auto')))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+
+            self._contenido_refrescar()
+            messagebox.showinfo('Éxito', f'Metadata de "{nombre}" actualizada.')
+
+        def _contenido_renombrar(self):
+            nivel, nombre, item_id = self._contenido_obtener_seleccion()
+            if nivel is None:
+                return
+
+            if nivel == 'raiz':
+                ruta_original = os.path.join(MEDIA_PATH, nombre)
+                nuevo_nombre = simpledialog.askstring('Renombrar',
+                                                    f'Nuevo nombre para "{nombre}":',
+                                                    initialvalue=nombre, parent=self.root)
+                if not nuevo_nombre or nuevo_nombre == nombre:
+                    return
+                nuevo_nombre = nuevo_nombre.strip()
+                nueva_ruta = os.path.join(MEDIA_PATH, nuevo_nombre)
+                if os.path.exists(nueva_ruta):
+                    messagebox.showerror('Error', f'Ya existe "{nuevo_nombre}".')
+                    return
+                os.rename(ruta_original, nueva_ruta)
+                try:
+                    conn = conectar_db()
+                    cursor = conn.cursor()
+                    cursor.execute('UPDATE content_metadata SET serie = ? WHERE serie = ?', (nuevo_nombre, nombre))
+                    cursor.execute('UPDATE favoritos SET serie = ? WHERE serie = ?', (nuevo_nombre, nombre))
+                    cursor.execute('UPDATE progreso SET serie = ? WHERE serie = ?', (nuevo_nombre, nombre))
+                    cursor.execute('UPDATE listas SET serie = ? WHERE serie = ?', (nuevo_nombre, nombre))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+
+            elif nivel == 'temporada':
+                serie_nombre = self.ct_tree.item(self.ct_tree.parent(item_id), 'text')
+                ruta_original = os.path.join(MEDIA_PATH, serie_nombre, nombre)
+                nuevo_nombre = simpledialog.askstring('Renombrar temporada',
+                                                    f'Nuevo nombre para "{nombre}":',
+                                                    initialvalue=nombre, parent=self.root)
+                if not nuevo_nombre or nuevo_nombre == nombre:
+                    return
+                nueva_ruta = os.path.join(MEDIA_PATH, serie_nombre, nuevo_nombre)
+                if os.path.exists(nueva_ruta):
+                    messagebox.showerror('Error', f'Ya existe "{nuevo_nombre}".')
+                    return
+                os.rename(ruta_original, nueva_ruta)
+
+            elif nivel == 'video':
+                parent_id = self.ct_tree.parent(item_id)
+                if not parent_id:
+                    return
+                padre_tipo = self.ct_tree.item(parent_id, 'values')[0]
+                if 'Temporada' in padre_tipo:
+                    serie_nombre = self.ct_tree.item(self.ct_tree.parent(parent_id), 'text')
+                    temporada_nombre = self.ct_tree.item(parent_id, 'text')
+                    carpeta = os.path.join(MEDIA_PATH, serie_nombre, temporada_nombre)
+                else:
+                    carpeta = os.path.join(MEDIA_PATH, self.ct_tree.item(parent_id, 'text'))
+
+                ruta_original = os.path.join(carpeta, nombre)
+                ext = os.path.splitext(nombre)[1]
+                nuevo_nombre_base = simpledialog.askstring('Renombrar vídeo',
+                                                         f'Nuevo nombre (sin extensión):',
+                                                         initialvalue=os.path.splitext(nombre)[0],
+                                                         parent=self.root)
+                if not nuevo_nombre_base or nuevo_nombre_base == os.path.splitext(nombre)[0]:
+                    return
+                nuevo_nombre_arch = nuevo_nombre_base + ext
+                nueva_ruta = os.path.join(carpeta, nuevo_nombre_arch)
+                if os.path.exists(nueva_ruta):
+                    messagebox.showerror('Error', f'Ya existe "{nuevo_nombre_arch}".')
+                    return
+                os.rename(ruta_original, nueva_ruta)
+
+            self._contenido_refrescar()
+
+        def _contenido_eliminar(self):
+            nivel, nombre, item_id = self._contenido_obtener_seleccion()
+            if nivel is None:
+                return
+
+            if nivel == 'raiz':
+                tipo_display = self.ct_tree.item(item_id, 'values')[0]
+                confirmar = messagebox.askyesno('Eliminar',
+                                                f'¿Eliminar "{nombre}" y todo su contenido?\n\n'
+                                                f'Tipo: {tipo_display}\n'
+                                                f'Esta acción no se puede deshacer.')
+                if not confirmar:
+                    return
+                ruta = os.path.join(MEDIA_PATH, nombre)
+                try:
+                    import shutil
+                    shutil.rmtree(ruta)
+                except Exception as e:
+                    messagebox.showerror('Error', f'No se pudo eliminar: {e}')
+                    return
+                try:
+                    conn = conectar_db()
+                    cursor = conn.cursor()
+                    cursor.execute('DELETE FROM content_metadata WHERE serie = ?', (nombre,))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+
+            elif nivel == 'temporada':
+                serie_nombre = self.ct_tree.item(self.ct_tree.parent(item_id), 'text')
+                confirmar = messagebox.askyesno('Eliminar temporada',
+                                                f'¿Eliminar la temporada "{nombre}" de "{serie_nombre}"?\n'
+                                                f'Se borrarán todos los vídeos dentro.')
+                if not confirmar:
+                    return
+                ruta = os.path.join(MEDIA_PATH, serie_nombre, nombre)
+                try:
+                    import shutil
+                    shutil.rmtree(ruta)
+                except Exception as e:
+                    messagebox.showerror('Error', f'No se pudo eliminar: {e}')
+                    return
+
+            elif nivel == 'video':
+                parent_id = self.ct_tree.parent(item_id)
+                if not parent_id:
+                    return
+                padre_tipo = self.ct_tree.item(parent_id, 'values')[0]
+                if 'Temporada' in padre_tipo:
+                    serie_nombre = self.ct_tree.item(self.ct_tree.parent(parent_id), 'text')
+                    temporada_nombre = self.ct_tree.item(parent_id, 'text')
+                    ruta_arch = os.path.join(MEDIA_PATH, serie_nombre, temporada_nombre, nombre)
+                else:
+                    ruta_arch = os.path.join(MEDIA_PATH, self.ct_tree.item(parent_id, 'text'), nombre)
+
+                confirmar = messagebox.askyesno('Eliminar vídeo',
+                                                f'¿Eliminar el archivo "{nombre}"?')
+                if not confirmar:
+                    return
+                try:
+                    os.remove(ruta_arch)
+                except Exception as e:
+                    messagebox.showerror('Error', f'No se pudo eliminar: {e}')
+                    return
+
+            self._contenido_refrescar()
+
+        def _contenido_menu_contextual(self, event):
+            item = self.ct_tree.identify_row(event.y)
+            if not item:
+                return
+            self.ct_tree.selection_set(item)
+
+            menu = tk.Menu(self.root, tearoff=0)
+            valores = self.ct_tree.item(item, 'values')
+            tipo_display = valores[0] if valores else ''
+
+            if 'Película' in tipo_display or 'Serie' in tipo_display:
+                menu.add_command(label='Editar Metadata', command=self._contenido_editar_metadata)
+                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+                menu.add_separator()
+                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
+            elif 'Temporada' in tipo_display:
+                menu.add_command(label='Añadir Vídeo', command=self._contenido_anadir_video)
+                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+                menu.add_separator()
+                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
+            elif 'Vídeo' in tipo_display:
+                menu.add_command(label='Renombrar', command=self._contenido_renombrar)
+                menu.add_separator()
+                menu.add_command(label='Eliminar', command=self._contenido_eliminar)
+
+            try:
+                menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                menu.grab_release()
 
         def guardar_y_cerrar(self):
             try:
