@@ -1,5 +1,7 @@
 # 📺 FlaskCast — Plataforma Multimedia Local
 
+> **[🌐 Read in English](README_EN.md)**
+
 <table>
   <tr>
     <td><img src="static/logo.png" alt="FlaskCast Logo" width="500"></td>
