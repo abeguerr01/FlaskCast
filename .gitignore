@@ -190,3 +190,4 @@ data/media/*
 !data/media/.gitkeep 
 #!data/config.json
 #!data/live_streams.json
+.vscode/extensions.json

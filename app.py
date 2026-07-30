@@ -30,7 +30,6 @@ CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 
 conversiones_activas = set()
 lock_conversiones = threading.Lock()
-api_habilitada = False
 
 
 @app.context_processor
@@ -48,6 +47,14 @@ def leer_config():
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+
+_cfg = leer_config()
+api_habilitada = _cfg.get('api_habilitada', False)
+
+@app.before_request
+def check_api_habilitada():
+    if request.path.startswith('/api/') and not api_habilitada:
+        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
 
 def conectar_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
@@ -572,16 +579,9 @@ def ajustes():
         boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
         es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
 
-def api_habilitada_check():
-    global api_habilitada
-    return api_habilitada
-
 @app.route('/api/videos/add', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_agregar_video():
-    if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
-    
     serie = request.form.get('serie', '').strip()
     if not serie:
         return jsonify({'error': 'El campo "serie" es requerido.'}), 400
@@ -620,9 +620,6 @@ def api_agregar_video():
 @app.route('/api/videos/rm', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_eliminar_video():
-    if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
-    
     datos = request.json or {}
     serie = datos.get('serie', '').strip()
     filename = datos.get('filename', '').strip()
@@ -675,9 +672,6 @@ def escanear_estructura_serie(ruta_serie, nombre_serie):
 @app.route('/api/videos', methods=['GET'])
 @app.route('/api/videos/<path:nombre_serie>', methods=['GET'])
 def api_listar_videos(nombre_serie=None):
-    if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
-    
     if nombre_serie:
         ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
         estructura = escanear_estructura_serie(ruta_serie, nombre_serie)
@@ -1054,8 +1048,6 @@ def serve_video(nombre_serie, filename):
 
 @app.route('/api/video/<nombre_serie>/<path:filename>')
 def api_obtener_video(nombre_serie, filename):
-    if not api_habilitada_check():
-        return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_archivo = os.path.join(ruta_serie, filename)
     if not os.path.exists(ruta_archivo):
@@ -1156,7 +1148,6 @@ if __name__ == '__main__':
     inicializar_base_datos()
     
     cfg = leer_config()
-    api_habilitada = cfg.get('api_habilitada', False)
     puerto = cfg.get('puerto', 5000)
     sistema = platform.system()
     

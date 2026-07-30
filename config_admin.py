@@ -876,6 +876,9 @@ def gui():
             padre_tipo = padre_valores[0] if padre_valores else ''
             abuelo_id = self.ct_tree.parent(padre_id)
 
+            if 'Temporada' in tipo_display:
+                return 'temporada', texto, item_id
+
             if 'Temporada' in padre_tipo:
                 if 'Vídeo' in tipo_display:
                     return 'video', texto, item_id
@@ -910,8 +913,8 @@ def gui():
             if meta.get('tipo') == 'serie':
                 num_temp = meta.get('temporadas', 1)
                 if num_temp >= 1:
-                    for t in range(1, num_temp + 1):
-                        os.makedirs(os.path.join(ruta, f'Season {t}'), exist_ok=True)
+                    for i in range(1, num_temp + 1):
+                        os.makedirs(os.path.join(ruta, f'Season {i}'), exist_ok=True)
 
             self._contenido_refrescar()
             tipo_texto = 'Película' if meta.get('tipo') == 'pelicula' else 'Serie'
