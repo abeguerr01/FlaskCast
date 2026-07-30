@@ -1097,6 +1097,75 @@ def eliminar_archivo(nombre_serie, filename):
             return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'Archivo no encontrado'}), 404
 
+@app.route('/api/contenido/crear', methods=['POST'])
+@limiter.limit("5 per minute")
+def api_crear_contenido():
+    datos = request.json or {}
+    nombre = datos.get('nombre', '').strip()
+    titulo = datos.get('titulo', '').strip()
+
+    if not nombre or not titulo:
+        return jsonify({'error': 'Los campos "nombre" y "titulo" son requeridos.'}), 400
+
+    tipo = datos.get('tipo', 'serie').strip().lower()
+    if tipo not in ('serie', 'pelicula'):
+        return jsonify({'error': 'El campo "tipo" debe ser "serie" o "pelicula".'}), 400
+
+    ruta_contenido = os.path.join(DIRECTORIO_MEDIA, nombre)
+    if os.path.exists(ruta_contenido):
+        return jsonify({'error': f'Ya existe contenido con el nombre "{nombre}".'}), 409
+
+    try:
+        os.makedirs(ruta_contenido, exist_ok=True)
+
+        meta = {
+            'titulo': titulo,
+            'tipo': tipo,
+        }
+        for campo in ('descripcion', 'anio', 'genero'):
+            valor = datos.get(campo, '').strip()
+            if valor:
+                meta[campo] = valor
+
+        meta_path = os.path.join(ruta_contenido, '_meta.json')
+        with open(meta_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, ensure_ascii=False, indent=4)
+
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('INSERT OR REPLACE INTO content_metadata (serie, tipo) VALUES (?, ?)',
+                       (nombre, tipo))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'status': 'ok', 'mensaje': f'{"Serie" if tipo == "serie" else "Película"} "{titulo}" creada.'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/contenido/temporada', methods=['POST'])
+@limiter.limit("10 per minute")
+def api_crear_temporada():
+    datos = request.json or {}
+    serie = datos.get('serie', '').strip()
+    temporada = datos.get('temporada', '').strip()
+
+    if not serie or not temporada:
+        return jsonify({'error': 'Los campos "serie" y "temporada" son requeridos.'}), 400
+
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, serie)
+    if not os.path.exists(ruta_serie) or not os.path.isdir(ruta_serie):
+        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
+
+    ruta_temporada = os.path.join(ruta_serie, temporada)
+    if os.path.exists(ruta_temporada):
+        return jsonify({'error': f'La temporada "{temporada}" ya existe en "{serie}".'}), 409
+
+    try:
+        os.makedirs(ruta_temporada, exist_ok=True)
+        return jsonify({'status': 'ok', 'mensaje': f'Temporada "{temporada}" creada en "{serie}".'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/estados')
 def consultar_estados():
     with lock_conversiones:
