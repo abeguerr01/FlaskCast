@@ -281,6 +281,15 @@ def omdb_aplicar_a_carpeta(api_key, carpeta_nombre, imdb_id, tipo_content, desca
     except (ValueError, TypeError):
         duracion = 0
 
+    meta_path = os.path.join(ruta_carpeta, '_meta.json')
+    meta_existente = {}
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta_existente = json.load(f)
+        except Exception:
+            pass
+
     meta = {
         'tipo': tipo_content,
         'titulo': detalles.get('Title', carpeta_nombre),
@@ -291,6 +300,9 @@ def omdb_aplicar_a_carpeta(api_key, carpeta_nombre, imdb_id, tipo_content, desca
         'valoracion': rating,
     }
 
+    if meta_existente.get('ubicacion'):
+        meta['ubicacion'] = meta_existente['ubicacion']
+
     if tipo_content == 'pelicula':
         meta['duracion_min'] = duracion
     else:
@@ -298,7 +310,6 @@ def omdb_aplicar_a_carpeta(api_key, carpeta_nombre, imdb_id, tipo_content, desca
         if total_seasons and total_seasons != 'N/A':
             meta['temporadas'] = int(total_seasons)
 
-    meta_path = os.path.join(ruta_carpeta, '_meta.json')
     with open(meta_path, 'w', encoding='utf-8') as f:
         json.dump(meta, f, indent=4, ensure_ascii=False)
 
@@ -324,12 +335,21 @@ def detectar_tipo_contenido(carpeta_nombre):
                 return meta['tipo']
         except Exception:
             pass
+    ubicacion = ''
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            ubicacion = meta.get('ubicacion', '').strip()
+        except Exception:
+            pass
+    ruta_videos = ubicacion if ubicacion and os.path.isdir(ubicacion) else ruta
     formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
     try:
-        items = os.listdir(ruta)
+        items = os.listdir(ruta_videos)
     except OSError:
         return 'serie'
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta, i)) and not i.startswith('.')]
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
     if subcarpetas:
         return 'serie'
     return 'pelicula'
@@ -439,6 +459,11 @@ def gui():
             self.temporadas_var = tk.StringVar(value=str(meta.get('temporadas', 1)) if meta and meta.get('temporadas') else '1')
             ttk.Entry(row4, textvariable=self.temporadas_var, width=6).pack(side=tk.LEFT, padx=(5, 0))
 
+            ttk.Label(frame, text=t('meta_ubicacion'), font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+            self.ubicacion_var = tk.StringVar(value=meta.get('ubicacion', '') if meta else '')
+            ttk.Entry(frame, textvariable=self.ubicacion_var, width=50).pack(fill=tk.X, pady=(0, 2))
+            ttk.Label(frame, text=t('meta_ubicacion_desc'), foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W, pady=(0, 4))
+
             btn_frame = ttk.Frame(frame)
             btn_frame.pack(pady=(10, 0))
             ttk.Button(btn_frame, text=t('meta_aceptar'), command=self._aceptar).pack(side=tk.LEFT, padx=5)
@@ -478,6 +503,7 @@ def gui():
                 'valoracion': valoracion,
                 'duracion_min': duracion,
                 'temporadas': temporadas,
+                'ubicacion': self.ubicacion_var.get().strip(),
             }
             self.destroy()
 
@@ -833,28 +859,34 @@ def gui():
                 if tiene_portada:
                     info_str += ' 🖼'
 
+                ubicacion = meta.get('ubicacion', '').strip()
+                ruta_videos = ubicacion if ubicacion and os.path.isdir(ubicacion) else ruta
+                if ubicacion:
+                    info_str += ' 📁'
+
                 nodo_raiz = self.ct_tree.insert('', tk.END, text=nombre, values=(display_tipo, info_str), open=True)
 
                 if tipo == 'serie':
-                    subcarpetas = [i for i in sorted(os.listdir(ruta))
-                                   if os.path.isdir(os.path.join(ruta, i)) and not i.startswith('.')]
-                    for sub in subcarpetas:
-                        ruta_sub = os.path.join(ruta, sub)
-                        vids = [f for f in os.listdir(ruta_sub)
-                                if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(FORMATOS_VIDEO)]
-                        nodo_temp = self.ct_tree.insert(nodo_raiz, tk.END, text=sub,
-                                                        values=(t('bib_temporada'), f'{len(vids)} {t("bib_videos")}'),
-                                                        open=False)
-                        for v in sorted(vids):
-                            tam = os.path.getsize(os.path.join(ruta_sub, v))
-                            tam_mb = f'{tam / (1024*1024):.1f} MB'
-                            self.ct_tree.insert(nodo_temp, tk.END, text=v,
-                                                values=(t('bib_video'), tam_mb))
+                    if os.path.isdir(ruta_videos):
+                        subcarpetas = [i for i in sorted(os.listdir(ruta_videos))
+                                       if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+                        for sub in subcarpetas:
+                            ruta_sub = os.path.join(ruta_videos, sub)
+                            vids = [f for f in os.listdir(ruta_sub)
+                                    if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(FORMATOS_VIDEO)]
+                            nodo_temp = self.ct_tree.insert(nodo_raiz, tk.END, text=sub,
+                                                            values=(t('bib_temporada'), f'{len(vids)} {t("bib_videos")}'),
+                                                            open=False)
+                            for v in sorted(vids):
+                                tam = os.path.getsize(os.path.join(ruta_sub, v))
+                                tam_mb = f'{tam / (1024*1024):.1f} MB'
+                                self.ct_tree.insert(nodo_temp, tk.END, text=v,
+                                                    values=(t('bib_video'), tam_mb))
                 else:
-                    vids = [f for f in os.listdir(ruta)
-                            if os.path.isfile(os.path.join(ruta, f)) and f.lower().endswith(FORMATOS_VIDEO)]
+                    vids = [f for f in os.listdir(ruta_videos)
+                            if os.path.isfile(os.path.join(ruta_videos, f)) and f.lower().endswith(FORMATOS_VIDEO)]
                     for v in sorted(vids):
-                        tam = os.path.getsize(os.path.join(ruta, v))
+                        tam = os.path.getsize(os.path.join(ruta_videos, v))
                         tam_mb = f'{tam / (1024*1024):.1f} MB'
                         self.ct_tree.insert(nodo_raiz, tk.END, text=v,
                                             values=(t('bib_video'), tam_mb))
@@ -910,7 +942,8 @@ def gui():
             with open(meta_path, 'w', encoding='utf-8') as f:
                 json.dump(meta, f, indent=4, ensure_ascii=False)
 
-            if meta.get('tipo') == 'serie':
+            tiene_ubicacion = bool(meta.get('ubicacion', '').strip())
+            if not tiene_ubicacion and meta.get('tipo') == 'serie':
                 num_temp = meta.get('temporadas', 1)
                 if num_temp >= 1:
                     for i in range(1, num_temp + 1):
@@ -918,8 +951,9 @@ def gui():
 
             self._contenido_refrescar()
             tipo_texto = 'Película' if meta.get('tipo') == 'pelicula' else 'Serie'
-            extra = f' con {num_temp} temporada(s)' if meta.get('tipo') == 'serie' and num_temp >= 1 else ''
-            messagebox.showinfo('Éxito', f'{tipo_texto} "{nombre}" creada{extra}.\nAhora puedes añadir vídeos con "+Añadir Vídeo".')
+            extra = f' con {num_temp} temporada(s)' if meta.get('tipo') == 'serie' and not tiene_ubicacion and num_temp >= 1 else ''
+            ubicacion_msg = f'\nVideos en: {meta["ubicacion"]}' if tiene_ubicacion else ''
+            messagebox.showinfo('Éxito', f'{tipo_texto} "{nombre}" creada{extra}.{ubicacion_msg}\nAhora puedes añadir vídeos con "+Añadir Vídeo".')
 
         def _contenido_nueva_temporada(self):
             nivel, nombre, item_id = self._contenido_obtener_seleccion()

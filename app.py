@@ -21,7 +21,15 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-static_ffmpeg.add_paths()
+import shutil
+
+if shutil.which('ffmpeg'):
+    pass
+else:
+    try:
+        static_ffmpeg.add_paths()
+    except Exception:
+        pass
 
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
@@ -186,12 +194,30 @@ def detectar_tipo_contenido(nombre_carpeta):
             pass
 
     # 3. Deteccion por estructura: subcarpetas = serie, sin subcarpetas = pelicula
-    formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
-    items = os.listdir(ruta)
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta, i)) and not i.startswith('.')]
+    ruta_videos = obtener_ruta_serie(nombre_carpeta)
+    items = os.listdir(ruta_videos)
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
     if subcarpetas:
         return 'serie'
     return 'pelicula'
+
+def obtener_ruta_serie(nombre_carpeta):
+    """Obtiene la ruta real donde se encuentran los videos de una serie/pelicula.
+    Si _meta.json tiene un campo 'ubicacion' no vacio y la ruta existe, la retorna.
+    De lo contrario, retorna data/media/{nombre}.
+    """
+    ruta_default = os.path.join(DIRECTORIO_MEDIA, nombre_carpeta)
+    meta_path = os.path.join(ruta_default, '_meta.json')
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            ubicacion = meta.get('ubicacion', '').strip()
+            if ubicacion and os.path.isdir(ubicacion):
+                return ubicacion
+        except Exception:
+            pass
+    return ruta_default
 
 def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
     global conversiones_activas
@@ -592,24 +618,25 @@ def api_agregar_video():
         return jsonify({'error': 'Debes enviar un archivo en el campo "archivo".'}), 400
     
     filename = os.path.basename(archivo.filename)
-    serie_dir = os.path.join(DIRECTORIO_MEDIA, serie)
+    serie_dir_meta = os.path.join(DIRECTORIO_MEDIA, serie)
     
-    if not os.path.exists(serie_dir):
+    if not os.path.exists(serie_dir_meta):
         return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
     
-    items = os.listdir(serie_dir)
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(serie_dir, i)) and not i.startswith('.')]
+    ruta_videos = obtener_ruta_serie(serie)
+    items = os.listdir(ruta_videos)
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
     
     if subcarpetas:
         if not temporada:
             return jsonify({'error': 'Esta serie tiene temporadas. El campo "temporada" es obligatorio.'}), 400
         if temporada not in subcarpetas:
             return jsonify({'error': f'La temporada "{temporada}" no existe en esta serie.'}), 404
-        destino_dir = os.path.join(serie_dir, temporada)
+        destino_dir = os.path.join(ruta_videos, temporada)
     else:
         if temporada:
             return jsonify({'error': 'Esta serie no tiene temporadas. No uses el campo "temporada".'}), 400
-        destino_dir = serie_dir
+        destino_dir = ruta_videos
     
     ruta_destino = os.path.join(destino_dir, filename)
     archivo.save(ruta_destino)
@@ -628,8 +655,10 @@ def api_eliminar_video():
         return jsonify({'error': 'Los campos "serie" y "filename" son requeridos.'}), 400
     
     filename = filename.replace('\\', '/')
-    ruta_archivo = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, serie, filename))
-    if not ruta_archivo.startswith(os.path.normpath(DIRECTORIO_MEDIA)):
+    ruta_videos = obtener_ruta_serie(serie)
+    ruta_archivo = os.path.normpath(os.path.join(ruta_videos, filename))
+    ruta_media = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, serie))
+    if not ruta_archivo.startswith(os.path.normpath(ruta_videos)):
         return jsonify({'error': 'Ruta no válida'}), 400
     
     if not os.path.exists(ruta_archivo):
@@ -638,7 +667,7 @@ def api_eliminar_video():
     try:
         os.remove(ruta_archivo)
         nombre_base, _ = os.path.splitext(filename)
-        ruta_thumb = os.path.join(DIRECTORIO_MEDIA, serie, '.thumbnails', f"{nombre_base}.jpg")
+        ruta_thumb = os.path.join(ruta_media, '.thumbnails', f"{nombre_base}.jpg")
         if os.path.exists(ruta_thumb):
             os.remove(ruta_thumb)
         usuario_id = session.get('usuario_id')
@@ -653,19 +682,20 @@ def api_eliminar_video():
         return jsonify({'error': str(e)}), 500
 
 def escanear_estructura_serie(ruta_serie, nombre_serie):
-    if not os.path.exists(ruta_serie) or not os.path.isdir(ruta_serie):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    if not os.path.exists(ruta_videos) or not os.path.isdir(ruta_videos):
         return None
     formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
-    items = sorted(os.listdir(ruta_serie))
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
+    items = sorted(os.listdir(ruta_videos))
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
     estructura = {'nombre': nombre_serie, 'temporadas': {}}
     if subcarpetas:
         for sub in subcarpetas:
-            ruta_sub = os.path.join(ruta_serie, sub)
+            ruta_sub = os.path.join(ruta_videos, sub)
             videos = sorted([f for f in os.listdir(ruta_sub) if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(formatos_video)])
             estructura['temporadas'][sub] = {'nombre': sub, 'capitulos': videos}
     else:
-        videos = sorted([f for f in items if os.path.isfile(os.path.join(ruta_serie, f)) and f.lower().endswith(formatos_video)])
+        videos = sorted([f for f in items if os.path.isfile(os.path.join(ruta_videos, f)) and f.lower().endswith(formatos_video)])
         estructura['temporadas']['Contenido Disponible'] = {'nombre': 'Contenido Disponible', 'capitulos': videos}
     return estructura
 
@@ -694,11 +724,13 @@ def vista_serie(nombre_serie):
     ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     if not os.path.exists(ruta_serie) or not os.path.isdir(ruta_serie):
         return abort(404)
-        
+
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+
     formatos_web = ('.mp4', '.webm', '.ogg')
     formatos_incompatibles = ('.avi', '.mkv')
     estructura_temporadas = {}
-    
+
     progreso_usuario = {}
     usuario_id = session.get('usuario_id')
     mostrar_progreso = 1
@@ -723,12 +755,12 @@ def vista_serie(nombre_serie):
                 'porcentaje': porcentaje
             }
 
-    items = sorted(os.listdir(ruta_serie))
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_serie, i)) and not i.startswith('.')]
-    
+    items = sorted(os.listdir(ruta_videos))
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+
     if subcarpetas:
         for subcarpeta in subcarpetas:
-            ruta_subcarpeta = os.path.join(ruta_serie, subcarpeta)
+            ruta_subcarpeta = os.path.join(ruta_videos, subcarpeta)
             videos_temporada = []
             
             for archivo in sorted(os.listdir(ruta_subcarpeta)):
@@ -765,7 +797,7 @@ def vista_serie(nombre_serie):
     else:
         videos_raiz = []
         for archivo in items:
-            if os.path.isfile(os.path.join(ruta_serie, archivo)):
+            if os.path.isfile(os.path.join(ruta_videos, archivo)):
                 extension = os.path.splitext(archivo)[1].lower()
                 prog = progreso_usuario.get(archivo, {'segundos': 0, 'duracion': 0, 'visto': 0, 'porcentaje': 0})
                 
@@ -828,9 +860,9 @@ def vista_serie(nombre_serie):
 
 @app.route('/tv/reproducir/<nombre_serie>/<path:filename>')
 def reproductor_tv(nombre_serie, filename):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
     sub_dir = os.path.dirname(filename)
-    ruta_dir_absoluta = os.path.join(ruta_serie, sub_dir)
+    ruta_dir_absoluta = os.path.join(ruta_videos, sub_dir)
     
     formatos_web = ('.mp4', '.webm', '.ogg')
     next_filename = None
@@ -1024,14 +1056,15 @@ def api_lista_obtener():
 
 @app.route('/thumbnail/<nombre_serie>/<path:filename>')
 def serve_thumbnail(nombre_serie, filename):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    ruta_video = os.path.join(ruta_serie, filename)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_video = os.path.join(ruta_videos, filename)
     nombre_base, _ = os.path.splitext(filename)
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
     ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
-    
+
     if not os.path.exists(ruta_thumb) and os.path.exists(ruta_video):
         generar_fotograma_preview(ruta_video, ruta_thumb)
-            
+
     if os.path.exists(ruta_thumb):
         return send_from_directory(os.path.dirname(ruta_thumb), os.path.basename(ruta_thumb), mimetype='image/jpeg')
     return abort(404)
@@ -1043,29 +1076,29 @@ def serve_portada(nombre_serie):
 
 @app.route('/video/<nombre_serie>/<path:filename>')
 def serve_video(nombre_serie, filename):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    return send_from_directory(ruta_serie, filename)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    return send_from_directory(ruta_videos, filename)
 
 @app.route('/api/video/<nombre_serie>/<path:filename>')
 def api_obtener_video(nombre_serie, filename):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    ruta_archivo = os.path.join(ruta_serie, filename)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_archivo = os.path.join(ruta_videos, filename)
     if not os.path.exists(ruta_archivo):
         return jsonify({'error': 'Archivo no encontrado'}), 404
-    return send_from_directory(ruta_serie, filename)
+    return send_from_directory(ruta_videos, filename)
 
 @app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
 @limiter.limit("5 per minute")
 def desencadenar_conversion(nombre_serie, filename):
     global conversiones_activas
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    ruta_origen = os.path.join(ruta_serie, filename)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_origen = os.path.join(ruta_videos, filename)
     
     if not os.path.exists(ruta_origen):
         return jsonify({'error': 'El archivo original no existe'}), 404
         
     nombre_base = os.path.splitext(filename)[0]
-    ruta_mp4 = os.path.join(ruta_serie, f"{nombre_base}.mp4")
+    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
     identificador_unico = f"{nombre_serie}/{filename}"
     
     with lock_conversiones:
@@ -1083,12 +1116,13 @@ def desencadenar_conversion(nombre_serie, filename):
 @app.route('/api/eliminar/<nombre_serie>/<path:filename>', methods=['POST'])
 @limiter.limit("10 per minute")
 def eliminar_archivo(nombre_serie, filename):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    ruta_archivo = os.path.join(ruta_serie, filename)
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_archivo = os.path.join(ruta_videos, filename)
     if os.path.exists(ruta_archivo):
         try:
             os.remove(ruta_archivo)
             nombre_base, _ = os.path.splitext(filename)
+            ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
             ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
             if os.path.exists(ruta_thumb):
                 os.remove(ruta_thumb)
