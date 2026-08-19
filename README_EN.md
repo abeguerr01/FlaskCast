@@ -95,7 +95,38 @@ Access from your browser at `http://localhost:5000` or using your machine's IP o
 
 ### Dependency Notes
 
-- **`static-ffmpeg`** will download and configure FFmpeg binaries the first time the application runs. If you prefer, you can install FFmpeg globally on your system.
+> **⚠️ Linux:** FFmpeg is **required**. The application will not start without it.
+
+<details>
+<summary>📥 Install FFmpeg on Linux (click to expand)</summary>
+
+```bash
+# Debian / Ubuntu / Linux Mint / Pop!_OS
+sudo apt-get update && sudo apt-get install -y ffmpeg
+
+# Fedora / RHEL / CentOS / Rocky / AlmaLinux
+sudo dnf install -y ffmpeg
+
+# Arch Linux / Manjaro / EndeavourOS
+sudo pacman -S --noconfirm ffmpeg
+
+# openSUSE / SUSE
+sudo zypper install -y ffmpeg
+
+# Alpine Linux
+sudo apk add ffmpeg
+
+# Void Linux
+sudo xbps-install -Sy ffmpeg
+
+# Gentoo
+sudo emerge media-video/ffmpeg
+```
+
+</details>
+
+> **🪟 Windows/macOS:** `static-ffmpeg` will download and configure FFmpeg binaries automatically the first time the application runs. No manual installation needed.
+
 - **`py7zr`** is used for the export/import multimedia content functions in the admin panel.
 - **`Flask-Limiter`** provides rate limiting to protect against API abuse.
 - **`waitress`** (Windows) and **`gunicorn`** (Linux) are used as production WSGI servers.
