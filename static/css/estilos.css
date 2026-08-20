@@ -489,6 +489,37 @@ h1 {
     animation: pulse 1.5s infinite;
     color: #e50914;
 }
+.video-card.conversion-error .loader-txt {
+    display: block;
+    color: #ff4444;
+    background: rgba(40, 0, 0, 0.85);
+}
+.video-card.conversion-error .lock-overlay {
+    animation: none;
+    color: #ff4444;
+}
+.conversion-progress {
+    display: none;
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    z-index: 6;
+    background: rgba(0, 0, 0, 0.8);
+}
+.video-card.converting .conversion-progress { display: block; }
+.conversion-progress-bar {
+    height: 4px;
+    background: #e50914;
+    transition: width 0.5s ease;
+    width: 0%;
+}
+.conversion-progress-text {
+    display: block;
+    text-align: center;
+    font-size: 0.7rem;
+    color: #e50914;
+    font-weight: bold;
+    padding: 2px 0;
+}
 
 @keyframes pulse {
     0% { opacity: 0.4; }

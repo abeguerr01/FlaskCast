@@ -196,10 +196,31 @@ if (mainPlayer) {
 function convertirVideo(rutaRelativa, button) {
     const card = button.closest('.video-card');
     card.classList.add('converting');
+    console.log(`[CONV] Iniciando conversión: ${rutaRelativa}`);
 
     fetch('/api/convertir/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaRelativa), { method: 'POST' })
         .then(res => res.json())
-        .catch(err => console.error("Error al iniciar conversión:", err));
+        .then(data => {
+            console.log(`[CONV] Respuesta del servidor:`, data);
+            if (data.status === 'ya_existe_mp4') {
+                console.log(`[CONV] MP4 ya existe, transformando card`);
+                card.classList.remove('converting');
+                transformarCardAReproducible(card, rutaRelativa);
+            } else if (data.status === 'ya_en_progreso') {
+                console.log(`[CONV] Ya en progreso`);
+                card.classList.add('converting');
+            } else if (data.status === 'procesando') {
+                console.log(`[CONV] Conversión lanzada correctamente`);
+            } else if (data.error) {
+                console.log(`[CONV] Error del servidor: ${data.error}`);
+                card.classList.remove('converting');
+                mostrarErrorConversion(card, rutaRelativa);
+            }
+        })
+        .catch(err => {
+            console.error(`[CONV] Error de red al iniciar conversión:`, err);
+            card.classList.remove('converting');
+        });
 }
 
 function eliminarVideo(rutaRelativa, button) {
@@ -223,55 +244,131 @@ function verificarEstados() {
         .then(res => res.json())
         .then(data => {
             const activos = data.activos;
+            const progreso = data.progreso || {};
             
             document.querySelectorAll('.video-card.incompatible').forEach(card => {
                 const rutaRelativa = card.getAttribute('data-filename');
+                if (!rutaRelativa) return;
                 const identificadorUnico = NOMBRE_SERIE + '/' + rutaRelativa;
                 
                 if (activos.includes(identificadorUnico)) {
-                    card.classList.add('converting');
-                } else if (card.classList.contains('converting')) {
-                    card.classList.remove('converting', 'incompatible');
-                    
-                    const badge = card.querySelector('.badge');
-                    if (badge) badge.remove();
-                    const actionsOverlay = card.querySelector('.actions-overlay');
-                    if (actionsOverlay) actionsOverlay.remove();
-                    const loaderTxt = card.querySelector('.loader-txt');
-                    if (loaderTxt) loaderTxt.remove();
-                    
-                    const lockOverlay = card.querySelector('.lock-overlay');
-                    if (lockOverlay) {
-                        lockOverlay.className = 'play-overlay';
-                        lockOverlay.innerText = '▶';
+                    if (!card.classList.contains('converting')) {
+                        console.log(`[POLL] ${rutaRelativa} -> activo, añadiendo 'converting'`);
                     }
+                    card.classList.add('converting');
                     
-                    const posPunto = rutaRelativa.lastIndexOf('.');
-                    const rutaMp4 = rutaRelativa.substring(0, posPunto) + '.mp4';
+                    const pct = progreso[identificadorUnico] || 0;
+                    const barra = card.querySelector('.conversion-progress-bar');
+                    const texto = card.querySelector('.conversion-progress-text');
+                    if (barra) barra.style.width = pct + '%';
+                    if (texto) texto.textContent = pct + '%';
+                } else if (card.classList.contains('converting')) {
+                    console.log(`[POLL] ${rutaRelativa} -> ya no activo, consultando resultado...`);
+                    card.classList.remove('converting');
                     
-                    card.removeAttribute('data-filename');
-                    
-                    const thumb = card.querySelector('.thumb');
-                    const title = card.querySelector('.card-title');
-                    
-                    const clickArea = document.createElement('div');
-                    clickArea.className = 'card-click-area';
-                    clickArea.onclick = function() {
-                        playVideo(rutaMp4, 0, clickArea);
-                    };
-                    
-                    card.insertBefore(clickArea, thumb);
-                    clickArea.appendChild(thumb);
-                    clickArea.appendChild(title);
-                    
-                    const tvLink = document.createElement('a');
-                    tvLink.className = 'btn-tv-fallback';
-                    tvLink.innerText = '📺 Modo SmartTV';
-                    tvLink.href = '/tv/reproducir/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaMp4);
-                    card.appendChild(tvLink);
+                    fetch('/api/conversion_result/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaRelativa))
+                        .then(r => r.json())
+                        .then(resultado => {
+                            console.log(`[POLL] Resultado de ${rutaRelativa}:`, resultado);
+                            if (resultado.status === 'ok' && resultado.mp4_exists) {
+                                console.log(`[POLL] ✅ Conversión exitosa, transformando card`);
+                                transformarCardAReproducible(card, rutaRelativa);
+                            } else {
+                                console.log(`[POLL] ❌ Conversión fallida o MP4 no existe`);
+                                mostrarErrorConversion(card, rutaRelativa);
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`[POLL] Error consultando resultado:`, err);
+                            mostrarErrorConversion(card, rutaRelativa);
+                        });
                 }
             });
         });
+}
+
+function transformarCardAReproducible(card, rutaRelativa) {
+    card.classList.remove('incompatible');
+    
+    const badge = card.querySelector('.badge');
+    if (badge) badge.remove();
+    const actionsOverlay = card.querySelector('.actions-overlay');
+    if (actionsOverlay) actionsOverlay.remove();
+    const loaderTxt = card.querySelector('.loader-txt');
+    if (loaderTxt) loaderTxt.remove();
+    
+    const lockOverlay = card.querySelector('.lock-overlay');
+    if (lockOverlay) {
+        lockOverlay.className = 'play-overlay';
+        lockOverlay.innerText = '▶';
+    }
+    
+    const posPunto = rutaRelativa.lastIndexOf('.');
+    const rutaMp4 = rutaRelativa.substring(0, posPunto) + '.mp4';
+    
+    card.removeAttribute('data-filename');
+    
+    const thumb = card.querySelector('.thumb');
+    const title = card.querySelector('.card-title');
+    
+    const clickArea = document.createElement('div');
+    clickArea.className = 'card-click-area';
+    clickArea.onclick = function() {
+        playVideo(rutaMp4, 0, clickArea);
+    };
+    
+    card.insertBefore(clickArea, thumb);
+    clickArea.appendChild(thumb);
+    clickArea.appendChild(title);
+    
+    const tvLink = document.createElement('a');
+    tvLink.className = 'btn-tv-fallback';
+    tvLink.innerText = '📺 Modo SmartTV';
+    tvLink.href = '/tv/reproducir/' + encodeURIComponent(NOMBRE_SERIE) + '/' + encodeURIComponent(rutaMp4);
+    card.appendChild(tvLink);
+}
+
+function mostrarErrorConversion(card, rutaRelativa) {
+    card.classList.remove('converting');
+    card.classList.add('conversion-error');
+    
+    const loaderTxt = card.querySelector('.loader-txt');
+    if (loaderTxt) {
+        loaderTxt.innerText = '❌ Error en conversión';
+    }
+    
+    const lockOverlay = card.querySelector('.lock-overlay');
+    if (lockOverlay) {
+        lockOverlay.className = 'lock-overlay';
+        lockOverlay.innerText = '⚠️';
+    }
+    
+    setTimeout(() => {
+        card.classList.remove('conversion-error');
+        
+        if (loaderTxt) {
+            loaderTxt.innerText = 'Convirtiendo...';
+        }
+        
+        if (!card.querySelector('.actions-overlay')) {
+            const actionsOverlay = document.createElement('div');
+            actionsOverlay.className = 'actions-overlay';
+            
+            const btnConvert = document.createElement('button');
+            btnConvert.className = 'btn-convert';
+            btnConvert.innerText = 'Convertir';
+            btnConvert.onclick = function() { convertirVideo(rutaRelativa, btnConvert); };
+            
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'btn-delete';
+            btnDelete.innerText = 'Eliminar';
+            btnDelete.onclick = function() { eliminarVideo(rutaRelativa, btnDelete); };
+            
+            actionsOverlay.appendChild(btnConvert);
+            actionsOverlay.appendChild(btnDelete);
+            card.appendChild(actionsOverlay);
+        }
+    }, 3000);
 }
 
 setInterval(verificarEstados, 4000);

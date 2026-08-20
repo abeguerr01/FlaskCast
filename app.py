@@ -31,12 +31,54 @@ else:
     except Exception:
         pass
 
+def _detectar_codificador():
+    try:
+        resultado = subprocess.run(
+            ['ffmpeg', '-encoders'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        )
+        encoders = resultado.stdout.decode('utf-8', errors='replace')
+        prioridad = ['libx264', 'libopenh264', 'h264_nvenc', 'h264_amf', 'h264_qsv', 'h264_vaapi', 'h264_v4l2m2m']
+        for codec in prioridad:
+            if codec in encoders:
+                print(f"🎬 Codificador H.264 detectado: {codec}")
+                return codec
+    except Exception:
+        pass
+    print("⚠️ No se detectó codificador H.264, usando fallback libx264")
+    return 'libx264'
+
+VENCODER = _detectar_codificador()
+
+def _obtener_duracion(ruta_video):
+    try:
+        r = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', ruta_video],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        )
+        return float(r.stdout.decode('utf-8', errors='replace').strip())
+    except Exception:
+        return None
+
+def _parsear_progreso_ffmpeg(linea):
+    import re
+    m = re.search(r'time=(\d+):(\d+):(\d+\.?\d*)', linea)
+    if m:
+        h, m, s = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        return h * 3600 + m * 60 + s
+    m = re.search(r'time=(\d+\.?\d*)', linea)
+    if m:
+        return float(m.group(1))
+    return None
+
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
 CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 
 conversiones_activas = set()
+resultados_conversiones = {}
+progreso_conversiones = {}
 lock_conversiones = threading.Lock()
 
 
@@ -220,19 +262,86 @@ def obtener_ruta_serie(nombre_carpeta):
     return ruta_default
 
 def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
-    global conversiones_activas
+    global conversiones_activas, resultados_conversiones, progreso_conversiones
+    exito = False
+    proc = None
+
+    print(f"\n{'='*60}")
+    print(f"🔄 [CONVERSIÓN] Iniciando: {identificador_unico}")
+    print(f"   Codificador: {VENCODER}")
+
+    duracion_total = _obtener_duracion(ruta_origen)
+    print(f"   Duración total: {duracion_total}s")
+    with lock_conversiones:
+        progreso_conversiones[identificador_unico] = 0
+
     try:
-        subprocess.run([
-            'ffmpeg', '-i', ruta_origen, 
-            '-vcodec', 'libx264', '-acodec', 'aac', 
+        cmd = [
+            'ffmpeg', '-i', ruta_origen,
+            '-vcodec', VENCODER, '-acodec', 'aac',
             '-crf', '23', '-y', ruta_mp4
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"✅ Conversión completada en segundo plano: {identificador_unico}")
+        ]
+        print(f"🔄 [CONVERSIÓN] Ejecutando: {' '.join(cmd)}")
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            start_new_session=True
+        )
+        print(f"🔄 [CONVERSIÓN] PID de FFmpeg: {proc.pid}")
+
+        try:
+            ultimo_log = 0
+            for linea in iter(proc.stderr.readline, b''):
+                texto = linea.decode('utf-8', errors='replace')
+                tiempo = _parsear_progreso_ffmpeg(texto)
+                if tiempo is not None and duracion_total and duracion_total > 0:
+                    pct = min(int((tiempo / duracion_total) * 100), 99)
+                    with lock_conversiones:
+                        progreso_conversiones[identificador_unico] = pct
+                    if pct >= ultimo_log + 10:
+                        print(f"📊 [CONVERSIÓN] {identificador_unico}: {pct}% ({tiempo:.0f}s / {duracion_total:.0f}s)")
+                        ultimo_log = pct
+            proc.stderr.close()
+            proc.wait()
+        except KeyboardInterrupt:
+            print(f"⚠️ [CONVERSIÓN] KeyboardInterrupt, esperando FFmpeg...")
+            proc.wait()
+
+        rc = proc.returncode
+        proc = None
+
+        print(f"{'='*60}")
+        print(f"🔄 [CONVERSIÓN] FFmpeg terminó: {identificador_unico}")
+        print(f"   Return code: {rc}")
+        print(f"   Archivo mp4 existe: {os.path.exists(ruta_mp4)}")
+        if os.path.exists(ruta_mp4):
+            print(f"   Tamaño mp4: {os.path.getsize(ruta_mp4)} bytes")
+
+        if rc == 0 and os.path.exists(ruta_mp4) and os.path.getsize(ruta_mp4) > 0:
+            exito = True
+            with lock_conversiones:
+                progreso_conversiones[identificador_unico] = 100
+            print(f"✅ [CONVERSIÓN] ÉXITO: {identificador_unico}")
+        else:
+            print(f"❌ [CONVERSIÓN] FALLO: {identificador_unico} (returncode={rc})")
+            if os.path.exists(ruta_mp4):
+                os.remove(ruta_mp4)
+
     except Exception as e:
-        print(f"❌ Error en la conversión de {identificador_unico}: {e}")
+        print(f"❌ [CONVERSIÓN] EXCEPCIÓN: {identificador_unico}: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        if proc and proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        if os.path.exists(ruta_mp4):
+            os.remove(ruta_mp4)
     finally:
         with lock_conversiones:
+            resultados_conversiones[identificador_unico] = exito
             conversiones_activas.discard(identificador_unico)
+            progreso_conversiones.pop(identificador_unico, None)
+        print(f"🔄 [CONVERSIÓN] Resultado: {identificador_unico} -> {'éxito' if exito else 'fallo'}")
+        print(f"{'='*60}\n")
 
 def generar_fotograma_preview(ruta_video, ruta_output_jpg):
     try:
@@ -1090,11 +1199,16 @@ def api_obtener_video(nombre_serie, filename):
 @app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
 @limiter.limit("5 per minute")
 def desencadenar_conversion(nombre_serie, filename):
-    global conversiones_activas
+    global conversiones_activas, resultados_conversiones
     ruta_videos = obtener_ruta_serie(nombre_serie)
     ruta_origen = os.path.join(ruta_videos, filename)
     
+    print(f"\n🔌 [API] Solicitud de conversión: {nombre_serie}/{filename}")
+    print(f"   Ruta resuelta: {ruta_origen}")
+    print(f"   Existe: {os.path.exists(ruta_origen)}")
+    
     if not os.path.exists(ruta_origen):
+        print(f"❌ [API] Archivo no encontrado: {ruta_origen}")
         return jsonify({'error': 'El archivo original no existe'}), 404
         
     nombre_base = os.path.splitext(filename)[0]
@@ -1103,12 +1217,16 @@ def desencadenar_conversion(nombre_serie, filename):
     
     with lock_conversiones:
         if identificador_unico in conversiones_activas:
+            print(f"⚠️ [API] Ya en progreso: {identificador_unico}")
             return jsonify({'status': 'ya_en_progreso'})
         if os.path.exists(ruta_mp4):
+            print(f"⚠️ [API] MP4 ya existe: {ruta_mp4}")
             return jsonify({'status': 'ya_existe_mp4'})
             
+        resultados_conversiones.pop(identificador_unico, None)
         conversiones_activas.add(identificador_unico)
         
+    print(f"✅ [API] Lanzando hilo de conversión: {identificador_unico}")
     hilo = threading.Thread(target=hilo_conversion, args=(identificador_unico, ruta_origen, ruta_mp4))
     hilo.start()
     return jsonify({'status': 'procesando'})
@@ -1203,7 +1321,28 @@ def api_crear_temporada():
 @app.route('/api/estados')
 def consultar_estados():
     with lock_conversiones:
-        return jsonify({'activos': list(conversiones_activas)})
+        return jsonify({
+            'activos': list(conversiones_activas),
+            'progreso': dict(progreso_conversiones)
+        })
+
+@app.route('/api/conversion_result/<nombre_serie>/<path:filename>')
+def consultar_resultado_conversion(nombre_serie, filename):
+    identificador_unico = f"{nombre_serie}/{filename}"
+    with lock_conversiones:
+        if identificador_unico in conversiones_activas:
+            print(f"🔍 [RESULTADO] {identificador_unico} -> todavía procesando")
+            return jsonify({'status': 'procesando'})
+        resultado = resultados_conversiones.pop(identificador_unico, None)
+    if resultado is None:
+        print(f"🔍 [RESULTADO] {identificador_unico} -> desconocido (sin resultado registrado)")
+        return jsonify({'status': 'desconocido'})
+    nombre_base = os.path.splitext(filename)[0]
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
+    mp4_existe = resultado and os.path.exists(ruta_mp4)
+    print(f"🔍 [RESULTADO] {identificador_unico} -> backend={resultado}, mp4_existe={mp4_existe}, final={'ok' if mp4_existe else 'error'}")
+    return jsonify({'status': 'ok' if mp4_existe else 'error', 'mp4_exists': mp4_existe})
     
 @app.route('/api/abrir_config_admin')
 def abrir_config_admin():
@@ -1261,10 +1400,11 @@ if __name__ == '__main__':
         
     else:
         import subprocess
-        print(f"Iniciado servidor Gunicorn (Linux/Unix) en puerto {puerto}")
+        print(f"Iniciando servidor Gunicorn (Linux/Unix) en puerto {puerto} (1 worker, 6 threads)")
         subprocess.run([
             "gunicorn", 
             "--bind", f"0.0.0.0:{puerto}", 
-            "--workers", "4", 
+            "--workers", "1", 
+            "--threads", "6",
             "app:app"
         ])
