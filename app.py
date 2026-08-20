@@ -1,3 +1,6 @@
+# =============================================================================
+# IMPORTACIONES
+# =============================================================================
 import json
 import os
 import signal
@@ -11,6 +14,9 @@ import static_ffmpeg
 import platform
 from translations import get_text, TRANSLATIONS, translate_metadata
 
+# =============================================================================
+# INICIALIZACIÓN DE LA APLICACIÓN FLASK
+# =============================================================================
 app = Flask(__name__)
 app.secret_key = 'flaskcast_ultra_secret_key_2026'
 
@@ -21,6 +27,9 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
+# =============================================================================
+# DETECCIÓN DE CÓDEC FFMPEG
+# =============================================================================
 import shutil
 
 if shutil.which('ffmpeg'):
@@ -71,6 +80,9 @@ def _parsear_progreso_ffmpeg(linea):
         return float(m.group(1))
     return None
 
+# =============================================================================
+# CONSTANTES DE RUTA Y ESTADO
+# =============================================================================
 DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
@@ -81,7 +93,9 @@ resultados_conversiones = {}
 progreso_conversiones = {}
 lock_conversiones = threading.Lock()
 
-
+# =============================================================================
+# PROCESADORES DE CONTEXTO Y MIDDLEWARE
+# =============================================================================
 @app.context_processor
 def inject_tema():
     tema = session.get('usuario_tema', 'oscuro')
@@ -106,6 +120,13 @@ def check_api_habilitada():
     if request.path.startswith('/api/') and not api_habilitada:
         return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
 
+def es_cliente_local():
+    remote = request.remote_addr
+    return remote in ('127.0.0.1', '::1', 'localhost')
+
+# =============================================================================
+# BASE DE DATOS
+# =============================================================================
 def conectar_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
@@ -192,6 +213,9 @@ def inicializar_base_datos():
     conn.commit()
     conn.close()
 
+# =============================================================================
+# DETECCIÓN DE TIPO DE CONTENIDO
+# =============================================================================
 def detectar_tipo_contenido(nombre_carpeta):
     """Detecta si una carpeta es pelicula o serie.
     Prioridad: DB > _meta.json > deteccion por estructura.
@@ -261,6 +285,9 @@ def obtener_ruta_serie(nombre_carpeta):
             pass
     return ruta_default
 
+# =============================================================================
+# CONVERSIÓN (Hilo FFmpeg + auxiliares)
+# =============================================================================
 def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
     global conversiones_activas, resultados_conversiones, progreso_conversiones
     exito = False
@@ -343,6 +370,9 @@ def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
         print(f"🔄 [CONVERSIÓN] Resultado: {identificador_unico} -> {'éxito' if exito else 'fallo'}")
         print(f"{'='*60}\n")
 
+# =============================================================================
+# GENERACIÓN DE MINIATURAS
+# =============================================================================
 def generar_fotograma_preview(ruta_video, ruta_output_jpg):
     try:
         os.makedirs(os.path.dirname(ruta_output_jpg), exist_ok=True)
@@ -355,6 +385,9 @@ def generar_fotograma_preview(ruta_video, ruta_output_jpg):
         print(f"⚠️ No se pudo generar la miniatura para {ruta_video}: {e}")
         return False
 
+# =============================================================================
+# RUTAS DE GESTIÓN DE USUARIOS
+# =============================================================================
 @app.route('/usuarios_panel')
 def usuarios_panel():
     return_to = request.args.get('return_to', '/')
@@ -450,6 +483,9 @@ def salir_usuario():
     session.pop('usuario_tema', None)
     return redirect(return_to)
 
+# =============================================================================
+# RUTAS DE CATÁLOGO / ÍNDICE
+# =============================================================================
 @app.route('/')
 def index():
     todas_las_series = []
@@ -530,303 +566,6 @@ def index():
         total_paginas=total_paginas,
         total_series=total_series
     )
-
-LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
-
-def detectar_tipo(url):
-    ext = os.path.splitext(url.split('?')[0])[1].lower()
-    if ext in ('.mp4', '.webm', '.ogg'):
-        return 'video'
-    if ext == '.m3u8':
-        return 'hls'
-    return 'iframe'
-
-def parsear_m3u(url):
-    import urllib.request
-    canales = []
-    try:
-        if url.startswith('http://') or url.startswith('https://'):
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            respuesta = urllib.request.urlopen(req, timeout=10)
-            contenido = respuesta.read().decode('utf-8', errors='ignore')
-        else:
-            ruta_local = os.path.join(DIRECTORIO_RAIZ, url)
-            with open(ruta_local, 'r', encoding='utf-8') as f:
-                contenido = f.read()
-        lineas = contenido.strip().split('\n')
-        nombre_temp = None
-        for linea in lineas:
-            linea = linea.strip()
-            if not linea or linea.startswith('#EXTM3U'):
-                continue
-            if linea.startswith('#EXTINF:'):
-                parte = linea.split(',', 1)
-                nombre_temp = parte[1].strip() if len(parte) > 1 else None
-            elif linea.startswith('http') or linea.startswith('rtmp'):
-                canales.append({
-                    'titulo': nombre_temp or linea.split('/')[-1] or 'Canal',
-                    'url': linea,
-                    'tipo': detectar_tipo(linea)
-                })
-                nombre_temp = None
-    except Exception as e:
-        print("Error al parsear M3U: " + str(e))
-    return canales
-
-def normalizar_urls(stream):
-    urls_raw = stream.get('urls', stream.get('url', ''))
-    if isinstance(urls_raw, list):
-        stream['urls'] = urls_raw
-    else:
-        stream['urls'] = [urls_raw] if urls_raw else []
-    stream['url'] = stream['urls'][0] if stream['urls'] else ''
-    return stream
-
-def cargar_streams():
-    streams = []
-    if os.path.exists(LIVE_STREAMS_PATH):
-        with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
-            raw = json.load(f)
-        for item in raw:
-            if item.get('tipo') == 'm3u':
-                m3u_url = item.get('url', '')
-                canales = parsear_m3u(m3u_url)
-                for canal in canales:
-                    canal = normalizar_urls(canal)
-                streams.extend(canales)
-            elif item.get('tipo') == 'auto':
-                item['tipo'] = detectar_tipo(item.get('url', ''))
-                item = normalizar_urls(item)
-                streams.append(item)
-            else:
-                item = normalizar_urls(item)
-                streams.append(item)
-    return streams
-
-@app.route('/live')
-def live():
-    streams = cargar_streams()
-    return render_template('live.html', streams=streams, active_section='directo')
-
-@app.route('/live/tv/<int:indice>')
-def live_tv(indice):
-    streams = cargar_streams()
-    if indice < 0 or indice >= len(streams):
-        return abort(404)
-    s = streams[indice]
-    return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], urls=s.get('urls', [s['url']]), tipo=s.get('tipo', 'iframe'))
-
-@app.route('/listas')
-def listas():
-    usuario_id = session.get('usuario_id')
-    if not usuario_id:
-        return redirect('/')
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT serie, estado FROM listas WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
-    filas = cursor.fetchall()
-
-    series_map = {}
-    if os.path.exists(DIRECTORIO_MEDIA):
-        for item in os.listdir(DIRECTORIO_MEDIA):
-            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
-            if os.path.isdir(ruta_item):
-                tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
-                tipo = detectar_tipo_contenido(item)
-                series_map[item] = {'nombre_carpeta': item, 'tiene_portada': tiene_portada, 'tipo': tipo}
-
-    pendientes = []
-    viendo = []
-    vistos = []
-    favoritos_detalle = []
-    for fila in filas:
-        nombre = fila['serie']
-        estado = fila['estado']
-        serie_info = series_map.get(nombre, {'nombre_carpeta': nombre, 'tiene_portada': False})
-        if estado == 0:
-            pendientes.append(serie_info)
-        elif estado == 1:
-            viendo.append(serie_info)
-        elif estado == 2:
-            vistos.append(serie_info)
-
-    cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
-    for fila in cursor.fetchall():
-        fav_nombre = fila['serie']
-        serie_info = series_map.get(fav_nombre, {'nombre_carpeta': fav_nombre, 'tiene_portada': False})
-        favoritos_detalle.append(serie_info)
-    conn.close()
-
-    return render_template('listas.html', pendientes=pendientes, viendo=viendo, vistos=vistos, favoritos=favoritos_detalle, active_section='listas')
-
-def es_cliente_local():
-    remote = request.remote_addr
-    return remote in ('127.0.0.1', '::1', 'localhost')
-
-@app.route('/ajustes', methods=['GET', 'POST'])
-def ajustes():
-    global api_habilitada
-    usuario_id = session.get('usuario_id')
-    
-    if request.method == 'POST':
-        return_to = request.form.get('return_to', '/')
-
-        if usuario_id:
-            conn = conectar_db()
-            cursor = conn.cursor()
-            auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
-            mostrar_progreso = 1 if request.form.get('mostrar_progreso') == 'on' else 0
-            tema = request.form.get('tema', 'oscuro')
-            if tema not in ('oscuro', 'claro'):
-                tema = 'oscuro'
-            idioma = request.form.get('idioma', 'es')
-            if idioma not in ('es', 'en'):
-                idioma = 'es'
-            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ?, tema = ?, idioma = ? WHERE id = ?', (auto_marcar, mostrar_progreso, tema, idioma, usuario_id))
-            conn.commit()
-            session['usuario_auto_marcar'] = auto_marcar
-            session['usuario_mostrar_progreso'] = mostrar_progreso
-            session['usuario_tema'] = tema
-            session['usuario_idioma'] = idioma
-
-        return redirect(return_to)
-    
-    return_to = request.args.get('return_to', '/')
-    auto_marcar = 1
-    mostrar_progreso = 1
-    tema = 'oscuro'
-    idioma = 'es'
-    if usuario_id:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT auto_marcar, mostrar_progreso, tema, idioma FROM usuarios WHERE id = ?', (usuario_id,))
-        user = cursor.fetchone()
-        conn.close()
-        if user:
-            auto_marcar = user['auto_marcar']
-            mostrar_progreso = user['mostrar_progreso']
-            tema = user['tema'] if user['tema'] else 'oscuro'
-            idioma = user['idioma'] if user['idioma'] else 'es'
-    
-    cfg = leer_config()
-    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema, idioma=idioma,
-        boton_apagar_visible=cfg.get('boton_apagar_visible', False),
-        boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
-        es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
-
-@app.route('/api/videos/add', methods=['POST'])
-@limiter.limit("10 per minute")
-def api_agregar_video():
-    serie = request.form.get('serie', '').strip()
-    if not serie:
-        return jsonify({'error': 'El campo "serie" es requerido.'}), 400
-    
-    temporada = request.form.get('temporada', '').strip()
-    archivo = request.files.get('archivo')
-    if not archivo or archivo.filename == '':
-        return jsonify({'error': 'Debes enviar un archivo en el campo "archivo".'}), 400
-    
-    filename = os.path.basename(archivo.filename)
-    serie_dir_meta = os.path.join(DIRECTORIO_MEDIA, serie)
-    
-    if not os.path.exists(serie_dir_meta):
-        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
-    
-    ruta_videos = obtener_ruta_serie(serie)
-    items = os.listdir(ruta_videos)
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
-    
-    if subcarpetas:
-        if not temporada:
-            return jsonify({'error': 'Esta serie tiene temporadas. El campo "temporada" es obligatorio.'}), 400
-        if temporada not in subcarpetas:
-            return jsonify({'error': f'La temporada "{temporada}" no existe en esta serie.'}), 404
-        destino_dir = os.path.join(ruta_videos, temporada)
-    else:
-        if temporada:
-            return jsonify({'error': 'Esta serie no tiene temporadas. No uses el campo "temporada".'}), 400
-        destino_dir = ruta_videos
-    
-    ruta_destino = os.path.join(destino_dir, filename)
-    archivo.save(ruta_destino)
-    
-    ruta_rel = f"{temporada}/{filename}" if temporada else filename
-    return jsonify({'status': 'ok', 'mensaje': f'Video guardado en {serie}/{ruta_rel}'})
-
-@app.route('/api/videos/rm', methods=['POST'])
-@limiter.limit("10 per minute")
-def api_eliminar_video():
-    datos = request.json or {}
-    serie = datos.get('serie', '').strip()
-    filename = datos.get('filename', '').strip()
-    
-    if not serie or not filename:
-        return jsonify({'error': 'Los campos "serie" y "filename" son requeridos.'}), 400
-    
-    filename = filename.replace('\\', '/')
-    ruta_videos = obtener_ruta_serie(serie)
-    ruta_archivo = os.path.normpath(os.path.join(ruta_videos, filename))
-    ruta_media = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, serie))
-    if not ruta_archivo.startswith(os.path.normpath(ruta_videos)):
-        return jsonify({'error': 'Ruta no válida'}), 400
-    
-    if not os.path.exists(ruta_archivo):
-        return jsonify({'error': 'Archivo no encontrado'}), 404
-    
-    try:
-        os.remove(ruta_archivo)
-        nombre_base, _ = os.path.splitext(filename)
-        ruta_thumb = os.path.join(ruta_media, '.thumbnails', f"{nombre_base}.jpg")
-        if os.path.exists(ruta_thumb):
-            os.remove(ruta_thumb)
-        usuario_id = session.get('usuario_id')
-        if usuario_id:
-            conn = conectar_db()
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM progreso WHERE serie = ? AND filename = ?', (serie, filename))
-            conn.commit()
-            conn.close()
-        return jsonify({'status': 'eliminado'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def escanear_estructura_serie(ruta_serie, nombre_serie):
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    if not os.path.exists(ruta_videos) or not os.path.isdir(ruta_videos):
-        return None
-    formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
-    items = sorted(os.listdir(ruta_videos))
-    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
-    estructura = {'nombre': nombre_serie, 'temporadas': {}}
-    if subcarpetas:
-        for sub in subcarpetas:
-            ruta_sub = os.path.join(ruta_videos, sub)
-            videos = sorted([f for f in os.listdir(ruta_sub) if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(formatos_video)])
-            estructura['temporadas'][sub] = {'nombre': sub, 'capitulos': videos}
-    else:
-        videos = sorted([f for f in items if os.path.isfile(os.path.join(ruta_videos, f)) and f.lower().endswith(formatos_video)])
-        estructura['temporadas']['Contenido Disponible'] = {'nombre': 'Contenido Disponible', 'capitulos': videos}
-    return estructura
-
-@app.route('/api/videos', methods=['GET'])
-@app.route('/api/videos/<path:nombre_serie>', methods=['GET'])
-def api_listar_videos(nombre_serie=None):
-    if nombre_serie:
-        ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-        estructura = escanear_estructura_serie(ruta_serie, nombre_serie)
-        if estructura is None:
-            return jsonify({'error': f'La serie "{nombre_serie}" no existe.'}), 404
-        return jsonify({'status': 'ok', 'serie': estructura})
-    
-    series = []
-    if os.path.exists(DIRECTORIO_MEDIA):
-        for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
-            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
-            if os.path.isdir(ruta_item):
-                estructura = escanear_estructura_serie(ruta_item, item)
-                if estructura:
-                    series.append(estructura)
-    return jsonify({'status': 'ok', 'series': series})
 
 @app.route('/serie/<nombre_serie>')
 def vista_serie(nombre_serie):
@@ -1022,6 +761,429 @@ def reproductor_tv(nombre_serie, filename):
 
     return render_template('player_tv.html', serie=nombre_serie, filename=filename, next_filename=next_filename, segundo_inicio=segundo_inicio)
 
+# =============================================================================
+# EMISIÓN EN DIRECTO
+# =============================================================================
+LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
+
+def detectar_tipo(url):
+    ext = os.path.splitext(url.split('?')[0])[1].lower()
+    if ext in ('.mp4', '.webm', '.ogg'):
+        return 'video'
+    if ext == '.m3u8':
+        return 'hls'
+    return 'iframe'
+
+def parsear_m3u(url):
+    import urllib.request
+    canales = []
+    try:
+        if url.startswith('http://') or url.startswith('https://'):
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            respuesta = urllib.request.urlopen(req, timeout=10)
+            contenido = respuesta.read().decode('utf-8', errors='ignore')
+        else:
+            ruta_local = os.path.join(DIRECTORIO_RAIZ, url)
+            with open(ruta_local, 'r', encoding='utf-8') as f:
+                contenido = f.read()
+        lineas = contenido.strip().split('\n')
+        nombre_temp = None
+        for linea in lineas:
+            linea = linea.strip()
+            if not linea or linea.startswith('#EXTM3U'):
+                continue
+            if linea.startswith('#EXTINF:'):
+                parte = linea.split(',', 1)
+                nombre_temp = parte[1].strip() if len(parte) > 1 else None
+            elif linea.startswith('http') or linea.startswith('rtmp'):
+                canales.append({
+                    'titulo': nombre_temp or linea.split('/')[-1] or 'Canal',
+                    'url': linea,
+                    'tipo': detectar_tipo(linea)
+                })
+                nombre_temp = None
+    except Exception as e:
+        print("Error al parsear M3U: " + str(e))
+    return canales
+
+def normalizar_urls(stream):
+    urls_raw = stream.get('urls', stream.get('url', ''))
+    if isinstance(urls_raw, list):
+        stream['urls'] = urls_raw
+    else:
+        stream['urls'] = [urls_raw] if urls_raw else []
+    stream['url'] = stream['urls'][0] if stream['urls'] else ''
+    return stream
+
+def cargar_streams():
+    streams = []
+    if os.path.exists(LIVE_STREAMS_PATH):
+        with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
+            raw = json.load(f)
+        for item in raw:
+            if item.get('tipo') == 'm3u':
+                m3u_url = item.get('url', '')
+                canales = parsear_m3u(m3u_url)
+                for canal in canales:
+                    canal = normalizar_urls(canal)
+                streams.extend(canales)
+            elif item.get('tipo') == 'auto':
+                item['tipo'] = detectar_tipo(item.get('url', ''))
+                item = normalizar_urls(item)
+                streams.append(item)
+            else:
+                item = normalizar_urls(item)
+                streams.append(item)
+    return streams
+
+@app.route('/live')
+def live():
+    streams = cargar_streams()
+    return render_template('live.html', streams=streams, active_section='directo')
+
+@app.route('/live/tv/<int:indice>')
+def live_tv(indice):
+    streams = cargar_streams()
+    if indice < 0 or indice >= len(streams):
+        return abort(404)
+    s = streams[indice]
+    return render_template('live_tv.html', titulo=s.get('titulo', 'Stream'), url=s['url'], urls=s.get('urls', [s['url']]), tipo=s.get('tipo', 'iframe'))
+
+# =============================================================================
+# LISTAS
+# =============================================================================
+@app.route('/listas')
+def listas():
+    usuario_id = session.get('usuario_id')
+    if not usuario_id:
+        return redirect('/')
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT serie, estado FROM listas WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    filas = cursor.fetchall()
+
+    series_map = {}
+    if os.path.exists(DIRECTORIO_MEDIA):
+        for item in os.listdir(DIRECTORIO_MEDIA):
+            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
+            if os.path.isdir(ruta_item):
+                tiene_portada = os.path.exists(os.path.join(ruta_item, '_img.png'))
+                tipo = detectar_tipo_contenido(item)
+                series_map[item] = {'nombre_carpeta': item, 'tiene_portada': tiene_portada, 'tipo': tipo}
+
+    pendientes = []
+    viendo = []
+    vistos = []
+    favoritos_detalle = []
+    for fila in filas:
+        nombre = fila['serie']
+        estado = fila['estado']
+        serie_info = series_map.get(nombre, {'nombre_carpeta': nombre, 'tiene_portada': False})
+        if estado == 0:
+            pendientes.append(serie_info)
+        elif estado == 1:
+            viendo.append(serie_info)
+        elif estado == 2:
+            vistos.append(serie_info)
+
+    cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
+    for fila in cursor.fetchall():
+        fav_nombre = fila['serie']
+        serie_info = series_map.get(fav_nombre, {'nombre_carpeta': fav_nombre, 'tiene_portada': False})
+        favoritos_detalle.append(serie_info)
+    conn.close()
+
+    return render_template('listas.html', pendientes=pendientes, viendo=viendo, vistos=vistos, favoritos=favoritos_detalle, active_section='listas')
+
+# =============================================================================
+# AJUSTES
+# =============================================================================
+@app.route('/ajustes', methods=['GET', 'POST'])
+def ajustes():
+    global api_habilitada
+    usuario_id = session.get('usuario_id')
+    
+    if request.method == 'POST':
+        return_to = request.form.get('return_to', '/')
+
+        if usuario_id:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            auto_marcar = 1 if request.form.get('auto_marcar') == 'on' else 0
+            mostrar_progreso = 1 if request.form.get('mostrar_progreso') == 'on' else 0
+            tema = request.form.get('tema', 'oscuro')
+            if tema not in ('oscuro', 'claro'):
+                tema = 'oscuro'
+            idioma = request.form.get('idioma', 'es')
+            if idioma not in ('es', 'en'):
+                idioma = 'es'
+            cursor.execute('UPDATE usuarios SET auto_marcar = ?, mostrar_progreso = ?, tema = ?, idioma = ? WHERE id = ?', (auto_marcar, mostrar_progreso, tema, idioma, usuario_id))
+            conn.commit()
+            session['usuario_auto_marcar'] = auto_marcar
+            session['usuario_mostrar_progreso'] = mostrar_progreso
+            session['usuario_tema'] = tema
+            session['usuario_idioma'] = idioma
+
+        return redirect(return_to)
+    
+    return_to = request.args.get('return_to', '/')
+    auto_marcar = 1
+    mostrar_progreso = 1
+    tema = 'oscuro'
+    idioma = 'es'
+    if usuario_id:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT auto_marcar, mostrar_progreso, tema, idioma FROM usuarios WHERE id = ?', (usuario_id,))
+        user = cursor.fetchone()
+        conn.close()
+        if user:
+            auto_marcar = user['auto_marcar']
+            mostrar_progreso = user['mostrar_progreso']
+            tema = user['tema'] if user['tema'] else 'oscuro'
+            idioma = user['idioma'] if user['idioma'] else 'es'
+    
+    cfg = leer_config()
+    return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema, idioma=idioma,
+        boton_apagar_visible=cfg.get('boton_apagar_visible', False),
+        boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
+        es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
+
+# =============================================================================
+# API - GESTIÓN DE VÍDEOS
+# =============================================================================
+@app.route('/api/videos/add', methods=['POST'])
+@limiter.limit("10 per minute")
+def api_agregar_video():
+    serie = request.form.get('serie', '').strip()
+    if not serie:
+        return jsonify({'error': 'El campo "serie" es requerido.'}), 400
+    
+    temporada = request.form.get('temporada', '').strip()
+    archivo = request.files.get('archivo')
+    if not archivo or archivo.filename == '':
+        return jsonify({'error': 'Debes enviar un archivo en el campo "archivo".'}), 400
+    
+    filename = os.path.basename(archivo.filename)
+    serie_dir_meta = os.path.join(DIRECTORIO_MEDIA, serie)
+    
+    if not os.path.exists(serie_dir_meta):
+        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
+    
+    ruta_videos = obtener_ruta_serie(serie)
+    items = os.listdir(ruta_videos)
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+    
+    if subcarpetas:
+        if not temporada:
+            return jsonify({'error': 'Esta serie tiene temporadas. El campo "temporada" es obligatorio.'}), 400
+        if temporada not in subcarpetas:
+            return jsonify({'error': f'La temporada "{temporada}" no existe en esta serie.'}), 404
+        destino_dir = os.path.join(ruta_videos, temporada)
+    else:
+        if temporada:
+            return jsonify({'error': 'Esta serie no tiene temporadas. No uses el campo "temporada".'}), 400
+        destino_dir = ruta_videos
+    
+    ruta_destino = os.path.join(destino_dir, filename)
+    archivo.save(ruta_destino)
+    
+    ruta_rel = f"{temporada}/{filename}" if temporada else filename
+    return jsonify({'status': 'ok', 'mensaje': f'Video guardado en {serie}/{ruta_rel}'})
+
+@app.route('/api/videos/rm', methods=['POST'])
+@limiter.limit("10 per minute")
+def api_eliminar_video():
+    datos = request.json or {}
+    serie = datos.get('serie', '').strip()
+    filename = datos.get('filename', '').strip()
+    
+    if not serie or not filename:
+        return jsonify({'error': 'Los campos "serie" y "filename" son requeridos.'}), 400
+    
+    filename = filename.replace('\\', '/')
+    ruta_videos = obtener_ruta_serie(serie)
+    ruta_archivo = os.path.normpath(os.path.join(ruta_videos, filename))
+    ruta_media = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, serie))
+    if not ruta_archivo.startswith(os.path.normpath(ruta_videos)):
+        return jsonify({'error': 'Ruta no válida'}), 400
+    
+    if not os.path.exists(ruta_archivo):
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    
+    try:
+        os.remove(ruta_archivo)
+        nombre_base, _ = os.path.splitext(filename)
+        ruta_thumb = os.path.join(ruta_media, '.thumbnails', f"{nombre_base}.jpg")
+        if os.path.exists(ruta_thumb):
+            os.remove(ruta_thumb)
+        usuario_id = session.get('usuario_id')
+        if usuario_id:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM progreso WHERE serie = ? AND filename = ?', (serie, filename))
+            conn.commit()
+            conn.close()
+        return jsonify({'status': 'eliminado'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def escanear_estructura_serie(ruta_serie, nombre_serie):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    if not os.path.exists(ruta_videos) or not os.path.isdir(ruta_videos):
+        return None
+    formatos_video = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+    items = sorted(os.listdir(ruta_videos))
+    subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+    estructura = {'nombre': nombre_serie, 'temporadas': {}}
+    if subcarpetas:
+        for sub in subcarpetas:
+            ruta_sub = os.path.join(ruta_videos, sub)
+            videos = sorted([f for f in os.listdir(ruta_sub) if os.path.isfile(os.path.join(ruta_sub, f)) and f.lower().endswith(formatos_video)])
+            estructura['temporadas'][sub] = {'nombre': sub, 'capitulos': videos}
+    else:
+        videos = sorted([f for f in items if os.path.isfile(os.path.join(ruta_videos, f)) and f.lower().endswith(formatos_video)])
+        estructura['temporadas']['Contenido Disponible'] = {'nombre': 'Contenido Disponible', 'capitulos': videos}
+    return estructura
+
+@app.route('/api/videos', methods=['GET'])
+@app.route('/api/videos/<path:nombre_serie>', methods=['GET'])
+def api_listar_videos(nombre_serie=None):
+    if nombre_serie:
+        ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+        estructura = escanear_estructura_serie(ruta_serie, nombre_serie)
+        if estructura is None:
+            return jsonify({'error': f'La serie "{nombre_serie}" no existe.'}), 404
+        return jsonify({'status': 'ok', 'serie': estructura})
+    
+    series = []
+    if os.path.exists(DIRECTORIO_MEDIA):
+        for item in sorted(os.listdir(DIRECTORIO_MEDIA)):
+            ruta_item = os.path.join(DIRECTORIO_MEDIA, item)
+            if os.path.isdir(ruta_item):
+                estructura = escanear_estructura_serie(ruta_item, item)
+                if estructura:
+                    series.append(estructura)
+    return jsonify({'status': 'ok', 'series': series})
+
+@app.route('/thumbnail/<nombre_serie>/<path:filename>')
+def serve_thumbnail(nombre_serie, filename):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_video = os.path.join(ruta_videos, filename)
+    nombre_base, _ = os.path.splitext(filename)
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
+
+    if not os.path.exists(ruta_thumb) and os.path.exists(ruta_video):
+        generar_fotograma_preview(ruta_video, ruta_thumb)
+
+    if os.path.exists(ruta_thumb):
+        return send_from_directory(os.path.dirname(ruta_thumb), os.path.basename(ruta_thumb), mimetype='image/jpeg')
+    return abort(404)
+
+@app.route('/portada/<nombre_serie>')
+def serve_portada(nombre_serie):
+    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+    return send_from_directory(ruta_serie, '_img.png', mimetype='image/png')
+
+@app.route('/video/<nombre_serie>/<path:filename>')
+def serve_video(nombre_serie, filename):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    return send_from_directory(ruta_videos, filename)
+
+@app.route('/api/video/<nombre_serie>/<path:filename>')
+def api_obtener_video(nombre_serie, filename):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_archivo = os.path.join(ruta_videos, filename)
+    if not os.path.exists(ruta_archivo):
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    return send_from_directory(ruta_videos, filename)
+
+# =============================================================================
+# API - CONVERSIÓN
+# =============================================================================
+@app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
+@limiter.limit("5 per minute")
+def desencadenar_conversion(nombre_serie, filename):
+    global conversiones_activas, resultados_conversiones
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_origen = os.path.join(ruta_videos, filename)
+    
+    print(f"\n🔌 [API] Solicitud de conversión: {nombre_serie}/{filename}")
+    print(f"   Ruta resuelta: {ruta_origen}")
+    print(f"   Existe: {os.path.exists(ruta_origen)}")
+    
+    if not os.path.exists(ruta_origen):
+        print(f"❌ [API] Archivo no encontrado: {ruta_origen}")
+        return jsonify({'error': 'El archivo original no existe'}), 404
+        
+    nombre_base = os.path.splitext(filename)[0]
+    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
+    identificador_unico = f"{nombre_serie}/{filename}"
+    
+    with lock_conversiones:
+        if identificador_unico in conversiones_activas:
+            print(f"⚠️ [API] Ya en progreso: {identificador_unico}")
+            return jsonify({'status': 'ya_en_progreso'})
+        if os.path.exists(ruta_mp4):
+            print(f"⚠️ [API] MP4 ya existe: {ruta_mp4}")
+            return jsonify({'status': 'ya_existe_mp4'})
+            
+        resultados_conversiones.pop(identificador_unico, None)
+        conversiones_activas.add(identificador_unico)
+        
+    print(f"✅ [API] Lanzando hilo de conversión: {identificador_unico}")
+    hilo = threading.Thread(target=hilo_conversion, args=(identificador_unico, ruta_origen, ruta_mp4))
+    hilo.start()
+    return jsonify({'status': 'procesando'})
+
+@app.route('/api/eliminar/<nombre_serie>/<path:filename>', methods=['POST'])
+@limiter.limit("10 per minute")
+def eliminar_archivo(nombre_serie, filename):
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_archivo = os.path.join(ruta_videos, filename)
+    if os.path.exists(ruta_archivo):
+        try:
+            os.remove(ruta_archivo)
+            nombre_base, _ = os.path.splitext(filename)
+            ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+            ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
+            if os.path.exists(ruta_thumb):
+                os.remove(ruta_thumb)
+            return jsonify({'status': 'eliminado'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    return jsonify({'error': 'Archivo no encontrado'}), 404
+
+@app.route('/api/estados')
+def consultar_estados():
+    with lock_conversiones:
+        return jsonify({
+            'activos': list(conversiones_activas),
+            'progreso': dict(progreso_conversiones)
+        })
+
+@app.route('/api/conversion_result/<nombre_serie>/<path:filename>')
+def consultar_resultado_conversion(nombre_serie, filename):
+    identificador_unico = f"{nombre_serie}/{filename}"
+    with lock_conversiones:
+        if identificador_unico in conversiones_activas:
+            print(f"🔍 [RESULTADO] {identificador_unico} -> todavía procesando")
+            return jsonify({'status': 'procesando'})
+        resultado = resultados_conversiones.pop(identificador_unico, None)
+    if resultado is None:
+        print(f"🔍 [RESULTADO] {identificador_unico} -> desconocido (sin resultado registrado)")
+        return jsonify({'status': 'desconocido'})
+    nombre_base = os.path.splitext(filename)[0]
+    ruta_videos = obtener_ruta_serie(nombre_serie)
+    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
+    mp4_existe = resultado and os.path.exists(ruta_mp4)
+    print(f"🔍 [RESULTADO] {identificador_unico} -> backend={resultado}, mp4_existe={mp4_existe}, final={'ok' if mp4_existe else 'error'}")
+    return jsonify({'status': 'ok' if mp4_existe else 'error', 'mp4_exists': mp4_existe})
+
+# =============================================================================
+# API - PROGRESO
+# =============================================================================
 @app.route('/api/progreso/guardar', methods=['POST'])
 @limiter.limit("60 per minute")
 def api_guardar_progreso():
@@ -1098,6 +1260,9 @@ def api_obtener_progreso():
         return jsonify({'segundos': fila['segundos'], 'visto': int(fila['visto'])})
     return jsonify({'segundos': 0, 'visto': 0})
 
+# =============================================================================
+# API - FAVORITOS
+# =============================================================================
 @app.route('/api/favoritos', methods=['GET'])
 def api_obtener_favoritos():
     usuario_id = session.get('usuario_id')
@@ -1135,6 +1300,9 @@ def api_toggle_favorito():
         conn.close()
         return jsonify({'favorito': True})
 
+# =============================================================================
+# API - LISTAS
+# =============================================================================
 @app.route('/api/lista/estado')
 def api_lista_estado():
     usuario_id = session.get('usuario_id')
@@ -1183,92 +1351,9 @@ def api_lista_obtener():
     conn.close()
     return jsonify({'listas': [{'serie': f['serie'], 'estado': f['estado']} for f in filas]})
 
-@app.route('/thumbnail/<nombre_serie>/<path:filename>')
-def serve_thumbnail(nombre_serie, filename):
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    ruta_video = os.path.join(ruta_videos, filename)
-    nombre_base, _ = os.path.splitext(filename)
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
-
-    if not os.path.exists(ruta_thumb) and os.path.exists(ruta_video):
-        generar_fotograma_preview(ruta_video, ruta_thumb)
-
-    if os.path.exists(ruta_thumb):
-        return send_from_directory(os.path.dirname(ruta_thumb), os.path.basename(ruta_thumb), mimetype='image/jpeg')
-    return abort(404)
-
-@app.route('/portada/<nombre_serie>')
-def serve_portada(nombre_serie):
-    ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-    return send_from_directory(ruta_serie, '_img.png', mimetype='image/png')
-
-@app.route('/video/<nombre_serie>/<path:filename>')
-def serve_video(nombre_serie, filename):
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    return send_from_directory(ruta_videos, filename)
-
-@app.route('/api/video/<nombre_serie>/<path:filename>')
-def api_obtener_video(nombre_serie, filename):
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    ruta_archivo = os.path.join(ruta_videos, filename)
-    if not os.path.exists(ruta_archivo):
-        return jsonify({'error': 'Archivo no encontrado'}), 404
-    return send_from_directory(ruta_videos, filename)
-
-@app.route('/api/convertir/<nombre_serie>/<path:filename>', methods=['POST'])
-@limiter.limit("5 per minute")
-def desencadenar_conversion(nombre_serie, filename):
-    global conversiones_activas, resultados_conversiones
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    ruta_origen = os.path.join(ruta_videos, filename)
-    
-    print(f"\n🔌 [API] Solicitud de conversión: {nombre_serie}/{filename}")
-    print(f"   Ruta resuelta: {ruta_origen}")
-    print(f"   Existe: {os.path.exists(ruta_origen)}")
-    
-    if not os.path.exists(ruta_origen):
-        print(f"❌ [API] Archivo no encontrado: {ruta_origen}")
-        return jsonify({'error': 'El archivo original no existe'}), 404
-        
-    nombre_base = os.path.splitext(filename)[0]
-    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
-    identificador_unico = f"{nombre_serie}/{filename}"
-    
-    with lock_conversiones:
-        if identificador_unico in conversiones_activas:
-            print(f"⚠️ [API] Ya en progreso: {identificador_unico}")
-            return jsonify({'status': 'ya_en_progreso'})
-        if os.path.exists(ruta_mp4):
-            print(f"⚠️ [API] MP4 ya existe: {ruta_mp4}")
-            return jsonify({'status': 'ya_existe_mp4'})
-            
-        resultados_conversiones.pop(identificador_unico, None)
-        conversiones_activas.add(identificador_unico)
-        
-    print(f"✅ [API] Lanzando hilo de conversión: {identificador_unico}")
-    hilo = threading.Thread(target=hilo_conversion, args=(identificador_unico, ruta_origen, ruta_mp4))
-    hilo.start()
-    return jsonify({'status': 'procesando'})
-
-@app.route('/api/eliminar/<nombre_serie>/<path:filename>', methods=['POST'])
-@limiter.limit("10 per minute")
-def eliminar_archivo(nombre_serie, filename):
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    ruta_archivo = os.path.join(ruta_videos, filename)
-    if os.path.exists(ruta_archivo):
-        try:
-            os.remove(ruta_archivo)
-            nombre_base, _ = os.path.splitext(filename)
-            ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
-            ruta_thumb = os.path.join(ruta_serie, '.thumbnails', f"{nombre_base}.jpg")
-            if os.path.exists(ruta_thumb):
-                os.remove(ruta_thumb)
-            return jsonify({'status': 'eliminado'})
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    return jsonify({'error': 'Archivo no encontrado'}), 404
-
+# =============================================================================
+# API - GESTIÓN DE CONTENIDO
+# =============================================================================
 @app.route('/api/contenido/crear', methods=['POST'])
 @limiter.limit("5 per minute")
 def api_crear_contenido():
@@ -1338,32 +1423,9 @@ def api_crear_temporada():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/estados')
-def consultar_estados():
-    with lock_conversiones:
-        return jsonify({
-            'activos': list(conversiones_activas),
-            'progreso': dict(progreso_conversiones)
-        })
-
-@app.route('/api/conversion_result/<nombre_serie>/<path:filename>')
-def consultar_resultado_conversion(nombre_serie, filename):
-    identificador_unico = f"{nombre_serie}/{filename}"
-    with lock_conversiones:
-        if identificador_unico in conversiones_activas:
-            print(f"🔍 [RESULTADO] {identificador_unico} -> todavía procesando")
-            return jsonify({'status': 'procesando'})
-        resultado = resultados_conversiones.pop(identificador_unico, None)
-    if resultado is None:
-        print(f"🔍 [RESULTADO] {identificador_unico} -> desconocido (sin resultado registrado)")
-        return jsonify({'status': 'desconocido'})
-    nombre_base = os.path.splitext(filename)[0]
-    ruta_videos = obtener_ruta_serie(nombre_serie)
-    ruta_mp4 = os.path.join(ruta_videos, f"{nombre_base}.mp4")
-    mp4_existe = resultado and os.path.exists(ruta_mp4)
-    print(f"🔍 [RESULTADO] {identificador_unico} -> backend={resultado}, mp4_existe={mp4_existe}, final={'ok' if mp4_existe else 'error'}")
-    return jsonify({'status': 'ok' if mp4_existe else 'error', 'mp4_exists': mp4_existe})
-    
+# =============================================================================
+# API - SISTEMA (ping, apagado, admin)
+# =============================================================================
 @app.route('/api/abrir_config_admin')
 def abrir_config_admin():
     if not es_cliente_local():
@@ -1406,6 +1468,9 @@ def _apagar_todo():
     else:
         subprocess.run("sudo shutdown -h now", shell=True)
 
+# =============================================================================
+# PUNTO DE ENTRADA PRINCIPAL
+# =============================================================================
 if __name__ == '__main__':
     inicializar_base_datos()
     
