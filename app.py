@@ -867,6 +867,9 @@ def vista_serie(nombre_serie):
     items = sorted(os.listdir(ruta_videos))
     subcarpetas = [i for i in items if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
 
+    with lock_conversiones:
+        conversiones_en_curso = set(conversiones_activas)
+
     if subcarpetas:
         for subcarpeta in subcarpetas:
             ruta_subcarpeta = os.path.join(ruta_videos, subcarpeta)
@@ -876,7 +879,16 @@ def vista_serie(nombre_serie):
                 extension = os.path.splitext(archivo)[1].lower()
                 ruta_relativa = f"{subcarpeta}/{archivo}"
                 identificador_unico = f"{nombre_serie}/{ruta_relativa}"
-                
+                nombre_base = os.path.splitext(archivo)[0]
+
+                if extension in formatos_web:
+                    oculto = any(
+                        f"{nombre_serie}/{subcarpeta}/{nombre_base}{ext}" in conversiones_en_curso
+                        for ext in formatos_incompatibles
+                    )
+                    if oculto:
+                        continue
+
                 prog = progreso_usuario.get(ruta_relativa, {'segundos': 0, 'duracion': 0, 'visto': 0, 'porcentaje': 0})
                 
                 if extension in formatos_web:
@@ -891,8 +903,7 @@ def vista_serie(nombre_serie):
                         'porcentaje': prog['porcentaje']
                     })
                 elif extension in formatos_incompatibles:
-                    with lock_conversiones:
-                        en_progreso = identificador_unico in conversiones_activas
+                    en_progreso = identificador_unico in conversiones_en_curso
                     videos_temporada.append({
                         'nombre_real': archivo,
                         'ruta_relativa': ruta_relativa,
@@ -908,6 +919,16 @@ def vista_serie(nombre_serie):
         for archivo in items:
             if os.path.isfile(os.path.join(ruta_videos, archivo)):
                 extension = os.path.splitext(archivo)[1].lower()
+                nombre_base = os.path.splitext(archivo)[0]
+
+                if extension in formatos_web:
+                    oculto = any(
+                        f"{nombre_serie}/{nombre_base}{ext}" in conversiones_en_curso
+                        for ext in formatos_incompatibles
+                    )
+                    if oculto:
+                        continue
+
                 prog = progreso_usuario.get(archivo, {'segundos': 0, 'duracion': 0, 'visto': 0, 'porcentaje': 0})
                 
                 if extension in formatos_web:
@@ -922,8 +943,7 @@ def vista_serie(nombre_serie):
                         'porcentaje': prog['porcentaje']
                     })
                 elif extension in formatos_incompatibles:
-                    with lock_conversiones:
-                        en_progreso = f"{nombre_serie}/{archivo}" in conversiones_activas
+                    en_progreso = f"{nombre_serie}/{archivo}" in conversiones_en_curso
                     videos_raiz.append({
                         'nombre_real': archivo,
                         'ruta_relativa': archivo,
