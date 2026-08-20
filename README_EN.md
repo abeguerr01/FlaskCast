@@ -28,7 +28,7 @@
 - **Folder-based catalog:** organize series, seasons, and episodes directly from the file system.
 - **Movie/Series differentiation:** automatic detection by folder structure, with visual badge 🎬/📺 and catalog filter. Manual override via `_meta.json` or `content_metadata` table.
 - **Continue Watching:** prominent section in the catalog showing in-progress episodes sorted by recency, with percentage bar.
-- **Asynchronous transcoding:** converts `.avi`/`.mkv` to `.mp4` (H.264) in the background using FFmpeg (`static-ffmpeg`).
+- **Asynchronous transcoding:** converts `.avi`/`.mkv` to `.mp4` in the background using FFmpeg, with automatic detection of the best available H.264 encoder (`libx264`, `libopenh264`, `h264_nvenc`, etc.), real-time progress bar, and success/failure verification.
 - **Dynamic thumbnails:** extracts `.jpg` frames for previews.
 - **Per-user tracking:** saves exact position (seconds), marks "Watching" and "Watched" based on configurable thresholds.
 - **Custom lists:** organize content into Favorites, Pending, Watching, and Watched with filterable tabs.
@@ -133,7 +133,7 @@ sudo emerge media-video/ffmpeg
 
 ### Production Deployment
 
-On Windows, FlaskCast uses **Waitress** (6 threads). On Linux/Unix, it uses **Gunicorn** (4 workers). The port is configured in `data/config.json` or through the admin panel.
+On Windows, FlaskCast uses **Waitress** (6 threads). On Linux/Unix, it uses **Gunicorn** (1 worker, 6 threads) to share conversion state in memory. The port is configured in `data/config.json` or through the admin panel.
 
 ### Docker
 
@@ -332,7 +332,12 @@ FlaskCast automatically translates OMDb metadata based on the user's language:
 - Native web formats (`.mp4`, `.webm`, `.ogg`) play directly.
 - Non-native formats (`.avi`, `.mkv`) appear as "Pending" and can be converted to `.mp4` via a button in the interface.
 - Conversion is performed asynchronously; the app uses `threading` and locks to avoid conflicts in simultaneous conversions.
-- Conversion: FFmpeg with libx264 codec (video) + AAC (audio), CRF 23.
+- **Automatic codec detection:** on startup, the app runs `ffmpeg -encoders` and selects the best available H.264 encoder. Compatible with `libx264` (Windows), `libopenh264` (Linux/Fedora), `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_vaapi`.
+- **Real-time progress:** the conversion bar shows the advance percentage by parsing FFmpeg's stderr output.
+- **Success verification:** FFmpeg's exit code and the existence of the `.mp4` file are checked before marking as completed.
+- **Hidden during conversion:** the `.mp4` file does not appear in the interface until the conversion reaches 100%.
+- **Process isolation:** FFmpeg runs in a new session to survive `Ctrl+C` without aborting the conversion.
+- Conversion: FFmpeg with detected codec (video) + AAC (audio), CRF 23.
 
 ---
 
@@ -813,7 +818,7 @@ curl -X POST http://localhost:5000/api/eliminar/My%20Series/Season%201/ep1.mp4 \
 
 ### 📊 Check Active Conversions (API)
 
-Returns the list of video identifiers currently being converted.
+Returns the list of video identifiers currently being converted, along with the progress percentage of each.
 
 ```
 GET /api/estados
@@ -821,11 +826,29 @@ GET /api/estados
 
 **Response:**
 ```json
-{"activos": ["My Series/Season 1/ep1.avi", "Other Series/video.mkv"]}
+{"activos": ["My Series/Season 1/ep1.avi"], "progreso": {"My Series/Season 1/ep1.avi": 42}}
 ```
 
 ```bash
 curl http://localhost:5000/api/estados -b "session=YOUR_SESSION"
+```
+
+### 🔍 Check Conversion Result (API)
+
+Returns the result of a completed conversion (success or failure).
+
+```
+GET /api/conversion_result/<series>/<file>
+```
+
+**Response:**
+```json
+{"status": "ok", "mp4_exists": true}
+```
+
+```bash
+curl http://localhost:5000/api/conversion_result/My%20Series/Season%201/ep1.avi \
+  -b "session=YOUR_SESSION"
 ```
 
 ### 💾 Save Watch Progress (API)
@@ -1061,7 +1084,8 @@ When a video finishes, the player automatically loads the next episode in the sa
 | GET | `/api/video/<series>/<file>` | Download/video file | 200/min |
 | POST | `/api/convertir/<series>/<file>` | Convert incompatible video to MP4 | 5/min |
 | POST | `/api/eliminar/<series>/<file>` | Delete file directly | 10/min |
-| GET | `/api/estados` | Check active conversions | 200/min |
+| GET | `/api/estados` | Check active conversions with progress | 200/min |
+| GET | `/api/conversion_result/<series>/<file>` | Check conversion result | 200/min |
 | POST | `/api/progreso/guardar` | Save watch position | 60/min |
 | GET | `/api/progreso/obtener` | Get saved position | 200/min |
 | POST | `/api/favoritos/toggle` | Add/remove from favorites | 30/min |
@@ -1091,6 +1115,37 @@ When a video finishes, the player automatically loads the next episode in the sa
 - Docker: `docker-compose up --build`
 - View admin config: `python config_admin.py --status`
 - Save OMDb key: `python config_admin.py --omdb-key your_key`
+
+---
+
+## Changelog
+
+### v2.1 — Transcoding Fix and Improvements (2026-08-21)
+
+**Critical Fixes:**
+
+- **Fixed: conversion failing on Linux** — The `libx264` encoder was hardcoded but unavailable on Linux distributions (Fedora/RHEL). The app now auto-detects the best available H.264 encoder on startup: `libx264` → `libopenh264` → `h264_nvenc` → `h264_amf` → `h264_qsv` → `h264_vaapi` → `h264_v4l2m2m`.
+- **Fixed: Ctrl+C aborting conversions** — FFmpeg ran as a direct child of the Python process and received SIGINT on Ctrl+C (returncode=255). Now uses `start_new_session=True` to isolate FFmpeg in a separate process session.
+- **Fixed: inconsistent state between Gunicorn workers** — With `--workers 4`, each worker had its own `conversiones_activas` in memory. The frontend received "unknown" when querying a worker that didn't have the conversion. Solution: `--workers 1 --threads 6` to share state.
+- **Fixed: conversion success verification** — Previously assumed that if the identifier disappeared from `conversiones_activas`, the conversion succeeded. Now verifies `returncode == 0`, `os.path.exists(mp4)`, and `getsize > 0`.
+
+**New Features:**
+
+- **Real-time progress bar** — During conversion, a progress bar with percentage is shown on the chapter card, parsing FFmpeg's `time=HH:MM:SS` stderr output.
+- **MP4 hidden during conversion** — Generated `.mp4` files do not appear in the interface until conversion reaches 100%.
+- **`/api/conversion_result` endpoint** — New endpoint to check the result of a completed conversion (success/failure + mp4 existence).
+- **Detailed logging** — Every step of the conversion is logged to the console: start, FFmpeg PID, progress every 10%, final result with file size, and errors with the last lines of stderr.
+
+**Technical Changes:**
+
+- `hilo_conversion()` rewritten with `subprocess.Popen()` instead of `subprocess.run()`
+- `resultados_conversiones` dict stores success/failure per identifier
+- `progreso_conversiones` dict stores current percentage per conversion
+- `GET /api/estados` now returns `{"activos": [...], "progreso": {...}}`
+- Frontend (`verificarEstados()`) branches between success and failure when checking result
+- Helper functions `_obtener_duracion()` (ffprobe) and `_parsear_progreso_ffmpeg()`
+- CSS: `.conversion-progress`, `.conversion-progress-bar`, `.conversion-progress-text`
+- Template `serie.html`: progress bar added to incompatible cards
 
 ---
 

@@ -28,7 +28,7 @@
 - **Catálogo por carpetas:** organiza series, temporadas y capítulos directamente desde el sistema de archivos.
 - **Diferenciación Películas/Series:** detección automática por estructura de carpetas, con badge visual 🎬/📺 y filtro en catálogo. Soporte para override manual vía `_meta.json` o tabla `content_metadata`.
 - **Continuar viendo:** sección destacada en el catálogo que muestra los capítulos en progreso ordenados por recencia, con barra de porcentaje.
-- **Transcodificación asíncrona:** convierte `.avi`/`.mkv` a `.mp4` (H.264) en segundo plano usando FFmpeg (`static-ffmpeg`).
+- **Transcodificación asíncrona:** convierte `.avi`/`.mkv` a `.mp4` en segundo plano usando FFmpeg, con detección automática del mejor códec H.264 disponible (`libx264`, `libopenh264`, `h264_nvenc`, etc.), barra de progreso en tiempo real y verificación de éxito/fallo.
 - **Miniaturas dinámicas:** extrae fotogramas como `.jpg` para previsualizaciones.
 - **Seguimiento por usuario:** guarda la posición exacta (segundos), marca "En progreso" y "Visto" según umbrales configurables.
 - **Listas personalizadas:** organiza contenido en Favoritos, Pendiente, Viendo y Visto con pestañas filtrables.
@@ -133,7 +133,7 @@ sudo emerge media-video/ffmpeg
 
 ### Despliegue en producción
 
-En Windows, FlaskCast usa **Waitress** (6 threads). En Linux/Unix, usa **Gunicorn** (4 workers). El puerto se configura en `data/config.json` o mediante el panel de administración.
+En Windows, FlaskCast usa **Waitress** (6 threads). En Linux/Unix, usa **Gunicorn** (1 worker, 6 threads) para compartir el estado de conversiones en memoria. El puerto se configura en `data/config.json` o mediante el panel de administración.
 
 ### Docker
 
@@ -332,7 +332,12 @@ FlaskCast traduce automáticamente los metadatos de OMDb según el idioma del us
 - Formatos web nativos (`.mp4`, `.webm`, `.ogg`) se reproducen directamente.
 - Formatos no nativos (`.avi`, `.mkv`) aparecen como "Pendiente" y pueden convertirse a `.mp4` mediante un botón en la interfaz.
 - La conversión se realiza de forma asíncrona; la app usa `threading` y bloqueos para evitar conflictos en conversiones simultáneas.
-- Conversión: FFmpeg con códec libx264 (vídeo) + AAC (audio), CRF 23.
+- **Detección automática de códec:** al iniciar, la app prueba `ffmpeg -encoders` y selecciona el mejor codificador H.264 disponible. Compatible con `libx264` (Windows), `libopenh264` (Linux/Fedora), `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_vaapi`.
+- **Progreso en tiempo real:** la barra de conversión muestra el porcentaje de avance parseando la salida de FFmpeg.
+- **Verificación de éxito:** se comprueba el código de salida de FFmpeg y la existencia del `.mp4` antes de marcar como completado.
+- **Ocultación durante conversión:** el archivo `.mp4` no aparece en la interfaz hasta que la conversión alcanza el 100%.
+- **Aislamiento de procesos:** FFmpeg se ejecuta en una nueva sesión para resistir `Ctrl+C` sin abortar la conversión.
+- Conversión: FFmpeg con códec detectado (vídeo) + AAC (audio), CRF 23.
 
 ---
 
@@ -813,7 +818,7 @@ curl -X POST http://localhost:5000/api/eliminar/Mi%20Serie/Temporada%201/cap1.mp
 
 ### 📊 Consultar Conversiones Activas (API)
 
-Devuelve la lista de identificadores de vídeos que se están convirtiendo actualmente.
+Devuelve la lista de identificadores de vídeos que se están convirtiendo actualmente, junto con el porcentaje de progreso de cada una.
 
 ```
 GET /api/estados
@@ -821,11 +826,29 @@ GET /api/estados
 
 **Respuesta:**
 ```json
-{"activos": ["Mi Serie/Temporada 1/cap1.avi", "Otra Serie/video.mkv"]}
+{"activos": ["Mi Serie/Temporada 1/cap1.avi"], "progreso": {"Mi Serie/Temporada 1/cap1.avi": 42}}
 ```
 
 ```bash
 curl http://localhost:5000/api/estados -b "session=TU_SESSION"
+```
+
+### 🔍 Consultar Resultado de Conversión (API)
+
+Devuelve el resultado de una conversión completada (éxito o fallo).
+
+```
+GET /api/conversion_result/<serie>/<archivo>
+```
+
+**Respuesta:**
+```json
+{"status": "ok", "mp4_exists": true}
+```
+
+```bash
+curl http://localhost:5000/api/conversion_result/Mi%20Serie/Temporada%201/cap1.avi \
+  -b "session=TU_SESSION"
 ```
 
 ### 💾 Guardar Progreso de Reproducción (API)
@@ -1061,7 +1084,8 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 | GET | `/api/video/<serie>/<archivo>` | Descargar/archivo de vídeo | 200/min |
 | POST | `/api/convertir/<serie>/<archivo>` | Convertir vídeo incompatible a MP4 | 5/min |
 | POST | `/api/eliminar/<serie>/<archivo>` | Eliminar archivo directo | 10/min |
-| GET | `/api/estados` | Consultar conversiones activas | 200/min |
+| GET | `/api/estados` | Consultar conversiones activas con progreso | 200/min |
+| GET | `/api/conversion_result/<serie>/<archivo>` | Consultar resultado de conversión | 200/min |
 | POST | `/api/progreso/guardar` | Guardar posición de reproducción | 60/min |
 | GET | `/api/progreso/obtener` | Obtener posición guardada | 200/min |
 | POST | `/api/favoritos/toggle` | Añadir/quitar de favoritos | 30/min |
@@ -1091,6 +1115,37 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 - Docker: `docker-compose up --build`
 - Ver config del admin: `python config_admin.py --status`
 - Guardar clave OMDb: `python config_admin.py --omdb-key tu_clave`
+
+---
+
+## Changelog
+
+### v2.1 — Corrección de transcodificación y mejoras (2026-08-21)
+
+**Correcciones críticas:**
+
+- **Corregido: transacción fallaba en Linux** — El codificador `libx264` estaba hardcodeado pero no disponible en distribuciones Linux (Fedora/RHEL). Ahora la app detecta automáticamente el mejor codificador H.264 disponible al iniciar: `libx264` → `libopenh264` → `h264_nvenc` → `h264_amf` → `h264_qsv` → `h264_vaapi` → `h264_v4l2m2m`.
+- **Corregido: Ctrl+C abortaba conversiones** — FFmpeg se ejecutaba como hijo directo del proceso Python y recibía SIGINT al pulsar Ctrl+C (returncode=255). Ahora se usa `start_new_session=True` para aislar FFmpeg en una nueva sesión de procesos.
+- **Corregido: estado inconsistente entre workers de Gunicorn** — Con `--workers 4`, cada worker tenía su propio `conversiones_activas` en memoria. El frontend recibía "desconocido" al consultar un worker que no tenía la conversión. Solución: `--workers 1 --threads 6` para compartir el estado.
+- **Corregido: verificación de éxito de conversión** — Antes se asumía que si el identificador desaparecía de `conversiones_activas`, la conversión había tenido éxito. Ahora se verifica `returncode == 0`, `os.path.exists(mp4)` y `getsize > 0`.
+
+**Nuevas funcionalidades:**
+
+- **Barra de progreso en tiempo real** — Durante la conversión se muestra una barra de progreso con porcentaje en la tarjeta del capítulo, parseando la salida `time=HH:MM:SS` de FFmpeg.
+- **Ocultación de `.mp4` durante conversión** — Los archivos `.mp4` generados no aparecen en la interfaz hasta que la conversión alcanza el 100%.
+- **Endpoint `/api/conversion_result`** — Nuevo endpoint para consultar el resultado de una conversión completada (éxito/fallo + existencia del `.mp4`).
+- **Logging detallado** — Cada paso de la conversión se registra en la consola: inicio, PID de FFmpeg, progreso cada 10%, resultado final con tamaño del archivo, y errores con las últimas líneas de stderr.
+
+**Cambios técnicos:**
+
+- `hilo_conversion()` reescrito con `subprocess.Popen()` en vez de `subprocess.run()`
+- `resultados_conversiones` dict almacena éxito/fallo por identificador
+- `progreso_conversiones` dict almacena el porcentaje actual por conversión
+- `GET /api/estados` ahora devuelve `{"activos": [...], "progreso": {...}}`
+- Frontend (`verificarEstados()`) bifurca entre éxito y fallo al consultar el resultado
+- Funciones auxiliares `_obtener_duracion()` (ffprobe) y `_parsear_progreso_ffmpeg()`
+- CSS: `.conversion-progress`, `.conversion-progress-bar`, `.conversion-progress-text`
+- Plantilla `serie.html`: barra de progreso añadida a tarjetas incompatibles
 
 ---
 
