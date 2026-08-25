@@ -973,12 +973,34 @@ body.sidebar-layout {
     margin-bottom: 35px;
 }
 
-.section-title {
+.continue-section[open] .continue-arrow {
+    transform: rotate(0deg);
+}
+.continue-section:not([open]) .continue-arrow {
+    transform: rotate(-90deg);
+}
+
+.continue-toggle {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: var(--text-primary);
     font-size: 1.3rem;
-    margin-bottom: 15px;
+    font-weight: 600;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+}
+.continue-toggle::-webkit-details-marker { display: none; }
+.continue-toggle::marker { display: none; content: ''; }
+
+.continue-arrow {
+    font-size: 1rem;
+    transition: transform 0.25s ease;
+    display: inline-block;
 }
 
 .continue-grid {

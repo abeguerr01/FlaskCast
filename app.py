@@ -538,6 +538,8 @@ def index():
 
         for nombre_serie, capitulos in vistos.items():
             ruta_serie = os.path.join(DIRECTORIO_MEDIA, nombre_serie)
+            if not os.path.isdir(ruta_serie):
+                continue
             tiene_portada = os.path.exists(os.path.join(ruta_serie, '_img.png'))
             tipo = detectar_tipo_contenido(nombre_serie)
             for cap in capitulos:
@@ -878,7 +880,9 @@ def listas():
     for fila in filas:
         nombre = fila['serie']
         estado = fila['estado']
-        serie_info = series_map.get(nombre, {'nombre_carpeta': nombre, 'tiene_portada': False})
+        serie_info = series_map.get(nombre)
+        if serie_info is None:
+            continue
         if estado == 0:
             pendientes.append(serie_info)
         elif estado == 1:
@@ -889,7 +893,9 @@ def listas():
     cursor.execute('SELECT serie FROM favoritos WHERE usuario_id = ? ORDER BY fecha DESC', (usuario_id,))
     for fila in cursor.fetchall():
         fav_nombre = fila['serie']
-        serie_info = series_map.get(fav_nombre, {'nombre_carpeta': fav_nombre, 'tiene_portada': False})
+        serie_info = series_map.get(fav_nombre)
+        if serie_info is None:
+            continue
         favoritos_detalle.append(serie_info)
     conn.close()
 

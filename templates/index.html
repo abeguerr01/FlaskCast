@@ -180,8 +180,10 @@
 
     <div class="container">
         {% if continuar_viendo %}
-        <div class="continue-section">
-            <h2 class="section-title">{{ t('continuar_viendo') }}</h2>
+        <details class="continue-section" open>
+            <summary class="continue-toggle">
+                <span class="continue-arrow">▾</span> {{ t('continuar_viendo') }}
+            </summary>
             <div class="continue-grid">
                 {% for item in continuar_viendo %}
                 <a href="/serie/{{ item.serie }}" class="continue-card">
@@ -206,7 +208,7 @@
                 </a>
                 {% endfor %}
             </div>
-        </div>
+        </details>
         {% endif %}
 
         <div class="search-container">
