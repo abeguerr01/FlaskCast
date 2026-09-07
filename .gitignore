@@ -191,3 +191,4 @@ data/media/*
 #!data/config.json
 #!data/live_streams.json
 .vscode/extensions.json
+.vscode/settings.json

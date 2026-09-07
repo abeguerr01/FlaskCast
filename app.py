@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import threading
 import sqlite3
 from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
@@ -1493,9 +1494,9 @@ if __name__ == '__main__':
         import subprocess
         print(f"Iniciando servidor Gunicorn (Linux/Unix) en puerto {puerto} (1 worker, 6 threads)")
         subprocess.run([
-            "gunicorn", 
-            "--bind", f"0.0.0.0:{puerto}", 
-            "--workers", "1", 
+            sys.executable, "-m", "gunicorn",
+            "--bind", f"0.0.0.0:{puerto}",
+            "--workers", "1",
             "--threads", "6",
             "app:app"
         ])
