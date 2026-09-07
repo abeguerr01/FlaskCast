@@ -103,7 +103,8 @@ def inject_tema():
     idioma = session.get('usuario_idioma', 'es')
     def t(key):
         return get_text(idioma, key)
-    return {'tema_actual': tema, 'idioma_actual': idioma, 't': t, 'T': TRANSLATIONS}
+    return {'tema_actual': tema, 'idioma_actual': idioma, 't': t, 'T': TRANSLATIONS,
+            'auth_activa': auth_habilitada(), 'auth_autenticado': esta_autenticado()}
 
 
 def leer_config():
@@ -120,6 +121,25 @@ api_habilitada = _cfg.get('api_habilitada', False)
 def check_api_habilitada():
     if request.path.startswith('/api/') and not api_habilitada:
         return jsonify({'error': 'API no habilitada. Actívala en config_admin.py.'}), 403
+
+def esta_autenticado():
+    return session.get('auth_autenticado', False)
+
+def auth_habilitada():
+    cfg = leer_config()
+    return cfg.get('auth_enabled', False) and bool(cfg.get('auth_password', '').strip())
+
+@app.before_request
+def check_auth():
+    if request.endpoint in ('login', 'logout', 'static'):
+        return
+    if request.path.startswith('/api/'):
+        return
+    if not auth_habilitada():
+        return
+    if esta_autenticado():
+        return
+    return redirect(url_for('login', next=request.url))
 
 def es_cliente_local():
     remote = request.remote_addr
@@ -483,6 +503,31 @@ def salir_usuario():
     session.pop('usuario_mostrar_progreso', None)
     session.pop('usuario_tema', None)
     return redirect(return_to)
+
+# =============================================================================
+# AUTENTICACIÓN
+# =============================================================================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not auth_habilitada():
+        return redirect('/')
+    if esta_autenticado():
+        return redirect('/')
+    error = False
+    if request.method == 'POST':
+        cfg = leer_config()
+        password = request.form.get('password', '')
+        if password == cfg.get('auth_password', ''):
+            session['auth_autenticado'] = True
+            next_url = request.args.get('next', '/')
+            return redirect(next_url)
+        error = True
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('auth_autenticado', None)
+    return redirect('/login')
 
 # =============================================================================
 # RUTAS DE CATÁLOGO / ÍNDICE

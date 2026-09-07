@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}FlaskCast - {{ t('login_titulo') }}{% endblock %}
+
+{% block body_class %}login-layout{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="FlaskCast" class="login-logo">
+        <h1 class="login-title">{{ t('login_titulo') }}</h1>
+        <p class="login-subtitle">{{ t('login_subtitulo') }}</p>
+
+        {% if error %}
+        <div class="login-error">{{ t('login_error') }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login" class="login-form">
+            <input type="password" name="password" class="login-input"
+                   placeholder="{{ t('login_contrasena') }}" autofocus required>
+            <button type="submit" class="login-button">{{ t('login_boton') }}</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

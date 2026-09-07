@@ -3,5 +3,7 @@
     "boton_apagar_todo_visible": false,
     "puerto": 5000,
     "api_habilitada": true,
-    "admin_idioma": "es"
+    "admin_idioma": "es",
+    "auth_enabled": true,
+    "auth_password": "1234"
 }

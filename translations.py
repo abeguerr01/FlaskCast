@@ -159,6 +159,13 @@ TRANSLATIONS = {
         'api_eliminar_desc': 'Elimina un archivo de video de una serie.',
         'api_parametros_json': 'Parametros (JSON)',
         'api_ruta_archivo': 'Ruta del archivo dentro de la serie (ej: Temporada 1/video.mp4)',
+        # Login
+        'login_titulo': 'Acceso a FlaskCast',
+        'login_subtitulo': 'Introduce la contraseña para continuar',
+        'login_contrasena': 'Contraseña',
+        'login_boton': 'Entrar',
+        'login_error': 'Contraseña incorrecta',
+        'login_cerrar_sesion': 'Cerrar sesión',
     },
     'en': {
         # Base / Sidebar
@@ -320,6 +327,13 @@ TRANSLATIONS = {
         'api_eliminar_desc': 'Delete a video file from a series.',
         'api_parametros_json': 'Parameters (JSON)',
         'api_ruta_archivo': 'File path within the series (e.g.: Season 1/video.mp4)',
+        # Login
+        'login_titulo': 'FlaskCast Access',
+        'login_subtitulo': 'Enter the password to continue',
+        'login_contrasena': 'Password',
+        'login_boton': 'Enter',
+        'login_error': 'Incorrect password',
+        'login_cerrar_sesion': 'Log out',
     },
 }
 
@@ -405,6 +419,10 @@ ADMIN_TRANSLATIONS = {
         'gen_guardar_cerrar': 'Guardar y Cerrar',
         'gen_salir': 'Salir',
         'gen_idioma': 'Idioma:',
+        'gen_auth': 'Autenticación',
+        'gen_auth_habilitar': 'Activar autenticación',
+        'gen_auth_desc': 'Requiere contraseña para acceder a la aplicación.',
+        'gen_auth_contrasena': 'Contraseña:',
         # OMDb
         'omdb_title': 'Integración con OMDb',
         'omdb_desc': 'Obtén portadas, descripciones y valoraciones automáticamente.',
@@ -548,6 +566,10 @@ ADMIN_TRANSLATIONS = {
         'gen_guardar_cerrar': 'Save and Close',
         'gen_salir': 'Exit',
         'gen_idioma': 'Language:',
+        'gen_auth': 'Authentication',
+        'gen_auth_habilitar': 'Enable authentication',
+        'gen_auth_desc': 'Requires password to access the application.',
+        'gen_auth_contrasena': 'Password:',
         # OMDb
         'omdb_title': 'OMDb Integration',
         'omdb_desc': 'Get covers, descriptions and ratings automatically.',

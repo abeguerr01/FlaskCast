@@ -37,6 +37,12 @@
                 <span>{{ t('nav_listas') }}</span>
             </a>
             {% endif %}
+            {% if auth_activa and auth_autenticado %}
+            <a href="/logout" class="sidebar-link">
+                <span class="sidebar-icon">🔒</span>
+                <span>{{ t('login_cerrar_sesion') }}</span>
+            </a>
+            {% endif %}
         </nav>
     </div>
     {% endblock %}

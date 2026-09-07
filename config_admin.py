@@ -101,13 +101,15 @@ def cli():
     parser.add_argument('--toggle-all', action='store_true', help='Activa/desactiva el botón "Apagar Todo"')
     parser.add_argument('--api', action='store_true', help='Activa/desactiva la API REST')
     parser.add_argument('--port', type=int, metavar='PUERTO', help='Cambia el puerto del servidor')
+    parser.add_argument('--auth', action='store_true', help='Activa/desactiva la autenticación')
+    parser.add_argument('--auth-password', type=str, metavar='CONTRASEÑA', help='Establece la contraseña de autenticación')
     parser.add_argument('--export', type=str, metavar='ARCHIVO', help='Exporta data/media/ a un archivo .fkmedia')
     parser.add_argument('--import', type=str, metavar='ARCHIVO', dest='importar', help='Importa un archivo .fkmedia en data/media/')
     parser.add_argument('--omdb-key', type=str, metavar='API_KEY', help='Guarda la API key de OMDb')
 
     args = parser.parse_args()
 
-    tiene_args = any([args.status, args.toggle_server, args.toggle_all, args.api, args.port, args.export, args.importar, args.omdb_key])
+    tiene_args = any([args.status, args.toggle_server, args.toggle_all, args.api, args.port, args.auth, args.auth_password, args.export, args.importar, args.omdb_key])
 
     if not tiene_args:
         gui()
@@ -121,6 +123,7 @@ def cli():
         print(f'  Apagar Servidor:   {"ON" if cfg.get("boton_apagar_visible") else "OFF"}')
         print(f'  Apagar Todo:       {"ON" if cfg.get("boton_apagar_todo_visible") else "OFF"}')
         print(f'  API REST:          {"ON" if cfg.get("api_habilitada") else "OFF"}')
+        print(f'  Autenticación:    {"ON" if cfg.get("auth_enabled") else "OFF"}')
         print(f'  Puerto:            {cfg.get("puerto", 5000)}')
         omdb_key = leer_env().get('OMDB_API_KEY', '')
         print(f'  OMDb API Key:      {"Configurada" if omdb_key else "No configurada"}')
@@ -140,6 +143,15 @@ def cli():
         nuevo = toggle(cfg.get('api_habilitada', False))
         cfg['api_habilitada'] = nuevo
         cambios.append(f'API REST -> {"ON" if nuevo else "OFF"}')
+
+    if args.auth:
+        nuevo = toggle(cfg.get('auth_enabled', False))
+        cfg['auth_enabled'] = nuevo
+        cambios.append(f'Autenticación -> {"ON" if nuevo else "OFF"}')
+
+    if args.auth_password is not None:
+        cfg['auth_password'] = args.auth_password
+        cambios.append(f'Contraseña de autenticación -> actualizada')
 
     if args.port is not None:
         if args.port < 1 or args.port > 65535:
@@ -582,6 +594,23 @@ def gui():
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
+            ttk.Label(parent, text=t('gen_auth'),
+                      font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, pady=(0, 4))
+
+            self.auth_var = tk.BooleanVar(value=cfg.get('auth_enabled', False))
+            auth_row = ttk.Frame(parent)
+            auth_row.pack(fill=tk.X, pady=2)
+            ttk.Checkbutton(auth_row, text=t('gen_auth_habilitar'),
+                             variable=self.auth_var,
+                             command=self._toggle_auth_fields).pack(side=tk.LEFT)
+            ttk.Label(auth_row, text=t('gen_auth_contrasena')).pack(side=tk.LEFT, padx=(20, 0))
+            self.auth_password_var = tk.StringVar(value=cfg.get('auth_password', ''))
+            self.auth_password_entry = ttk.Entry(auth_row, textvariable=self.auth_password_var, width=25, show='*')
+            self.auth_password_entry.pack(side=tk.LEFT, padx=(8, 0))
+
+            ttk.Label(parent, text=t('gen_auth_desc'),
+                      foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W)
+
             frame_port = ttk.Frame(parent)
             frame_port.pack(fill=tk.X)
             ttk.Label(frame_port, text=t('gen_puerto')).pack(side=tk.LEFT)
@@ -618,6 +647,12 @@ def gui():
             for widget in self.root.winfo_children():
                 widget.destroy()
             ConfigAdmin(self.root)
+
+        def _toggle_auth_fields(self):
+            if self.auth_var.get():
+                self.auth_password_entry.config(state='normal')
+            else:
+                self.auth_password_entry.config(state='disabled')
 
         def _build_tab_omdb(self, parent, cfg):
             ttk.Label(parent, text=t('omdb_title'),
@@ -1451,6 +1486,8 @@ def gui():
             data['boton_apagar_todo_visible'] = self.apagar_todo_var.get()
             data['puerto'] = puerto
             data['api_habilitada'] = self.api_var.get()
+            data['auth_enabled'] = self.auth_var.get()
+            data['auth_password'] = self.auth_password_var.get()
             guardar_config(data)
 
             omdb_key = self.omdb_api_var.get().strip()
