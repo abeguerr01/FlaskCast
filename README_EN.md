@@ -45,6 +45,7 @@
 - **OMDb integration:** automatic fetching of covers, descriptions, ratings, and metadata from OMDb API. Key stored in `.env`.
 - **Hero design:** detail view with blurred cover banner, visual metadata, and action buttons.
 - **Admin panel GUI:** visual management of content, streams, configuration, and OMDb with tkinter interface (5 tabs, bilingual ES/EN).
+- **Optional authentication:** password-based protection for accessing the application. Can be enabled/disabled from the admin panel. When active, all web routes require authentication with the configured password.
 
 ---
 
@@ -194,7 +195,7 @@ FlaskCast uses a `.env` file in the project root to store sensitive credentials.
 | File | Content |
 |------|---------|
 | `.env` | `OMDB_API_KEY` — OMDb API key |
-| `data/config.json` | Port, shutdown buttons, API enabled, admin language |
+| `data/config.json` | Port, shutdown buttons, API enabled, admin language, authentication (auth_enabled, auth_password) |
 | `data/flaskcast.db` | SQLite: users, progress, favorites, lists, content_metadata |
 | `data/live_streams.json` | Live channel definitions |
 | `data/media/` | Series/movie folders, covers, thumbnails |
@@ -547,6 +548,42 @@ From the settings panel (`/ajustes`) you can configure:
 
 ---
 
+## Authentication
+
+FlaskCast includes an **optional** authentication system that protects access to the entire application with a global password.
+
+### How to enable it
+
+1. Open the admin panel (`python config_admin.py`).
+2. In the **General** tab, check the **"Enable authentication"** checkbox.
+3. Type the password you want to use in the field next to it.
+4. Click **"Save and Close"**.
+5. Restart FlaskCast for the changes to take effect.
+
+### Behavior
+
+- **Enabled:** when accessing any page of the application, you are redirected to a login screen where you must enter the configured password.
+- **Disabled:** the application works exactly as before, with no authentication step.
+- A **"Log out"** 🔒 link appears in the sidebar only when authentication is active and you have logged in.
+- The password is stored in plain text in `data/config.json`. It is not uploaded to the repository (it's in `.gitignore`).
+
+### CLI management
+
+You can also manage authentication from the command line:
+
+```bash
+# Toggle authentication on/off
+python config_admin.py --auth
+
+# Set the authentication password
+python config_admin.py --auth-password "mypassword123"
+
+# View status (includes authentication)
+python config_admin.py --status
+```
+
+---
+
 ## Multi-language (i18n)
 
 FlaskCast supports Spanish and English across the entire interface:
@@ -612,6 +649,7 @@ python config_admin.py
 - **Show "Shutdown Server" button:** toggles visibility of the button that stops only the Flask process.
 - **Show "Shutdown All" button:** toggles visibility of the button that shuts down the entire operating system.
 - **Enable REST API:** toggles REST API endpoints.
+- **Enable authentication:** toggles password protection. When enabled, a field appears to set the access password.
 - **Port:** changes the port the server listens on (requires restarting the application).
 - **Export media (.fkmedia):** compresses the entire `data/media/` folder into a `.fkmedia` file (7z format internally).
 - **Import media (.fkmedia):** selects a previously exported `.fkmedia` file and extracts it to `data/media/`.
@@ -674,6 +712,8 @@ python config_admin.py [OPTIONS]
 | `--toggle-server` | Toggles the "Shutdown Server" button |
 | `--toggle-all` | Toggles the "Shutdown All" button |
 | `--api` | Toggles the REST API |
+| `--auth` | Toggles authentication |
+| `--auth-password PASSWORD` | Sets the authentication password |
 | `--port PORT` | Changes the server port (1-65535) |
 | `--omdb-key API_KEY` | Saves an OMDb API key to the `.env` file |
 | `--export FILE` | Exports `data/media/` to a `.fkmedia` file |
@@ -693,6 +733,9 @@ python config_admin.py --status
 
 # Enable the REST API
 python config_admin.py --api
+
+# Enable authentication with password
+python config_admin.py --auth --auth-password "mypassword123"
 
 # Change port to 8080
 python config_admin.py --port 8080
@@ -1072,6 +1115,8 @@ When a video finishes, the player automatically loads the next episode in the sa
 | GET | `/usuarios_panel` | User management panel |
 | GET | `/ajustes` | Settings panel (theme, language, auto-marking) |
 | GET/POST | `/ajustes` | Save user settings |
+| GET/POST | `/login` | Authentication screen (only when auth enabled) |
+| GET | `/logout` | Close authentication session |
 
 ### REST API (require session + API enabled)
 

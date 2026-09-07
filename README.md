@@ -45,6 +45,7 @@
 - **Integración OMDb:** obtención automática de portadas, descripciones, valoraciones y metadatos desde OMDb API. Clave guardada en `.env`.
 - **Diseño hero:** vista detalle con banner de portada difuminada, metadata visual y botones de acción.
 - **Panel de administración GUI:** gestión visual de contenido, streams, configuración y OMDb con interfaz en tkinter (5 pestañas, bilingual ES/EN).
+- **Autenticación opcional:** protección con contraseña para acceder a la aplicación. Se activa/desactiva desde el panel de administración. Cuando está activa, todas las rutas web requieren autenticarse previamente con la contraseña configurada.
 
 ---
 
@@ -194,7 +195,7 @@ FlaskCast utiliza un archivo `.env` en la raíz del proyecto para almacenar cred
 | Archivo | Contenido |
 |---------|-----------|
 | `.env` | `OMDB_API_KEY` — clave de API de OMDb |
-| `data/config.json` | Puerto, botones de apagado, API habilitada, idioma del admin |
+| `data/config.json` | Puerto, botones de apagado, API habilitada, idioma del admin, autenticación (auth_enabled, auth_password) |
 | `data/flaskcast.db` | SQLite: usuarios, progreso, favoritos, listas, content_metadata |
 | `data/live_streams.json` | Definición de canales en vivo |
 | `data/media/` | Carpetas de series/películas, portadas, miniaturas |
@@ -547,6 +548,42 @@ Desde el panel de ajustes (`/ajustes`) puedes configurar:
 
 ---
 
+## Autenticación
+
+FlaskCast incluye un sistema de autenticación **opcional** que protege el acceso a toda la aplicación con una contraseña global.
+
+### Cómo activarla
+
+1. Abre el panel de administración (`python config_admin.py`).
+2. En la pestaña **General**, marca la casilla **"Activar autenticación"**.
+3. Escribe la contraseña que quieras usar en el campo de al lado.
+4. Pulsa **"Guardar y Cerrar"**.
+5. Reinicia FlaskCast para que los cambios surtan efecto.
+
+### Comportamiento
+
+- **Activada:** al acceder a cualquier página de la aplicación, se redirige a una pantalla de login donde debes introducir la contraseña.
+- **Desactivada:** la aplicación funciona exactamente como antes, sin ningún paso de autenticación.
+- En el sidebar aparece un enlace **"Cerrar sesión"** 🔒 solo cuando la autenticación está activa y has iniciado sesión.
+- La contraseña se guarda en texto plano en `data/config.json`. No se sube al repositorio (está en `.gitignore`).
+
+### Gestión desde CLI
+
+También puedes gestionar la autenticación desde la línea de comandos:
+
+```bash
+# Activar/desactivar autenticación
+python config_admin.py --auth
+
+# Establecer la contraseña
+python config_admin.py --auth-password "miclave123"
+
+# Ver estado (incluye autenticación)
+python config_admin.py --status
+```
+
+---
+
 ## Multi-idioma (i18n)
 
 FlaskCast soporta español e inglés en toda la interfaz:
@@ -612,6 +649,7 @@ python config_admin.py
 - **Mostrar botón "Apagar Servidor":** activa/desactiva la visibilidad del botón que apaga solo el proceso de Flask.
 - **Mostrar botón "Apagar Todo":** activa/desactiva la visibilidad del botón que apaga todo el sistema operativo.
 - **Habilitar API REST:** activa/desactiva los endpoints de la API REST.
+- **Activar autenticación:** activa/desactiva la protección con contraseña. Al activarla, aparece un campo para definir la contraseña de acceso.
 - **Puerto:** cambia el puerto en el que escucha el servidor (requiere reiniciar la aplicación).
 - **Exportar media (.fkmedia):** comprime toda la carpeta `data/media/` en un archivo `.fkmedia` (formato 7z internamente).
 - **Importar media (.fkmedia):** selecciona un archivo `.fkmedia` previamente exportado y lo extrae en `data/media/`.
@@ -674,6 +712,8 @@ python config_admin.py [OPCIONES]
 | `--toggle-server` | Activa/desactiva el botón "Apagar Servidor" |
 | `--toggle-all` | Activa/desactiva el botón "Apagar Todo" |
 | `--api` | Activa/desactiva la API REST |
+| `--auth` | Activa/desactiva la autenticación |
+| `--auth-password CONTRASEÑA` | Establece la contraseña de autenticación |
 | `--port PUERTO` | Cambia el puerto del servidor (1-65535) |
 | `--omdb-key API_KEY` | Guarda una clave de API de OMDb en el archivo `.env` |
 | `--export ARCHIVO` | Exporta `data/media/` a un archivo `.fkmedia` |
@@ -693,6 +733,9 @@ python config_admin.py --status
 
 # Activar la API REST
 python config_admin.py --api
+
+# Activar autenticación con contraseña
+python config_admin.py --auth --auth-password "miclave123"
 
 # Cambiar puerto a 8080
 python config_admin.py --port 8080
@@ -1072,6 +1115,8 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 | GET | `/usuarios_panel` | Panel de gestión de usuarios |
 | GET | `/ajustes` | Panel de configuración (tema, idioma, marcado automático) |
 | GET/POST | `/ajustes` | Guardar ajustes del usuario |
+| GET/POST | `/login` | Pantalla de autenticación (solo si auth habilitada) |
+| GET | `/logout` | Cerrar sesión de autenticación |
 
 ### API REST (requieren sesión + API habilitada)
 
