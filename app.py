@@ -8,6 +8,8 @@ import subprocess
 import sys
 import threading
 import sqlite3
+import urllib.request
+import urllib.parse
 from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -1505,6 +1507,157 @@ def api_crear_temporada():
 # BIBLIOTECA WEB (gestión de contenido desde el navegador)
 # =============================================================================
 FORMATO_VIDEO_BIB = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+OMDB_API_URL = 'https://www.omdbapi.com/'
+ENV_PATH = os.path.join(DIRECTORIO_RAIZ, '.env')
+
+def leer_env():
+    data = {}
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, 'r', encoding='utf-8') as f:
+            for linea in f:
+                linea = linea.strip()
+                if linea and not linea.startswith('#') and '=' in linea:
+                    k, v = linea.split('=', 1)
+                    data[k.strip()] = v.strip()
+    return data
+
+def guardar_env(data):
+    data = dict(data)
+    lineas = []
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, 'r', encoding='utf-8') as f:
+            for linea in f:
+                line_rstrip = linea.rstrip('\n\r')
+                if line_rstrip.strip() and not line_rstrip.startswith('#') and '=' in line_rstrip:
+                    key = line_rstrip.split('=', 1)[0].strip()
+                    if key in data:
+                        lineas.append(f'{key}={data[key]}')
+                        del data[key]
+                    else:
+                        lineas.append(line_rstrip)
+                else:
+                    lineas.append(line_rstrip)
+    for k, v in data.items():
+        lineas.append(f'{k}={v}')
+    with open(ENV_PATH, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lineas) + '\n')
+
+def omdb_validar_api_key(api_key):
+    params = urllib.parse.urlencode({'apikey': api_key, 't': 'Inception'})
+    url = f'{OMDB_API_URL}?{params}'
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return data.get('Response') == 'True'
+    except Exception:
+        return False
+
+def omdb_buscar(api_key, query, tipo=None):
+    params = {'apikey': api_key, 's': query}
+    if tipo == 'pelicula':
+        params['type'] = 'movie'
+    elif tipo == 'serie':
+        params['type'] = 'series'
+    url = f'{OMDB_API_URL}?{urllib.parse.urlencode(params)}'
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('Response') == 'True':
+                return data.get('Search', [])
+            return []
+    except Exception:
+        return []
+
+def omdb_obtener_detalles(api_key, imdb_id):
+    params = urllib.parse.urlencode({'apikey': api_key, 'i': imdb_id})
+    url = f'{OMDB_API_URL}?{params}'
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('Response') == 'True':
+                return data
+            return None
+    except Exception:
+        return None
+
+def omdb_descargar_poster(poster_url, destino):
+    if not poster_url or poster_url == 'N/A':
+        return False
+    try:
+        req = urllib.request.Request(poster_url)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            with open(destino, 'wb') as f:
+                f.write(resp.read())
+        return True
+    except Exception:
+        return False
+
+def omdb_aplicar_a_carpeta(api_key, carpeta_nombre, imdb_id, tipo_content, descargar_poster=True):
+    detalles = omdb_obtener_detalles(api_key, imdb_id)
+    if not detalles:
+        return False, 'No se pudieron obtener los detalles.'
+
+    ruta_carpeta = _ruta_media_segura(carpeta_nombre)
+    if not ruta_carpeta:
+        return False, 'Ruta no válida.'
+    os.makedirs(ruta_carpeta, exist_ok=True)
+
+    genero_str = detalles.get('Genre', '')
+    genero = [g.strip() for g in genero_str.split(',') if g.strip()] if genero_str and genero_str != 'N/A' else []
+
+    rating_str = detalles.get('imdbRating', '0')
+    try:
+        rating = round(float(rating_str), 1)
+    except (ValueError, TypeError):
+        rating = 0
+
+    runtime_str = detalles.get('Runtime', '0')
+    try:
+        duracion = int(runtime_str.replace(' min', '').replace('N/A', '0'))
+    except (ValueError, TypeError):
+        duracion = 0
+
+    meta_existente = {}
+    meta_path = os.path.join(ruta_carpeta, '_meta.json')
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta_existente = json.load(f)
+        except Exception:
+            pass
+
+    meta = {
+        'tipo': tipo_content,
+        'titulo': detalles.get('Title', carpeta_nombre),
+        'descripcion': detalles.get('Plot', '') if detalles.get('Plot') != 'N/A' else '',
+        'anio': detalles.get('Year', '') if detalles.get('Year') != 'N/A' else '',
+        'genero': genero,
+        'director': detalles.get('Director', '') if detalles.get('Director') != 'N/A' else '',
+        'valoracion': rating,
+    }
+
+    if meta_existente.get('ubicacion'):
+        meta['ubicacion'] = meta_existente['ubicacion']
+
+    if tipo_content == 'pelicula':
+        meta['duracion_min'] = duracion
+    else:
+        total_seasons = detalles.get('totalSeasons', '')
+        if total_seasons and total_seasons != 'N/A':
+            meta['temporadas'] = int(total_seasons)
+
+    _guardar_meta(carpeta_nombre, meta)
+
+    if descargar_poster:
+        poster_url = detalles.get('Poster', '')
+        if poster_url and poster_url != 'N/A':
+            img_path = os.path.join(ruta_carpeta, '_img.png')
+            omdb_descargar_poster(poster_url, img_path)
+
+    return True, meta.get('titulo', carpeta_nombre)
 
 def _ruta_media_segura(*partes):
     if not partes or any(not p for p in partes):
@@ -1907,6 +2060,55 @@ def biblioteca_eliminar():
         return jsonify({'status': 'ok'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/biblioteca/omdb/estado')
+def biblioteca_omdb_estado():
+    clave = leer_env().get('OMDB_API_KEY', '').strip()
+    return jsonify({'tiene_key': bool(clave), 'api_key': clave})
+
+@app.route('/biblioteca/omdb/validar', methods=['POST'])
+@limiter.limit("5 per minute")
+def biblioteca_omdb_validar():
+    datos = request.json or {}
+    clave = (datos.get('api_key', '') or '').strip()
+    if not clave:
+        return jsonify({'ok': False})
+    ok = omdb_validar_api_key(clave)
+    if ok:
+        guardar_env({'OMDB_API_KEY': clave})
+    return jsonify({'ok': ok})
+
+@app.route('/biblioteca/omdb/aplicar', methods=['POST'])
+@limiter.limit("2 per minute")
+def biblioteca_omdb_aplicar():
+    datos = request.json or {}
+    nombre = (datos.get('nombre', '') or '').strip()
+    descargar = bool(datos.get('descargar_portada', True))
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre.'}), 400
+    ruta = _ruta_media_segura(nombre)
+    if not ruta or not os.path.isdir(ruta):
+        return jsonify({'error': f'"{nombre}" no existe.'}), 404
+    clave = leer_env().get('OMDB_API_KEY', '').strip()
+    if not clave:
+        return jsonify({'error': 'Introduce una API key de OMDb primero.'}), 400
+    tipo = detectar_tipo_contenido(nombre)
+    query = nombre.replace('_', ' ').replace('-', ' ')
+    resultados = omdb_buscar(clave, query, tipo) or []
+    match = None
+    for r in resultados:
+        r_type = r.get('Type', '')
+        if (tipo == 'pelicula' and r_type == 'movie') or (tipo == 'serie' and r_type == 'series'):
+            match = r
+            break
+    if not match and resultados:
+        match = resultados[0]
+    if not match or not match.get('imdbID'):
+        return jsonify({'error': f'{nombre} → Sin resultados'}), 404
+    ok, info = omdb_aplicar_a_carpeta(clave, nombre, match['imdbID'], tipo, descargar)
+    if not ok:
+        return jsonify({'error': f'{nombre} → {info}'}), 500
+    return jsonify({'status': 'ok', 'info': info})
 
 # =============================================================================
 # API - SISTEMA (ping, apagado, admin)

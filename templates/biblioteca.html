@@ -69,6 +69,7 @@ li.bib-collapsed > .bib-children { display: none; }
         <button type="button" class="bib-btn" id="btnMeta" onclick="abrirModalMeta()" disabled>{{ t('bib_editar_metadata') }}</button>
         <button type="button" class="bib-btn" id="btnRename" onclick="abrirModalRename()" disabled>{{ t('bib_renombrar') }}</button>
         <button type="button" class="bib-btn bib-btn-danger" id="btnDelete" onclick="eliminarSeleccionado()" disabled>{{ t('bib_eliminar') }}</button>
+        <button type="button" class="bib-btn" id="btnOmdb" onclick="abrirModalOmdb()" disabled>{{ t('bib_omdb') }}</button>
         <button type="button" class="bib-btn" onclick="location.reload()">{{ t('bib_refrescar') }}</button>
     </div>
 
@@ -78,7 +79,7 @@ li.bib-collapsed > .bib-children { display: none; }
         {% if contenido %}
         <ul class="bib-tree">
             {% for item in contenido %}
-            <li>
+            <li class="bib-collapsed">
                 <div class="bib-row raiz" data-nivel="raiz" data-nombre="{{ item.nombre }}" data-serie="{{ item.nombre }}" data-tipo="{{ item.tipo }}">
                     <span class="bib-icon">{{ '🎬' if item.tipo == 'pelicula' else '📺' }}</span>
                     <span class="bib-nombre">{{ item.meta.get('titulo', item.nombre) }}</span>
@@ -87,7 +88,7 @@ li.bib-collapsed > .bib-children { display: none; }
                 {% if item.temporadas %}
                 <ul class="bib-children">
                     {% for temp in item.temporadas %}
-                    <li>
+                    <li class="bib-collapsed">
                         <div class="bib-row temporada" data-nivel="temporada" data-nombre="{{ temp.nombre }}" data-serie="{{ item.nombre }}" data-temporada="{{ temp.nombre }}">
                             <span class="bib-icon">📁</span>
                             <span class="bib-nombre">{{ temp.nombre }}</span>
@@ -211,6 +212,32 @@ li.bib-collapsed > .bib-children { display: none; }
     </div>
 </div>
 
+<!-- MODAL: OMDb -->
+<div id="modalOmdb" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalOmdb')">&times;</span>
+        <h2 style="margin-top: 0; color: var(--text-primary);">{{ t('bib_omdb_title') }}</h2>
+        <p style="color: var(--text-secondary); font-size: 0.85rem;">{{ t('bib_omdb_desc') }}</p>
+
+        <label class="modal-label">{{ t('bib_omdb_api_key') }}</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 4px;">
+            <input type="password" id="omdbApiKey" class="modal-input-text" style="flex: 1;" autocomplete="off">
+            <button type="button" class="bib-btn" onclick="validarOmdb()">{{ t('bib_omdb_validar') }}</button>
+        </div>
+        <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener" style="font-size: 0.8rem; color: #e50914; text-decoration: none;">{{ t('bib_omdb_obtener_key') }}</a>
+        <p id="omdbApiStatus" style="font-size: 0.85rem; min-height: 18px; margin: 6px 0 4px 0; color: var(--text-secondary);"></p>
+
+        <p id="omdbDestino" style="font-size: 0.85rem; color: var(--text-secondary); margin: 8px 0;"></p>
+
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-primary); margin: 6px 0 10px 0;">
+            <input type="checkbox" id="omdbDescargarPortada" checked style="width: 16px; height: 16px;"> {{ t('bib_omdb_descargar_portada') }}
+        </label>
+
+        <button type="button" class="btn-submit-user" style="width: 100%;" onclick="aplicarOmdb()">{{ t('bib_omdb_aplicar') }}</button>
+        <p id="omdbResultado" style="font-size: 0.85rem; min-height: 18px; margin-top: 8px; color: var(--text-secondary); white-space: pre-wrap;"></p>
+    </div>
+</div>
+
 <!-- MODAL: RENOMBRAR -->
 <div id="modalRename" class="modal-overlay">
     <div class="modal-box">
@@ -259,6 +286,7 @@ li.bib-collapsed > .bib-children { display: none; }
         document.getElementById('btnMeta').disabled = !esRaiz;
         document.getElementById('btnRename').disabled = !seleccion;
         document.getElementById('btnDelete').disabled = !seleccion;
+        document.getElementById('btnOmdb').disabled = !esRaiz;
         var videosOk = seleccion && !(esRaiz && seleccion.tipo === 'serie');
         document.getElementById('btnVideos').disabled = !videosOk;
     }
@@ -463,6 +491,68 @@ li.bib-collapsed > .bib-children { display: none; }
             if (e.target === m) m.style.display = 'none';
         });
     });
+
+    var omdbTieneKey = false;
+    var omdbApiKeyGuardada = '';
+
+    function cargaEstadoOmdb() {
+        fetch('/biblioteca/omdb/estado')
+            .then(function(r) { return r.json().catch(function() { return { tiene_key: false, api_key: '' }; }); })
+            .then(function(res) {
+                omdbTieneKey = !!res.tiene_key;
+                omdbApiKeyGuardada = res.api_key || '';
+            });
+    }
+    cargaEstadoOmdb();
+
+    function abrirModalOmdb() {
+        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_omdb_necesita_seleccion); return; }
+        document.getElementById('omdbDestino').textContent = tr.bib_omdb_seleccion + ' ' + seleccion.nombre;
+        document.getElementById('omdbApiKey').value = omdbApiKeyGuardada;
+        document.getElementById('omdbApiStatus').textContent = omdbTieneKey ? tr.bib_omdb_key_valida : '';
+        document.getElementById('omdbResultado').textContent = '';
+        abrirModal('modalOmdb');
+    }
+
+    function validarOmdb() {
+        var status = document.getElementById('omdbApiStatus');
+        var clave = document.getElementById('omdbApiKey').value.trim();
+        if (!clave) { status.textContent = tr.bib_omdb_intro_key; return; }
+        status.textContent = tr.bib_omdb_validando;
+        fetch('/biblioteca/omdb/validar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: clave })
+        }).then(function(r) { return r.json().catch(function() { return { ok: false }; }); })
+          .then(function(res) {
+              omdbTieneKey = res.ok;
+              status.textContent = res.ok ? tr.bib_omdb_key_valida : tr.bib_omdb_key_invalida;
+              status.style.color = res.ok ? '#00cc66' : '#e50914';
+          });
+    }
+
+    function aplicarOmdb() {
+        var resultado = document.getElementById('omdbResultado');
+        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_omdb_necesita_seleccion); return; }
+        resultado.textContent = tr.bib_omdb_procesando;
+        fetch('/biblioteca/omdb/aplicar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nombre: seleccion.nombre,
+                descargar_portada: document.getElementById('omdbDescargarPortada').checked
+            })
+        }).then(function(r) { return r.json().catch(function() { return {}; }); })
+          .then(function(res) {
+              if (res.error) {
+                  resultado.textContent = tr.bib_omdb_error.replace('{mensaje}', res.error);
+                  resultado.style.color = '#e50914';
+                  return;
+              }
+              resultado.textContent = tr.bib_omdb_aplicado.replace('{info}', res.info || '');
+              resultado.style.color = '#00cc66';
+          });
+    }
 </script>
 
 {% endblock %}
