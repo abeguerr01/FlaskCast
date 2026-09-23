@@ -83,7 +83,26 @@
             setTimeout(function() { window.location.href = href; }, 200);
         });
     })();
+
+    function mostrarToast(mensaje, tipo) {
+        var cont = document.getElementById('toast-container');
+        if (!cont) return;
+        var iconos = { ok: '✓', error: '✕', info: 'ℹ' };
+        var t = document.createElement('div');
+        t.className = 'toast ' + (tipo || 'info');
+        t.textContent = (iconos[tipo] || iconos.info) + ' ' + mensaje;
+        cont.appendChild(t);
+        setTimeout(function() {
+            t.classList.add('saliendo');
+            setTimeout(function() {
+                if (t.parentNode) { t.parentNode.removeChild(t); }
+            }, 300);
+        }, tipo === 'error' ? 5000 : 3000);
+    }
+
     </script>
+
+    <div id="toast-container"></div>
 
 </body>
 </html>

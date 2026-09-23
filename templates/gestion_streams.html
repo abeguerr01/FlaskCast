@@ -163,7 +163,7 @@
     function guardarStream() {
         var titulo = document.getElementById('streamTitulo').value.trim();
         var url = document.getElementById('streamUrl').value.trim();
-        if (!titulo || !url) { alert(tr.msg_titulo_url_obligatorios); return; }
+        if (!titulo || !url) { mostrarToast(tr.msg_titulo_url_obligatorios, 'error'); return; }
         var backups = document.getElementById('streamBackups').value.split('\n').map(function(b) { return b.trim(); }).filter(function(b) { return b; });
         var urls = [url].concat(backups);
         var urlEndpoint = edicion === -1 ? '/live/streams/crear' : '/live/streams/editar';
@@ -175,7 +175,7 @@
             body: JSON.stringify(datos)
         }).then(function(r) { return r.json().catch(function() { return {}; }); })
           .then(function(res) {
-              if (res.error) { alert(res.error); throw new Error(res.error); }
+              if (res.error) { mostrarToast(res.error, 'error'); throw new Error(res.error); }
               cerrarModal('modalStream');
               location.reload();
           }).catch(function(e) {});
@@ -191,7 +191,7 @@
             body: JSON.stringify({ indice: indice })
         }).then(function(r) { return r.json().catch(function() { return {}; }); })
           .then(function(res) {
-              if (res.error) { alert(res.error); throw new Error(res.error); }
+              if (res.error) { mostrarToast(res.error, 'error'); throw new Error(res.error); }
               location.reload();
           }).catch(function(e) {});
     }
@@ -203,7 +203,7 @@
             body: JSON.stringify({ indice: indice, direccion: direccion })
         }).then(function(r) { return r.json().catch(function() { return {}; }); })
           .then(function(res) {
-              if (res.error) { alert(res.error); throw new Error(res.error); }
+              if (res.error) { mostrarToast(res.error, 'error'); throw new Error(res.error); }
               location.reload();
           }).catch(function(e) {});
     }

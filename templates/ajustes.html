@@ -436,7 +436,7 @@ Content-Type: application/json</pre>
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
-                        alert('Error: ' + data.error);
+                        mostrarToast(data.error, 'error');
                     } else {
                         document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.servidor_apagando + '</div>';
                     }
@@ -452,7 +452,7 @@ Content-Type: application/json</pre>
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
-                        alert('Error: ' + data.error);
+                        mostrarToast(data.error, 'error');
                     } else {
                         document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#fff;font-family:sans-serif;font-size:1.5rem;">' + tr.sistema_apagando + '</div>';
                     }
@@ -467,11 +467,11 @@ Content-Type: application/json</pre>
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.error) {
-                        alert('Error: ' + data.error);
+                        mostrarToast(data.error, 'error');
                     }
                 })
                 .catch(function() {
-                    alert(tr.no_abrir_admin);
+                    mostrarToast(tr.no_abrir_admin, 'error');
                 });
         }
 

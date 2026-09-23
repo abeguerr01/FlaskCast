@@ -475,7 +475,7 @@
             })
             .then(res => res.json())
             .then(function(data) {
-                if (data.error) { alert(data.error); return; }
+                if (data.error) { mostrarToast(data.error, 'error'); return; }
                 var btn = document.getElementById('btnLista');
                 var dd = document.getElementById('listaDropdown');
                 dd.classList.remove('lista-dropdown-open');

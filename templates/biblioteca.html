@@ -310,7 +310,7 @@ li.bib-collapsed > .bib-children { display: none; }
             body: JSON.stringify(datos)
         }).then(function(r) { return r.json().catch(function() { return {}; }); })
           .then(function(res) {
-              if (res.error) { alert(res.error); throw new Error(res.error); }
+              if (res.error) { mostrarToast(res.error, 'error'); throw new Error(res.error); }
               info(okMsg);
               setTimeout(function() { location.reload(); }, 400);
               return res;
@@ -351,7 +351,7 @@ li.bib-collapsed > .bib-children { display: none; }
     var metaModo = 'crear';
 
     function abrirModalMeta() {
-        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_requiere_raiz); return; }
+        if (!seleccion || seleccion.nivel !== 'raiz') { mostrarToast(tr.bib_requiere_raiz, 'info'); return; }
         rellenarMetaModal(META_MAP[seleccion.nombre] || {});
         document.getElementById('modalMetaTitle').textContent = tr.bib_meta_editar_title + ': ' + seleccion.nombre;
         metaModo = 'editar';
@@ -360,7 +360,7 @@ li.bib-collapsed > .bib-children { display: none; }
 
     function guardarMeta() {
         var titulo = document.getElementById('metaTitulo').value.trim();
-        if (!titulo) { alert(tr.bib_meta_titulo); return; }
+        if (!titulo) { mostrarToast(tr.bib_meta_titulo, 'error'); return; }
         var tipo = document.getElementById('metaTipo').value;
         var payload = {
             titulo: titulo,
@@ -386,8 +386,8 @@ li.bib-collapsed > .bib-children { display: none; }
     }
 
     function abrirModalTemporada() {
-        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_requiere_serie); return; }
-        if (seleccion.tipo === 'pelicula') { alert(tr.bib_requiere_serie); return; }
+        if (!seleccion || seleccion.nivel !== 'raiz') { mostrarToast(tr.bib_requiere_serie, 'info'); return; }
+        if (seleccion.tipo === 'pelicula') { mostrarToast(tr.bib_requiere_serie, 'info'); return; }
         document.getElementById('tempDestino').textContent = tr.bib_destino + ' ' + seleccion.nombre;
         var count = 0;
         document.querySelectorAll('.bib-row.temporada').forEach(function(r) {
@@ -404,10 +404,10 @@ li.bib-collapsed > .bib-children { display: none; }
     }
 
     function abrirModalVideos() {
-        if (!seleccion) { alert(tr.bib_requiere_temporada); return; }
+        if (!seleccion) { mostrarToast(tr.bib_requiere_temporada, 'info'); return; }
         var serie, temporada;
         if (seleccion.nivel === 'raiz') {
-            if (seleccion.tipo === 'serie') { alert(tr.bib_requiere_temporada); return; }
+            if (seleccion.tipo === 'serie') { mostrarToast(tr.bib_requiere_temporada, 'info'); return; }
             serie = seleccion.nombre; temporada = '';
         } else if (seleccion.nivel === 'temporada') {
             serie = seleccion.serie; temporada = seleccion.nombre;
@@ -423,7 +423,7 @@ li.bib-collapsed > .bib-children { display: none; }
 
     function guardarVideos() {
         var input = document.getElementById('videosInput');
-        if (!input.files || input.files.length === 0) { alert(tr.bib_subir_videos); return; }
+        if (!input.files || input.files.length === 0) { mostrarToast(tr.bib_subir_videos, 'info'); return; }
         var fd = new FormData();
         fd.append('serie', document.getElementById('videosSerie').value);
         fd.append('temporada', document.getElementById('videosTemporada').value);
@@ -433,7 +433,7 @@ li.bib-collapsed > .bib-children { display: none; }
         fetch('/biblioteca/videos/add', { method: 'POST', body: fd })
             .then(function(r) { return r.json().catch(function() { return {}; }); })
             .then(function(res) {
-                if (res.error) { alert(res.error); throw new Error(res.error); }
+                if (res.error) { mostrarToast(res.error, 'error'); throw new Error(res.error); }
                 var msg = (res.copiados || 0) + ' ' + tr.bib_videos + ' ✓';
                 if (res.errores && res.errores.length) { msg += ' — ' + res.errores.join(' | '); }
                 info(msg);
@@ -442,7 +442,7 @@ li.bib-collapsed > .bib-children { display: none; }
     }
 
     function abrirModalRename() {
-        if (!seleccion) { alert(tr.bib_requiere_raiz); return; }
+        if (!seleccion) { mostrarToast(tr.bib_requiere_raiz, 'info'); return; }
         document.getElementById('renameOrigen').textContent = seleccion.nombre;
         var esVideo = seleccion.nivel === 'video';
         document.getElementById('renameLabel').textContent = esVideo ? tr.bib_nuevo_nombre_video : tr.bib_nuevo_nombre;
@@ -469,7 +469,7 @@ li.bib-collapsed > .bib-children { display: none; }
     }
 
     function eliminarSeleccionado() {
-        if (!seleccion) { alert(tr.bib_requiere_raiz); return; }
+        if (!seleccion) { mostrarToast(tr.bib_requiere_raiz, 'info'); return; }
         var msg;
         if (seleccion.nivel === 'raiz') {
             msg = tr.bib_confirmar_eliminar_serie.replace('{nombre}', seleccion.nombre);
@@ -506,7 +506,7 @@ li.bib-collapsed > .bib-children { display: none; }
     cargaEstadoOmdb();
 
     function abrirModalOmdb() {
-        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_omdb_necesita_seleccion); return; }
+        if (!seleccion || seleccion.nivel !== 'raiz') { mostrarToast(tr.bib_omdb_necesita_seleccion, 'info'); return; }
         document.getElementById('omdbDestino').textContent = tr.bib_omdb_seleccion + ' ' + seleccion.nombre;
         document.getElementById('omdbApiKey').value = omdbApiKeyGuardada;
         document.getElementById('omdbApiStatus').textContent = omdbTieneKey ? tr.bib_omdb_key_valida : '';
@@ -533,7 +533,7 @@ li.bib-collapsed > .bib-children { display: none; }
 
     function aplicarOmdb() {
         var resultado = document.getElementById('omdbResultado');
-        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_omdb_necesita_seleccion); return; }
+        if (!seleccion || seleccion.nivel !== 'raiz') { mostrarToast(tr.bib_omdb_necesita_seleccion, 'info'); return; }
         resultado.textContent = tr.bib_omdb_procesando;
         fetch('/biblioteca/omdb/aplicar', {
             method: 'POST',
