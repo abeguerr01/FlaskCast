@@ -15,6 +15,14 @@ import static_ffmpeg
 import platform
 from translations import get_text, TRANSLATIONS, translate_metadata
 
+# Windows usa cp1252 por defecto en consolas/redirecciones; forzamos UTF-8
+# para que los print() con emojis no lancen UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 # =============================================================================
 # INICIALIZACIÓN DE LA APLICACIÓN FLASK
 # =============================================================================
@@ -325,22 +333,36 @@ def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
 
     try:
         cmd = [
-            'ffmpeg', '-i', ruta_origen,
+            'ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+            '-progress', 'pipe:1',
+            '-i', ruta_origen,
             '-vcodec', VENCODER, '-acodec', 'aac',
             '-crf', '23', '-y', ruta_mp4
         ]
         print(f"🔄 [CONVERSIÓN] Ejecutando: {' '.join(cmd)}")
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            cmd, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             start_new_session=True
         )
         print(f"🔄 [CONVERSIÓN] PID de FFmpeg: {proc.pid}")
 
+        lineas_error = []
+        def _drenar_stderr():
+            for linea in iter(proc.stderr.readline, b''):
+                texto = linea.decode('utf-8', errors='replace').strip()
+                if texto:
+                    lineas_error.append(texto)
+        hilo_stderr = threading.Thread(target=_drenar_stderr, daemon=True)
+        hilo_stderr.start()
+
         try:
             ultimo_log = 0
-            for linea in iter(proc.stderr.readline, b''):
-                texto = linea.decode('utf-8', errors='replace')
-                tiempo = _parsear_progreso_ffmpeg(texto)
+            for linea in iter(proc.stdout.readline, b''):
+                texto = linea.decode('utf-8', errors='replace').strip()
+                if not texto.startswith('out_time='):
+                    continue
+                tiempo = _parsear_progreso_ffmpeg('time=' + texto.split('=', 1)[1])
                 if tiempo is not None and duracion_total and duracion_total > 0:
                     pct = min(int((tiempo / duracion_total) * 100), 99)
                     with lock_conversiones:
@@ -348,7 +370,7 @@ def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
                     if pct >= ultimo_log + 10:
                         print(f"📊 [CONVERSIÓN] {identificador_unico}: {pct}% ({tiempo:.0f}s / {duracion_total:.0f}s)")
                         ultimo_log = pct
-            proc.stderr.close()
+            proc.stdout.close()
             proc.wait()
         except KeyboardInterrupt:
             print(f"⚠️ [CONVERSIÓN] KeyboardInterrupt, esperando FFmpeg...")
@@ -363,6 +385,10 @@ def hilo_conversion(identificador_unico, ruta_origen, ruta_mp4):
         print(f"   Archivo mp4 existe: {os.path.exists(ruta_mp4)}")
         if os.path.exists(ruta_mp4):
             print(f"   Tamaño mp4: {os.path.getsize(ruta_mp4)} bytes")
+        if lineas_error:
+            print(f"   Últimas líneas de stderr ({len(lineas_error)}):")
+            for linea in lineas_error[-15:]:
+                print(f"      {linea}")
 
         if rc == 0 and os.path.exists(ruta_mp4) and os.path.getsize(ruta_mp4) > 0:
             exito = True

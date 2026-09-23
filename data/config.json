@@ -4,6 +4,6 @@
     "puerto": 5000,
     "api_habilitada": true,
     "admin_idioma": "es",
-    "auth_enabled": true,
+    "auth_enabled": false,
     "auth_password": "1234"
 }

@@ -371,7 +371,7 @@ function mostrarErrorConversion(card, rutaRelativa) {
     }, 3000);
 }
 
-setInterval(verificarEstados, 4000);
+setInterval(verificarEstados, 1000);
 
 // --- ATAJOS DE TECLADO ---
 (function() {
