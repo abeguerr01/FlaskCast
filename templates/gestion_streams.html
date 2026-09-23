@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}FlaskCast - {{ t('str_title') }}{% endblock %}
+
+{% block head %}
+<style>
+.st-page { padding: 24px; max-width: 800px; margin: 0 auto; }
+.st-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
+.st-header h1 { margin: 0; font-size: 1.8rem; color: var(--text-primary); }
+.st-desc { color: var(--text-secondary); margin: 0 0 16px 0; }
+.st-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.bib-btn {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border, #333);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s, transform 0.1s;
+}
+.bib-btn:hover { background: rgba(229, 9, 20, 0.15); border-color: #e50914; transform: translateY(-1px); }
+.bib-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.bib-btn-danger:hover { background: rgba(229, 9, 20, 0.25); }
+.bib-btn-accent { background: #e50914; border-color: #e50914; color: #fff; }
+.bib-btn-accent:hover { background: #ff1a25; }
+#st-msg { min-height: 20px; font-size: 0.85rem; margin-bottom: 10px; color: var(--text-secondary); }
+.st-empty { color: var(--text-secondary); padding: 30px 0; text-align: center; }
+.st-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border, #333);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.st-item-info { flex: 1; min-width: 180px; }
+.st-item-title { color: var(--text-primary); font-weight: 600; font-size: 0.95rem; }
+.st-item-url { color: var(--text-secondary); font-size: 0.8rem; word-break: break-all; }
+.st-tag {
+    background: rgba(229, 9, 20, 0.15);
+    color: var(--text-primary);
+    border: 1px solid #e50914;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+.st-actions { display: flex; gap: 6px; }
+.st-btn {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border, #333);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.st-btn:hover { border-color: #e50914; }
+.st-note { color: var(--text-secondary); font-size: 0.8rem; margin: 4px 0 0 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="st-page">
+    <div class="st-header">
+        <h1>📡 {{ t('str_title') }}</h1>
+        <a href="/live" class="btn-back">{{ t('volver_directo') }}</a>
+    </div>
+    <p class="st-desc">{{ t('str_desc') }}</p>
+
+    <div class="st-toolbar">
+        <button type="button" class="bib-btn bib-btn-accent" onclick="abrirStreamModal(-1)">{{ t('str_anadir_stream') }}</button>
+        <button type="button" class="bib-btn" onclick="location.reload()">{{ t('str_refrescar') }}</button>
+    </div>
+
+    <div id="st-msg"></div>
+
+    <div id="st-lista">
+        {% if streams %}
+            {% for s in streams %}
+            <div class="st-item">
+                <div class="st-item-info">
+                    <div class="st-item-title">{{ s.titulo }}</div>
+                    <div class="st-item-url">{{ s.url }}{% if s.urls | length > 1 %} (+{{ s.urls | length - 1 }}){% endif %}</div>
+                </div>
+                <span class="st-tag">{{ s.tipo }}</span>
+                <div class="st-actions">
+                    <button type="button" class="st-btn" onclick="moverStream({{ loop.index0 }}, 'arriba')" {% if loop.first %}disabled{% endif %} title="{{ t('str_subir') }}">▲</button>
+                    <button type="button" class="st-btn" onclick="moverStream({{ loop.index0 }}, 'abajo')" {% if loop.last %}disabled{% endif %} title="{{ t('str_bajar') }}">▼</button>
+                    <button type="button" class="st-btn" onclick="abrirStreamModal({{ loop.index0 }})">{{ t('str_editar') }}</button>
+                    <button type="button" class="st-btn bib-btn-danger" onclick="eliminarStream({{ loop.index0 }})">{{ t('str_eliminar') }}</button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <p class="st-empty">{{ t('str_vacio') }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MODAL: AÑADIR / EDITAR STREAM -->
+<div id="modalStream" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalStream')">&times;</span>
+        <h2 id="streamModalTitle" style="margin-top: 0; color: var(--text-primary);">{{ t('str_anadir_stream') }}</h2>
+
+        <label class="modal-label">{{ t('str_titulo') }}</label>
+        <input type="text" id="streamTitulo" class="modal-input-text" required>
+
+        <label class="modal-label">{{ t('str_url_label') }}</label>
+        <input type="text" id="streamUrl" class="modal-input-text" required placeholder="https://...">
+
+        <label class="modal-label">{{ t('str_backups') }}</label>
+        <textarea id="streamBackups" class="modal-input-text" rows="3" style="resize: vertical;"></textarea>
+
+        <label class="modal-label">{{ t('str_tipo') }}</label>
+        <select id="streamTipo" class="modal-input-text" style="margin-bottom: 8px;">
+            <option value="hls">{{ t('str_hls') }}</option>
+            <option value="video">{{ t('str_video') }}</option>
+            <option value="iframe">{{ t('str_iframe') }}</option>
+            <option value="m3u">{{ t('str_m3u') }}</option>
+            <option value="auto">{{ t('str_auto') }}</option>
+        </select>
+        <p class="st-note">{{ t('str_tipo_desc') }}</p>
+
+        <button type="button" class="bib-btn bib-btn-accent" style="width: 100%; margin-top: 12px;" onclick="guardarStream()">{{ t('guardar') }}</button>
+        <button type="button" class="bib-btn" style="width: 100%; margin-top: 8px;" onclick="cerrarModal('modalStream')">{{ t('bib_meta_cancelar') }}</button>
+    </div>
+</div>
+
+<script>
+    var tr = {{ T[idioma_actual] | tojson }};
+    var STREAMS = {{ streams | tojson }};
+    var edicion = -1;
+
+    function info(msg) { document.getElementById('st-msg').textContent = msg; }
+
+    function cerrarModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    function abrirModal(id) {
+        document.getElementById(id).style.display = 'flex';
+    }
+
+    function abrirStreamModal(indice) {
+        edicion = indice;
+        document.getElementById('streamModalTitle').textContent = indice === -1 ? tr.str_anadir_stream : tr.str_editar_stream;
+        var s = indice === -1 ? {} : (STREAMS[indice] || {});
+        document.getElementById('streamTitulo').value = s.titulo || '';
+        document.getElementById('streamUrl').value = s.url || '';
+        var backups = (s.urls || []).filter(function(u) { return u !== s.url; });
+        document.getElementById('streamBackups').value = backups.join('\n');
+        document.getElementById('streamTipo').value = (s.tipo && ['hls', 'video', 'iframe', 'm3u', 'auto'].indexOf(s.tipo) !== -1) ? s.tipo : 'hls';
+        abrirModal('modalStream');
+    }
+
+    function guardarStream() {
+        var titulo = document.getElementById('streamTitulo').value.trim();
+        var url = document.getElementById('streamUrl').value.trim();
+        if (!titulo || !url) { alert(tr.msg_titulo_url_obligatorios); return; }
+        var backups = document.getElementById('streamBackups').value.split('\n').map(function(b) { return b.trim(); }).filter(function(b) { return b; });
+        var urls = [url].concat(backups);
+        var urlEndpoint = edicion === -1 ? '/live/streams/crear' : '/live/streams/editar';
+        var datos = { titulo: titulo, url: url, urls: urls, tipo: document.getElementById('streamTipo').value };
+        if (edicion !== -1) { datos.indice = edicion; }
+        fetch(urlEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datos)
+        }).then(function(r) { return r.json().catch(function() { return {}; }); })
+          .then(function(res) {
+              if (res.error) { alert(res.error); throw new Error(res.error); }
+              cerrarModal('modalStream');
+              location.reload();
+          }).catch(function(e) {});
+    }
+
+    function eliminarStream(indice) {
+        var s = STREAMS[indice] || {};
+        var titulo = s.titulo || tr.str_sin_titulo;
+        if (!confirm(tr.msg_eliminar_stream.replace('{titulo}', titulo))) { return; }
+        fetch('/live/streams/eliminar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indice: indice })
+        }).then(function(r) { return r.json().catch(function() { return {}; }); })
+          .then(function(res) {
+              if (res.error) { alert(res.error); throw new Error(res.error); }
+              location.reload();
+          }).catch(function(e) {});
+    }
+
+    function moverStream(indice, direccion) {
+        fetch('/live/streams/mover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indice: indice, direccion: direccion })
+        }).then(function(r) { return r.json().catch(function() { return {}; }); })
+          .then(function(res) {
+              if (res.error) { alert(res.error); throw new Error(res.error); }
+              location.reload();
+          }).catch(function(e) {});
+    }
+</script>
+
+{% endblock %}

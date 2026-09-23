@@ -10,6 +10,7 @@ import threading
 import sqlite3
 import urllib.request
 import urllib.parse
+import functools
 from flask import Flask, send_from_directory, render_template, jsonify, abort, session, request, redirect, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -154,6 +155,14 @@ def check_auth():
 def es_cliente_local():
     remote = request.remote_addr
     return remote in ('127.0.0.1', '::1', 'localhost')
+
+def requiere_cuenta(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get('usuario_id'):
+            return jsonify({'error': 'Se requiere una cuenta para gestionar.'}), 401
+        return f(*args, **kwargs)
+    return wrapper
 
 # =============================================================================
 # BASE DE DATOS
@@ -1769,12 +1778,15 @@ def _guardar_meta(nombre, meta):
 
 @app.route('/biblioteca')
 def biblioteca():
+    if not session.get('usuario_id'):
+        return redirect('/')
     contenido = estructura_biblioteca()
     meta_data = {item['nombre']: item['meta'] for item in contenido}
     return render_template('biblioteca.html', contenido=contenido, meta_data=meta_data,
                            active_section='biblioteca')
 
 @app.route('/biblioteca/crear', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("5 per minute")
 def biblioteca_crear():
     datos = request.json or {}
@@ -1800,6 +1812,7 @@ def biblioteca_crear():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/biblioteca/temporada', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("5 per minute")
 def biblioteca_crear_temporada():
     datos = request.json or {}
@@ -1822,6 +1835,7 @@ def biblioteca_crear_temporada():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/biblioteca/videos/add', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("10 per minute")
 def biblioteca_agregar_videos():
     serie = (request.form.get('serie', '') or '').strip()
@@ -1862,6 +1876,7 @@ def biblioteca_agregar_videos():
     return jsonify({'status': 'ok', 'copiados': copiados, 'errores': errores[:5]})
 
 @app.route('/biblioteca/meta', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("10 per minute")
 def biblioteca_guardar_meta():
     datos = request.json or {}
@@ -1891,6 +1906,7 @@ def biblioteca_guardar_meta():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/biblioteca/renombrar', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("10 per minute")
 def biblioteca_renombrar():
     datos = request.json or {}
@@ -1985,6 +2001,7 @@ def biblioteca_renombrar():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/biblioteca/eliminar', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("5 per minute")
 def biblioteca_eliminar():
     datos = request.json or {}
@@ -2062,11 +2079,13 @@ def biblioteca_eliminar():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/biblioteca/omdb/estado')
+@requiere_cuenta
 def biblioteca_omdb_estado():
     clave = leer_env().get('OMDB_API_KEY', '').strip()
     return jsonify({'tiene_key': bool(clave), 'api_key': clave})
 
 @app.route('/biblioteca/omdb/validar', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("5 per minute")
 def biblioteca_omdb_validar():
     datos = request.json or {}
@@ -2079,6 +2098,7 @@ def biblioteca_omdb_validar():
     return jsonify({'ok': ok})
 
 @app.route('/biblioteca/omdb/aplicar', methods=['POST'])
+@requiere_cuenta
 @limiter.limit("2 per minute")
 def biblioteca_omdb_aplicar():
     datos = request.json or {}
@@ -2109,6 +2129,123 @@ def biblioteca_omdb_aplicar():
     if not ok:
         return jsonify({'error': f'{nombre} → {info}'}), 500
     return jsonify({'status': 'ok', 'info': info})
+
+# =============================================================================
+# STREAMS WEB (gestión de directos desde el navegador)
+# =============================================================================
+TIPOS_STREAM = ('hls', 'iframe', 'video', 'm3u', 'auto')
+_lock_streams = threading.RLock()
+
+def leer_streams_raw():
+    if not os.path.exists(LIVE_STREAMS_PATH):
+        return []
+    try:
+        with open(LIVE_STREAMS_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def guardar_streams(streams):
+    with _lock_streams:
+        with open(LIVE_STREAMS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(streams, f, indent=4, ensure_ascii=False)
+
+def _normalizar_stream_payload(datos):
+    titulo = (datos.get('titulo', '') or '').strip()
+    url = (datos.get('url', '') or '').strip()
+    if not titulo or not url:
+        return None
+    tipo = (datos.get('tipo', 'hls') or 'hls').strip().lower()
+    if tipo not in TIPOS_STREAM:
+        tipo = 'hls'
+    urls_raw = datos.get('urls')
+    if isinstance(urls_raw, list):
+        urls = [str(u).strip() for u in urls_raw if str(u).strip()]
+    elif isinstance(urls_raw, str):
+        urls = [u.strip() for u in urls_raw.split('\n') if u.strip()]
+    else:
+        urls = []
+    if url not in urls:
+        urls.insert(0, url)
+    return {'titulo': titulo, 'url': url, 'urls': urls, 'tipo': tipo}
+
+@app.route('/live/gestion')
+def gestion_streams():
+    if not session.get('usuario_id'):
+        return redirect('/')
+    streams = leer_streams_raw()
+    return render_template('gestion_streams.html', streams=streams, active_section='directo')
+
+@app.route('/live/streams/crear', methods=['POST'])
+@requiere_cuenta
+@limiter.limit("10 per minute")
+def stream_crear():
+    stream = _normalizar_stream_payload(request.json or {})
+    if not stream:
+        return jsonify({'error': 'Título y URL son obligatorios.'}), 400
+    with _lock_streams:
+        streams = leer_streams_raw()
+        streams.append(stream)
+        guardar_streams(streams)
+    return jsonify({'status': 'ok'}), 201
+
+@app.route('/live/streams/editar', methods=['POST'])
+@requiere_cuenta
+@limiter.limit("10 per minute")
+def stream_editar():
+    datos = request.json or {}
+    try:
+        indice = int(datos.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice no válido.'}), 400
+    stream = _normalizar_stream_payload(datos)
+    if not stream:
+        return jsonify({'error': 'Título y URL son obligatorios.'}), 400
+    with _lock_streams:
+        streams = leer_streams_raw()
+        if indice < 0 or indice >= len(streams):
+            return jsonify({'error': 'Índice fuera de rango.'}), 404
+        streams[indice] = stream
+        guardar_streams(streams)
+    return jsonify({'status': 'ok'})
+
+@app.route('/live/streams/eliminar', methods=['POST'])
+@requiere_cuenta
+@limiter.limit("10 per minute")
+def stream_eliminar():
+    datos = request.json or {}
+    try:
+        indice = int(datos.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice no válido.'}), 400
+    with _lock_streams:
+        streams = leer_streams_raw()
+        if indice < 0 or indice >= len(streams):
+            return jsonify({'error': 'Índice fuera de rango.'}), 404
+        streams.pop(indice)
+        guardar_streams(streams)
+    return jsonify({'status': 'ok'})
+
+@app.route('/live/streams/mover', methods=['POST'])
+@requiere_cuenta
+@limiter.limit("20 per minute")
+def stream_mover():
+    datos = request.json or {}
+    try:
+        indice = int(datos.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice no válido.'}), 400
+    direccion = datos.get('direccion', '')
+    with _lock_streams:
+        streams = leer_streams_raw()
+        if indice < 0 or indice >= len(streams):
+            return jsonify({'error': 'Índice fuera de rango.'}), 404
+        destino = indice - 1 if direccion == 'arriba' else indice + 1 if direccion == 'abajo' else None
+        if destino is None or destino < 0 or destino >= len(streams):
+            return jsonify({'error': 'Movimiento no válido.'}), 400
+        streams[indice], streams[destino] = streams[destino], streams[indice]
+        guardar_streams(streams)
+    return jsonify({'status': 'ok'})
 
 # =============================================================================
 # API - SISTEMA (ping, apagado, admin)

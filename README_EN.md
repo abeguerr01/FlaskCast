@@ -36,13 +36,14 @@
 - **Light/Dark theme:** toggle between dark (default) and light theme, saved per user.
 - **SPA transitions:** page navigation with fade animations and AJAX fetch.
 - **Complete REST API:** add, delete, list, download videos and manage progress through toggle-protected endpoints.
-- **Live Streaming:** play live streams (HLS, iframes, videos) with M3U list support, SmartTV mode, and **automatic multi-source fallback**.
+- **Live Streaming:** play live streams (HLS, iframes, videos) with M3U list support, SmartTV mode, and **automatic multi-source fallback**. Includes **web management** of streams from the browser (add/edit/delete/reorder, `hls/video/iframe/m3u/auto` types), only visible for registered accounts.
 - **SmartTV Mode:** player optimized for TVs connected to the local network.
 - **Auto-play:** the player automatically advances to the next episode in the season.
 - **Responsive interface:** adaptable design with collapsible sidebar on mobile (hamburger menu), breakpoints at 900px, 768px and 480px.
 - **Lightweight interface:** HTML5, CSS, and Vanilla JavaScript for playback and real-time search.
 - **Multi-language (i18n):** Spanish/English support with per-user switching. OMDb genres and descriptions are auto-translated.
-- **OMDb integration:** automatic fetching of covers, descriptions, ratings, and metadata from OMDb API. Key stored in `.env`.
+- **OMDb integration:** automatic fetching of covers, descriptions, ratings, and metadata from OMDb API. Key stored in `.env` and reusable from the web or the admin panel.
+- **Web Library (Manage Library):** full management of series, movies, seasons, and videos from the browser (`/biblioteca`), with the admin UI integrated in the sidebar (right before "Log out") and a built-in OMDb connector. The link only appears for registered accounts (hidden for guests).
 - **Hero design:** detail view with blurred cover banner, visual metadata, and action buttons.
 - **Admin panel GUI:** visual management of content, streams, configuration, and OMDb with tkinter interface (5 tabs, bilingual ES/EN).
 - **Optional authentication:** password-based protection for accessing the application. Can be enabled/disabled from the admin panel. When active, all web routes require authentication with the configured password.
@@ -460,7 +461,21 @@ Streams are configured in the `data/live_streams.json` file. If the file doesn't
 ]
 ```
 
-Streams can also be managed visually from the **"Streamings"** tab of the admin panel (`config_admin.py`).
+Streams can also be managed visually from:
+- The **"Streamings"** tab of the admin panel (`config_admin.py`).
+- **From the browser**: the **⚙️ Manage Streams** button in the Live header (`/live`), which opens `/live/gestion` with full CRUD, reordering (▲/▼) and support for `hls`, `video`, `iframe`, `m3u` and `auto` types (the last two are not available in the admin panel tab). It includes validation (title and URL required), delete confirmation and per-minute request limits on every endpoint. The button **only appears for registered accounts** (guests do not see it) and the `/live/gestion` and `/live/streams/*` routes redirect or reject requests without an account session.
+
+### Web Stream Management
+
+| Endpoint | Method | Description | Limit |
+|---|---|---|---|
+| `/live/gestion` | GET | Stream management page (title, main URL, backups per line, type) | — |
+| `/live/streams/crear` | POST | Adds a new stream (`titulo`, `url`, `urls`, `tipo`) | 10/min |
+| `/live/streams/editar` | POST | Updates the stream at the given index (`indice` + data) | 10/min |
+| `/live/streams/eliminar` | POST | Removes the stream at the given index (`indice`) | 10/min |
+| `/live/streams/mover` | POST | Reorders the stream (`indice`, `direccion`: `arriba`/`abajo`) | 20/min |
+
+> Streams are saved to `data/live_streams.json` with a lock (`threading.RLock`) for safe concurrent writes.
 
 ### Multiple URLs and Automatic Fallback
 
@@ -662,6 +677,8 @@ python config_admin.py
 - **Library tree** showing all multimedia folders with columns: name, type (movie/series), has metadata, has cover.
 - **"Apply OMDb" button** that searches and applies metadata automatically (title, description, year, genre, director, rating, duration/seasons) and downloads the cover as `_img.png`.
 
+> 💡 This functionality is also available from the browser in the [Web Library](#web-library-browser-management).
+
 #### Library Tab
 
 - **Hierarchical tree** with the entire multimedia structure (Series → Seasons → Videos, Movies → Videos).
@@ -675,12 +692,15 @@ python config_admin.py
   - Delete (with confirmation, cleans thumbnails and progress).
 - **Context menu** (right-click) with options depending on the selected node level.
 
+> 💡 This functionality is also available from the browser: [Web Library](#web-library-browser-management) (**Manage Library** in the sidebar, only for registered accounts).
+
 #### Streamings Tab
 
 - **Complete CRUD** for live streams stored in `data/live_streams.json`.
 - Tree with columns: title, main URL, type.
 - **Actions:** add, edit, delete, move up/down (reorder), refresh.
 - Each stream has: title, main URL, backup URLs (one per line), type (hls/iframe/video).
+- Web alternative: **⚙️ Manage Streams** from `/live` (see [Web Stream Management](#web-stream-management)), with additional `m3u` and `auto` types.
 
 #### Language Tab
 
@@ -749,6 +769,56 @@ python config_admin.py --export backup.fkmedia
 # Import content from a backup
 python config_admin.py --import backup.fkmedia
 ```
+
+---
+
+## Web Library (browser management)
+
+In addition to the desktop panel, FlaskCast includes **full content management from the browser**. Access it from the sidebar via the **🗂️ Manage Library** link, located right before "Log out" (route `GET /biblioteca`). It does not depend on the REST API toggle, so it works whenever you have web access. **It is only available for registered accounts**: the link is hidden for guests and the route redirects to `/` without a session (the same applies to all `/biblioteca/...` and `/live/streams/...` endpoints, protected with `requiere_cuenta`).
+
+### Content tree
+
+- Shows the entire multimedia structure (Series → Seasons → Videos, Movies → Videos) with the size of each video in MB.
+- Everything appears **collapsed by default**; a click on a series or season expands/hides it and selects it.
+- The top bar actions are enabled depending on the selected item.
+
+### Available actions
+
+| Button | Requires | Function |
+|--------|----------|----------|
+| +Add Movie/Series | — | Creates the folder + `_meta.json`; for series it automatically generates `Season N` according to the specified number of seasons |
+| +Add Season | Selected series | Creates the season subfolder (suggests `Season N` automatically) |
+| +Add Video | Movie, series without seasons, or season | Uploads one or more videos (`.mp4`, `.webm`, `.ogg`, `.avi`, `.mkv`) to the correct destination |
+| Edit Metadata | Selected Movie/Series | Updates `_meta.json` and the `content_metadata` table |
+| Rename | Any node | Renames series (cascade in favorites/progress/lists), season, or video |
+| Delete | Any node | Deletes with confirmation the whole series, a season, or a video (cleans thumbnails and progress) |
+| OMDb | Selected Movie/Series | Opens the OMDb integration modal |
+| Refresh | — | Reloads the tree from disk |
+
+### OMDb integration from the web
+
+The **OMDb** button opens a modal that mirrors the OMDb tab of the admin panel:
+
+- **API key** field that, if a key is already saved in the `.env` file, **appears pre-filled** (along with the "✓ Valid API key (saved)" indicator).
+- **Validate** button that checks the key against the OMDb API and saves it to `.env`.
+- "Get API Key" link with access to the OMDb registration page.
+- **"Download cover"** checkbox (enabled by default) that downloads the poster as `_img.png`.
+- **"Apply OMDb"** button: searches the selected content by its folder name, picks the best match, and automatically fills title, description, year, genre, director, rating, and duration/seasons.
+
+### Web management endpoints
+
+| Method | Route | Description | Rate Limit |
+|--------|-------|-------------|------------|
+| GET | `/biblioteca` | Management page with the content tree | — |
+| POST | `/biblioteca/crear` | Create a movie/series with metadata | 5/min |
+| POST | `/biblioteca/temporada` | Create a season in a series | 5/min |
+| POST | `/biblioteca/videos/add` | Upload one or more videos (multipart) | 10/min |
+| POST | `/biblioteca/meta` | Save/update metadata | 10/min |
+| POST | `/biblioteca/renombrar` | Rename series, season, or video | 10/min |
+| POST | `/biblioteca/eliminar` | Delete series, season, or video | 5/min |
+| GET | `/biblioteca/omdb/estado` | Shows whether an OMDb key is saved and its value | — |
+| POST | `/biblioteca/omdb/validar` | Validate and save the OMDb API key | 5/min |
+| POST | `/biblioteca/omdb/aplicar` | Apply OMDb metadata to the selected content | 2/min |
 
 ---
 
@@ -1112,11 +1182,17 @@ When a video finishes, the player automatically loads the next episode in the sa
 | GET | `/tv/reproducir/<series>/<file>` | SmartTV player |
 | GET | `/live` | Live streams listing |
 | GET | `/live/tv/<index>` | SmartTV player for live streams |
+| GET | `/live/gestion` | Web stream management (see [Web Stream Management](#web-stream-management)) |
+| POST | `/live/streams/crear` | Add stream (see [Web Stream Management](#web-stream-management)) |
+| POST | `/live/streams/editar` | Edit stream (see [Web Stream Management](#web-stream-management)) |
+| POST | `/live/streams/eliminar` | Delete stream (see [Web Stream Management](#web-stream-management)) |
+| POST | `/live/streams/mover` | Reorder stream (see [Web Stream Management](#web-stream-management)) |
 | GET | `/usuarios_panel` | User management panel |
 | GET | `/ajustes` | Settings panel (theme, language, auto-marking) |
 | GET/POST | `/ajustes` | Save user settings |
 | GET/POST | `/login` | Authentication screen (only when auth enabled) |
 | GET | `/logout` | Close authentication session |
+| GET | `/biblioteca` | Web library management (see [Web Library](#web-library-browser-management)) |
 
 ### REST API (require session + API enabled)
 

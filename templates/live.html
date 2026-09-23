@@ -20,6 +20,9 @@
             font-size: 1rem;
             margin-top: 8px;
         }
+        .live-header-actions {
+            margin-top: 16px;
+        }
         .live-list {
             padding: 10px 0;
         }
@@ -248,6 +251,11 @@
     <div class="live-header">
         <h1>{{ t('contenido_directo') }}</h1>
         <p>{{ t('pulsa_ver') }}</p>
+        <div class="live-header-actions">
+            {% if session.get('usuario_id') %}
+            <a href="/live/gestion" class="btn-back" style="display:inline-block;">{{ t('nav_gestion_streams') }}</a>
+            {% endif %}
+        </div>
     </div>
 
     <div class="live-list">

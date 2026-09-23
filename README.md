@@ -36,13 +36,14 @@
 - **Tema claro/oscuro:** toggle entre tema oscuro (por defecto) y claro, guardado por usuario.
 - **Transiciones SPA:** navegación entre páginas con fade animations y fetch AJAX.
 - **API REST completa:** añade, elimina, lista, descarga vídeos y gestiona el progreso mediante endpoints protegidos por toggle.
-- **Streaming en Vivo:** reproduce streams en directo (HLS, iframes, vídeos) con soporte para listas M3U, modo SmartTV y **fallback automático con múltiples fuentes**.
+- **Streaming en Vivo:** reproduce streams en directo (HLS, iframes, vídeos) con soporte para listas M3U, modo SmartTV y **fallback automático con múltiples fuentes**. Incluye **gestión web** de streams desde el navegador (añadir/editar/eliminar/reordenar, tipo `hls/video/iframe/m3u/auto`), visible solo para cuentas registradas.
 - **Modo SmartTV:** reproductor optimizado para televisores conectados a la red local.
 - **Auto-reproducción:** el reproductor avanza automáticamente al siguiente capítulo de la temporada.
 - **Interfaz responsive:** diseño adaptable con sidebar colapsable en móvil (hamburger menu), breakpoints a 900px, 768px y 480px.
 - **Interfaz ligera:** HTML5, CSS y JavaScript Vanilla para reproducción y búsqueda en tiempo real.
 - **Multi-idioma (i18n):** soporte español/inglés con cambio por usuario. Géneros y descripciones de OMDb se traducen automáticamente.
-- **Integración OMDb:** obtención automática de portadas, descripciones, valoraciones y metadatos desde OMDb API. Clave guardada en `.env`.
+- **Integración OMDb:** obtención automática de portadas, descripciones, valoraciones y metadatos desde OMDb API. Clave guardada en `.env` y reutilizable desde la web o el panel de administración.
+- **Biblioteca web (Gestionar Biblioteca):** gestión completa de series, películas, temporadas y vídeos desde el navegador (`/biblioteca`), con la UI de administración integrada en el sidebar (justo antes de "Cerrar sesión") y conector OMDb incluido. El enlace solo aparece para cuentas registradas (oculto para invitados).
 - **Diseño hero:** vista detalle con banner de portada difuminada, metadata visual y botones de acción.
 - **Panel de administración GUI:** gestión visual de contenido, streams, configuración y OMDb con interfaz en tkinter (5 pestañas, bilingual ES/EN).
 - **Autenticación opcional:** protección con contraseña para acceder a la aplicación. Se activa/desactiva desde el panel de administración. Cuando está activa, todas las rutas web requieren autenticarse previamente con la contraseña configurada.
@@ -460,7 +461,21 @@ Los streams se configuran en el archivo `data/live_streams.json`. Si el archivo 
 ]
 ```
 
-Los streams también se pueden gestionar visualmente desde la pestaña **"Streamings"** del panel de administración (`config_admin.py`).
+Los streams también se pueden gestionar visualmente desde:
+- La pestaña **"Streamings"** del panel de administración (`config_admin.py`).
+- **Desde el navegador**: botón **⚙️ Gestionar Streams** en la cabecera de `En Directo` (`/live`), que abre `/live/gestion` con CRUD completo, reordenación (▲/▼) y soporte de tipos `hls`, `video`, `iframe`, `m3u` y `auto` (los dos últimos no existen en la pestaña del panel). Incluye validación (título y URL obligatorios), confirmación al eliminar y límites de peticiones por minuto en todos los endpoints. El botón **solo aparece para cuentas registradas** (los invitados no lo ven) y las rutas `/live/gestion` y `/live/streams/*` redirigen o rechazan sin sesión de cuenta.
+
+### Gestión web de streams
+
+| Endpoint | Método | Descripción | Límite |
+|---|---|---|---|
+| `/live/gestion` | GET | Página de gestión de streams (título, URL principal, backups por línea, tipo) | — |
+| `/live/streams/crear` | POST | Añade un stream nuevo (`titulo`, `url`, `urls`, `tipo`) | 10/min |
+| `/live/streams/editar` | POST | Actualiza el stream del índice (`indice` + datos) | 10/min |
+| `/live/streams/eliminar` | POST | Elimina el stream del índice (`indice`) | 10/min |
+| `/live/streams/mover` | POST | Reordena el stream (`indice`, `direccion`: `arriba`/`abajo`) | 20/min |
+
+> Los streams se guardan en `data/live_streams.json` con bloqueo (`threading.RLock`) para escrituras concurrentes seguras.
 
 ### Múltiples URLs y fallback automático
 
@@ -662,6 +677,8 @@ python config_admin.py
 - **Árbol de biblioteca** que muestra todas las carpetas multimedia con columnas: nombre, tipo (película/serie), tiene metadatos, tiene portada.
 - Botón **"Aplicar OMDb"** que busca y aplica metadatos automáticamente (título, descripción, año, género, director, valoración, duración/temporadas) y descarga la portada como `_img.png`.
 
+> 💡 Esta funcionalidad también está disponible desde el navegador en la [Biblioteca web](#biblioteca-web-gestión-desde-el-navegador).
+
 #### Pestaña Biblioteca
 
 - **Árbol jerárquico** con toda la estructura multimedia (Series → Temporadas → Vídeos, Películas → Vídeos).
@@ -675,12 +692,15 @@ python config_admin.py
   - Eliminar (con confirmación, limpia miniaturas y progreso).
 - **Menú contextual** (clic derecho) con opciones según el nivel del nodo seleccionado.
 
+> 💡 Esta funcionalidad también está disponible desde el navegador: [Biblioteca web](#biblioteca-web-gestión-desde-el-navegador) (**Gestionar Biblioteca** en el sidebar, solo para cuentas registradas).
+
 #### Pestaña Streamings
 
 - **CRUD completo** de streams en vivo almacenados en `data/live_streams.json`.
 - Árbol con columnas: título, URL principal, tipo.
 - **Acciones:** añadir, editar, eliminar, mover arriba/abajo (reordenar), actualizar.
 - Cada stream tiene: título, URL principal, URLs de backup (una por línea), tipo (hls/iframe/video).
+- Alternativa web: **⚙️ Gestionar Streams** desde `/live` (ver [Gestión web de streams](#gestión-web-de-streams)), con tipos adicionales `m3u` y `auto`.
 
 #### Pestaña Language (Idioma)
 
@@ -749,6 +769,56 @@ python config_admin.py --export backup.fkmedia
 # Importar contenido desde un backup
 python config_admin.py --import backup.fkmedia
 ```
+
+---
+
+## Biblioteca web (gestión desde el navegador)
+
+Además del panel de escritorio, FlaskCast incluye una **gestión completa de contenido desde el navegador**. Se accede desde el sidebar con el enlace **🗂️ Gestionar Biblioteca**, situado justo antes de "Cerrar sesión" (ruta `GET /biblioteca`). No depende del toggle de la API REST, por lo que funciona siempre que se tenga acceso a la web. **Solo está disponible para cuentas registradas**: el enlace no aparece para invitados y la ruta redirige a `/` si no hay sesión (lo mismo aplica a todos los endpoints `/biblioteca/...` y `/live/streams/...`, protegidos con `requiere_cuenta`).
+
+### Árbol de contenido
+
+- Muestra toda la estructura multimedia (Series → Temporadas → Vídeos, Películas → Vídeos) con el tamaño de cada vídeo en MB.
+- Todo aparece **colapsado por defecto**; un clic en una serie o temporada la expande/oculta y la selecciona.
+- Las acciones de la barra superior se habilitan según el elemento seleccionado.
+
+### Acciones disponibles
+
+| Botón | Requiere | Función |
+|-------|----------|---------|
+| +Añadir Película/Serie | — | Crea la carpeta + `_meta.json`; para series genera automáticamente `Season N` según el número de temporadas indicado |
+| +Añadir Temporada | Serie seleccionada | Crea la subcarpeta de temporada (sugiere `Season N` automáticamente) |
+| +Añadir Vídeo | Película, serie sin temporadas o temporada | Sube uno o varios vídeos (`.mp4`, `.webm`, `.ogg`, `.avi`, `.mkv`) al destino correcto |
+| Editar Metadata | Película/Serie seleccionada | Actualiza `_meta.json` y la tabla `content_metadata` |
+| Renombrar | Cualquier nodo | Renombra serie (cascada en favoritos/progreso/listas), temporada o vídeo |
+| Eliminar | Cualquier nodo | Borra con confirmación la serie completa, una temporada o un vídeo (limpia miniaturas y progreso) |
+| OMDb | Película/Serie seleccionada | Abre el modal de integración con OMDb |
+| Refrescar | — | Recarga el árbol desde disco |
+
+### Integración OMDb desde la web
+
+El botón **OMDb** abre un modal que replica la pestaña OMDb del panel de administración:
+
+- Campo de **API key** que, si ya existe una clave guardada en el archivo `.env`, **aparece precargada** (junto con el indicador "✓ API key válida (guardada)").
+- Botón **Validar** que comprueba la clave contra la API de OMDb y la guarda en `.env`.
+- Enlace "Obtener API Key" con acceso a la página de registro de OMDb.
+- Checkbox **"Descargar portada"** (activado por defecto) que descarga el póster como `_img.png`.
+- Botón **"Aplicar OMDb"**: busca el contenido seleccionado por el nombre de su carpeta, elige la mejor coincidencia y rellena automáticamente título, descripción, año, género, director, valoración y duración/temporadas.
+
+### Endpoints de la gestión web
+
+| Método | Ruta | Descripción | Rate Limit |
+|--------|------|-------------|------------|
+| GET | `/biblioteca` | Página de gestión con el árbol de contenido | — |
+| POST | `/biblioteca/crear` | Crear película/serie con metadata | 5/min |
+| POST | `/biblioteca/temporada` | Crear temporada en una serie | 5/min |
+| POST | `/biblioteca/videos/add` | Subir uno o varios vídeos (multipart) | 10/min |
+| POST | `/biblioteca/meta` | Guardar/actualizar metadata | 10/min |
+| POST | `/biblioteca/renombrar` | Renombrar serie, temporada o vídeo | 10/min |
+| POST | `/biblioteca/eliminar` | Eliminar serie, temporada o vídeo | 5/min |
+| GET | `/biblioteca/omdb/estado` | Muestra si hay clave OMDb guardada y su valor | — |
+| POST | `/biblioteca/omdb/validar` | Valida y guarda la API key de OMDb | 5/min |
+| POST | `/biblioteca/omdb/aplicar` | Aplica metadatos OMDb al contenido seleccionado | 2/min |
 
 ---
 
@@ -1112,11 +1182,17 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 | GET | `/tv/reproducir/<serie>/<archivo>` | Reproductor SmartTV |
 | GET | `/live` | Lista de streams en vivo |
 | GET | `/live/tv/<indice>` | Reproductor SmartTV para streams en vivo |
+| GET | `/live/gestion` | Gestión web de streams (ver [Gestión web de streams](#gestión-web-de-streams)) |
+| POST | `/live/streams/crear` | Añadir stream (ver [Gestión web de streams](#gestión-web-de-streams)) |
+| POST | `/live/streams/editar` | Editar stream (ver [Gestión web de streams](#gestión-web-de-streams)) |
+| POST | `/live/streams/eliminar` | Eliminar stream (ver [Gestión web de streams](#gestión-web-de-streams)) |
+| POST | `/live/streams/mover` | Reordenar stream (ver [Gestión web de streams](#gestión-web-de-streams)) |
 | GET | `/usuarios_panel` | Panel de gestión de usuarios |
 | GET | `/ajustes` | Panel de configuración (tema, idioma, marcado automático) |
 | GET/POST | `/ajustes` | Guardar ajustes del usuario |
 | GET/POST | `/login` | Pantalla de autenticación (solo si auth habilitada) |
 | GET | `/logout` | Cerrar sesión de autenticación |
+| GET | `/biblioteca` | Gestión web de la biblioteca (Ver [Biblioteca web](#biblioteca-web-gestión-desde-el-navegador)) |
 
 ### API REST (requieren sesión + API habilitada)
 
