@@ -1502,6 +1502,413 @@ def api_crear_temporada():
         return jsonify({'error': str(e)}), 500
 
 # =============================================================================
+# BIBLIOTECA WEB (gestión de contenido desde el navegador)
+# =============================================================================
+FORMATO_VIDEO_BIB = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
+
+def _ruta_media_segura(*partes):
+    if not partes or any(not p for p in partes):
+        return None
+    ruta = os.path.normpath(os.path.join(DIRECTORIO_MEDIA, *partes))
+    raiz = os.path.normpath(DIRECTORIO_MEDIA)
+    if ruta != raiz and not ruta.startswith(raiz + os.sep):
+        return None
+    return ruta
+
+def _tam_mb(ruta):
+    try:
+        return f'{os.path.getsize(ruta) / (1024*1024):.1f} MB'
+    except OSError:
+        return ''
+
+def estructura_biblioteca():
+    contenido = []
+    if not os.path.isdir(DIRECTORIO_MEDIA):
+        return contenido
+    for nombre in sorted(os.listdir(DIRECTORIO_MEDIA)):
+        ruta = os.path.join(DIRECTORIO_MEDIA, nombre)
+        if not os.path.isdir(ruta) or nombre.startswith('.'):
+            continue
+        tipo = detectar_tipo_contenido(nombre)
+        meta = {}
+        meta_path = os.path.join(ruta, '_meta.json')
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
+        item = {
+            'nombre': nombre,
+            'tipo': tipo,
+            'tiene_meta': bool(meta),
+            'tiene_portada': os.path.exists(os.path.join(ruta, '_img.png')),
+            'meta': meta,
+            'temporadas': [],
+        }
+        ubicacion = meta.get('ubicacion', '').strip()
+        ruta_videos = ubicacion if ubicacion and os.path.isdir(ubicacion) else ruta
+        subcarpetas = [i for i in sorted(os.listdir(ruta_videos))
+                       if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+        if subcarpetas:
+            for sub in subcarpetas:
+                ruta_sub = os.path.join(ruta_videos, sub)
+                videos = [{'nombre': v, 'tam_mb': _tam_mb(os.path.join(ruta_sub, v))}
+                          for v in sorted(os.listdir(ruta_sub))
+                          if os.path.isfile(os.path.join(ruta_sub, v)) and v.lower().endswith(FORMATO_VIDEO_BIB)]
+                item['temporadas'].append({'nombre': sub, 'videos': videos})
+        else:
+            item['videos'] = [{'nombre': v, 'tam_mb': _tam_mb(os.path.join(ruta_videos, v))}
+                              for v in sorted(os.listdir(ruta_videos))
+                              if os.path.isfile(os.path.join(ruta_videos, v)) and v.lower().endswith(FORMATO_VIDEO_BIB)]
+        contenido.append(item)
+    return contenido
+
+def _construir_meta(datos):
+    tipo = datos.get('tipo', 'pelicula')
+    if tipo not in ('pelicula', 'serie'):
+        tipo = 'serie'
+    genero_raw = (datos.get('genero', '') or '').strip()
+    genero = [g.strip() for g in genero_raw.split(',') if g.strip()]
+    meta = {
+        'tipo': tipo,
+        'titulo': (datos.get('titulo', '') or '').strip(),
+        'descripcion': (datos.get('descripcion', '') or '').strip(),
+        'anio': (datos.get('anio', '') or '').strip(),
+        'genero': genero,
+        'director': (datos.get('director', '') or '').strip(),
+    }
+    try:
+        meta['valoracion'] = round(float(datos.get('valoracion', 0) or 0), 1)
+    except (TypeError, ValueError):
+        meta['valoracion'] = 0
+    if tipo == 'pelicula':
+        try:
+            meta['duracion_min'] = int(round(float(datos.get('duracion_min', 0) or 0)))
+        except (TypeError, ValueError):
+            meta['duracion_min'] = 0
+    else:
+        try:
+            meta['temporadas'] = int(datos.get('temporadas', 1) or 1)
+        except (TypeError, ValueError):
+            meta['temporadas'] = 1
+    ubicacion = (datos.get('ubicacion', '') or '').strip()
+    if ubicacion:
+        meta['ubicacion'] = ubicacion
+    return meta
+
+def _guardar_meta(nombre, meta):
+    meta_path = _ruta_media_segura(nombre, '_meta.json')
+    if not meta_path:
+        return False
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=4)
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('INSERT OR REPLACE INTO content_metadata (serie, tipo) VALUES (?, ?)',
+                       (nombre, meta.get('tipo', 'serie')))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+    return True
+
+@app.route('/biblioteca')
+def biblioteca():
+    contenido = estructura_biblioteca()
+    meta_data = {item['nombre']: item['meta'] for item in contenido}
+    return render_template('biblioteca.html', contenido=contenido, meta_data=meta_data,
+                           active_section='biblioteca')
+
+@app.route('/biblioteca/crear', methods=['POST'])
+@limiter.limit("5 per minute")
+def biblioteca_crear():
+    datos = request.json or {}
+    nombre = (datos.get('titulo', '') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'El título es obligatorio.'}), 400
+    ruta = _ruta_media_segura(nombre)
+    if not ruta:
+        return jsonify({'error': 'Nombre no válido.'}), 400
+    if os.path.exists(ruta):
+        return jsonify({'error': f'Ya existe contenido llamado "{nombre}".'}), 409
+    meta = _construir_meta(datos)
+    try:
+        os.makedirs(ruta, exist_ok=True)
+        _guardar_meta(nombre, meta)
+        tiene_ubicacion = bool(meta.get('ubicacion', '').strip())
+        if meta['tipo'] == 'serie' and not tiene_ubicacion:
+            num_temp = meta.get('temporadas', 1) or 1
+            for i in range(1, num_temp + 1):
+                os.makedirs(os.path.join(ruta, f'Season {i}'), exist_ok=True)
+        return jsonify({'status': 'ok'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/biblioteca/temporada', methods=['POST'])
+@limiter.limit("5 per minute")
+def biblioteca_crear_temporada():
+    datos = request.json or {}
+    serie = (datos.get('serie', '') or '').strip()
+    temporada = (datos.get('temporada', '') or '').strip()
+    if not serie or not temporada:
+        return jsonify({'error': 'Serie y temporada son obligatorias.'}), 400
+    ruta_serie = _ruta_media_segura(serie)
+    ruta_temporada = _ruta_media_segura(serie, temporada)
+    if not ruta_serie or not ruta_temporada:
+        return jsonify({'error': 'Ruta no válida.'}), 400
+    if not os.path.isdir(ruta_serie):
+        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
+    if os.path.exists(ruta_temporada):
+        return jsonify({'error': f'La temporada "{temporada}" ya existe.'}), 409
+    try:
+        os.makedirs(ruta_temporada, exist_ok=True)
+        return jsonify({'status': 'ok'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/biblioteca/videos/add', methods=['POST'])
+@limiter.limit("10 per minute")
+def biblioteca_agregar_videos():
+    serie = (request.form.get('serie', '') or '').strip()
+    temporada = (request.form.get('temporada', '') or '').strip()
+    if not serie:
+        return jsonify({'error': 'Falta la serie.'}), 400
+    ruta_serie = _ruta_media_segura(serie)
+    if not ruta_serie or not os.path.isdir(ruta_serie):
+        return jsonify({'error': f'La serie "{serie}" no existe.'}), 404
+    ruta_videos = obtener_ruta_serie(serie)
+    subcarpetas = [i for i in os.listdir(ruta_videos)
+                   if os.path.isdir(os.path.join(ruta_videos, i)) and not i.startswith('.')]
+    if subcarpetas:
+        if not temporada:
+            return jsonify({'error': 'Esta serie tiene temporadas. Selecciona una.'}), 400
+        if temporada not in subcarpetas:
+            return jsonify({'error': f'La temporada "{temporada}" no existe.'}), 404
+        destino_dir = os.path.join(ruta_videos, temporada)
+    else:
+        if temporada:
+            return jsonify({'error': 'Esta serie no tiene temporadas.'}), 400
+        destino_dir = ruta_videos
+    archivos = request.files.getlist('archivos')
+    if not archivos:
+        return jsonify({'error': 'No se envió ningún archivo.'}), 400
+    copiados = 0
+    errores = []
+    for archivo in archivos:
+        if not archivo or not archivo.filename:
+            continue
+        nombre = os.path.basename(archivo.filename)
+        destino = os.path.join(destino_dir, nombre)
+        try:
+            archivo.save(destino)
+            copiados += 1
+        except Exception as e:
+            errores.append(f'{nombre}: {e}')
+    return jsonify({'status': 'ok', 'copiados': copiados, 'errores': errores[:5]})
+
+@app.route('/biblioteca/meta', methods=['POST'])
+@limiter.limit("10 per minute")
+def biblioteca_guardar_meta():
+    datos = request.json or {}
+    nombre = (datos.get('nombre', '') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre.'}), 400
+    ruta = _ruta_media_segura(nombre)
+    if not ruta or not os.path.isdir(ruta):
+        return jsonify({'error': f'"{nombre}" no existe.'}), 404
+    meta_existente = {}
+    meta_path = os.path.join(ruta, '_meta.json')
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta_existente = json.load(f)
+        except Exception:
+            pass
+    nuevo_meta = _construir_meta(datos)
+    if not nuevo_meta.get('titulo'):
+        nuevo_meta['titulo'] = meta_existente.get('titulo', nombre)
+    if not (datos.get('ubicacion') or '').strip() and meta_existente.get('ubicacion'):
+        nuevo_meta['ubicacion'] = meta_existente['ubicacion']
+    try:
+        _guardar_meta(nombre, nuevo_meta)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/biblioteca/renombrar', methods=['POST'])
+@limiter.limit("10 per minute")
+def biblioteca_renombrar():
+    datos = request.json or {}
+    nivel = datos.get('nivel', '')
+    nombre = (datos.get('nombre', '') or '').strip()
+    nuevo = (datos.get('nuevo', '') or '').strip()
+    serie = (datos.get('serie', '') or '').strip()
+    temporada = (datos.get('temporada', '') or '').strip()
+    if not nombre or not nuevo or nuevo == nombre:
+        return jsonify({'error': 'Nombres no válidos.'}), 400
+    try:
+        if nivel == 'raiz':
+            ruta = _ruta_media_segura(nombre)
+            nueva = _ruta_media_segura(nuevo)
+            if not ruta or not nueva:
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isdir(ruta):
+                return jsonify({'error': 'Contenido no encontrado.'}), 404
+            if os.path.exists(nueva):
+                return jsonify({'error': f'Ya existe "{nuevo}".'}), 409
+            os.rename(ruta, nueva)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('UPDATE content_metadata SET serie = ? WHERE serie = ?', (nuevo, nombre))
+                cursor.execute('UPDATE favoritos SET serie = ? WHERE serie = ?', (nuevo, nombre))
+                cursor.execute('UPDATE progreso SET serie = ? WHERE serie = ?', (nuevo, nombre))
+                cursor.execute('UPDATE listas SET serie = ? WHERE serie = ?', (nuevo, nombre))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        elif nivel == 'temporada':
+            if not serie:
+                return jsonify({'error': 'Falta la serie.'}), 400
+            ruta = _ruta_media_segura(serie, nombre)
+            nueva = _ruta_media_segura(serie, nuevo)
+            if not ruta or not nueva:
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isdir(ruta):
+                return jsonify({'error': 'Temporada no encontrada.'}), 404
+            if os.path.exists(nueva):
+                return jsonify({'error': f'Ya existe "{nuevo}".'}), 409
+            os.rename(ruta, nueva)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('UPDATE progreso SET filename = ? WHERE serie = ? AND filename = ?',
+                               (f'{nuevo}/{nombre}', serie, f'{temporada}/{nombre}'))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        elif nivel == 'video':
+            if not serie:
+                return jsonify({'error': 'Falta la serie.'}), 400
+            ruta_videos = obtener_ruta_serie(serie)
+            base_dir = os.path.join(ruta_videos, temporada) if temporada else ruta_videos
+            ext = os.path.splitext(nombre)[1]
+            ruta = os.path.normpath(os.path.join(base_dir, nombre))
+            nueva = os.path.normpath(os.path.join(base_dir, nuevo + ext))
+            raiz = os.path.normpath(ruta_videos)
+            if not ruta.startswith(raiz + os.sep) or not nueva.startswith(raiz + os.sep):
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isfile(ruta):
+                return jsonify({'error': 'Vídeo no encontrado.'}), 404
+            if os.path.exists(nueva):
+                return jsonify({'error': f'Ya existe "{os.path.basename(nueva)}".'}), 409
+            os.rename(ruta, nueva)
+            nombre_rel = f"{temporada}/{nombre}" if temporada else nombre
+            nuevo_arch_rel = f"{temporada}/{os.path.basename(nueva)}" if temporada else os.path.basename(nueva)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('UPDATE progreso SET filename = ? WHERE serie = ? AND filename = ?',
+                               (nuevo_arch_rel, serie, nombre_rel))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+            base_viejo = os.path.splitext(nombre)[0]
+            base_nuevo = os.path.splitext(os.path.basename(nueva))[0]
+            if base_viejo != base_nuevo:
+                thumb_viejo = _ruta_media_segura(serie, '.thumbnails', f'{base_viejo}.jpg')
+                thumb_nuevo = _ruta_media_segura(serie, '.thumbnails', f'{base_nuevo}.jpg')
+                if thumb_viejo and thumb_nuevo and os.path.exists(thumb_viejo):
+                    os.rename(thumb_viejo, thumb_nuevo)
+        else:
+            return jsonify({'error': 'Nivel no válido.'}), 400
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/biblioteca/eliminar', methods=['POST'])
+@limiter.limit("5 per minute")
+def biblioteca_eliminar():
+    datos = request.json or {}
+    nivel = datos.get('nivel', '')
+    nombre = (datos.get('nombre', '') or '').strip()
+    serie = (datos.get('serie', '') or '').strip()
+    temporada = (datos.get('temporada', '') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre.'}), 400
+    try:
+        if nivel == 'raiz':
+            ruta = _ruta_media_segura(nombre)
+            if not ruta:
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isdir(ruta):
+                return jsonify({'error': 'Contenido no encontrado.'}), 404
+            shutil.rmtree(ruta)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM content_metadata WHERE serie = ?', (nombre,))
+                cursor.execute('DELETE FROM favoritos WHERE serie = ?', (nombre,))
+                cursor.execute('DELETE FROM progreso WHERE serie = ?', (nombre,))
+                cursor.execute('DELETE FROM listas WHERE serie = ?', (nombre,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        elif nivel == 'temporada':
+            if not serie:
+                return jsonify({'error': 'Falta la serie.'}), 400
+            ruta = _ruta_media_segura(serie, nombre)
+            if not ruta:
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isdir(ruta):
+                return jsonify({'error': 'Temporada no encontrada.'}), 404
+            shutil.rmtree(ruta)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM progreso WHERE serie = ? AND filename LIKE ?', (serie, f'{nombre}/%'))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        elif nivel == 'video':
+            if not serie:
+                return jsonify({'error': 'Falta la serie.'}), 400
+            ruta_videos = obtener_ruta_serie(serie)
+            base_dir = os.path.join(ruta_videos, temporada) if temporada else ruta_videos
+            ruta = os.path.normpath(os.path.join(base_dir, nombre))
+            raiz = os.path.normpath(ruta_videos)
+            if not ruta.startswith(raiz + os.sep):
+                return jsonify({'error': 'Ruta no válida.'}), 400
+            if not os.path.isfile(ruta):
+                return jsonify({'error': 'Vídeo no encontrado.'}), 404
+            os.remove(ruta)
+            nombre_base, _ = os.path.splitext(nombre)
+            ruta_thumb = _ruta_media_segura(serie, '.thumbnails', f'{nombre_base}.jpg')
+            if ruta_thumb and os.path.exists(ruta_thumb):
+                os.remove(ruta_thumb)
+            nombre_rel = f"{temporada}/{nombre}" if temporada else nombre
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM progreso WHERE serie = ? AND filename = ?', (serie, nombre_rel))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        else:
+            return jsonify({'error': 'Nivel no válido.'}), 400
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# =============================================================================
 # API - SISTEMA (ping, apagado, admin)
 # =============================================================================
 @app.route('/api/abrir_config_admin')

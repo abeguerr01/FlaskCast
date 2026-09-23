@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+
+{% block title %}FlaskCast - {{ t('nav_biblioteca') }}{% endblock %}
+
+{% block head %}
+<style>
+.bib-page { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.bib-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
+.bib-header h1 { margin: 0; font-size: 1.8rem; color: var(--text-primary); }
+.bib-desc { color: var(--text-secondary); margin: 0 0 16px 0; }
+.bib-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.bib-btn {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border, #333);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s, transform 0.1s;
+}
+.bib-btn:hover { background: rgba(229, 9, 20, 0.15); border-color: #e50914; transform: translateY(-1px); }
+.bib-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.bib-btn-danger:hover { background: rgba(229, 9, 20, 0.25); }
+.bib-btn-accent { background: #e50914; border-color: #e50914; color: #fff; }
+.bib-btn-accent:hover { background: #ff1a25; }
+#bib-msg { min-height: 20px; font-size: 0.85rem; margin-bottom: 10px; color: var(--text-secondary); }
+.bib-empty { color: var(--text-secondary); padding: 30px 0; text-align: center; }
+
+ul.bib-tree, ul.bib-children { list-style: none; margin: 0; padding: 0; }
+ul.bib-children { padding-left: 22px; border-left: 1px solid var(--border, #333); margin-left: 10px; }
+.bib-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin: 2px 0;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    user-select: none;
+}
+.bib-row:hover { background: rgba(229, 9, 20, 0.08); }
+.bib-row.sel { background: rgba(229, 9, 20, 0.18); border-color: #e50914; }
+.bib-row .bib-icon { font-size: 1rem; flex-shrink: 0; }
+.bib-row .bib-nombre { font-weight: 600; }
+.bib-row .bib-info { margin-left: auto; color: var(--text-secondary); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.bib-row.raiz { font-size: 1rem; }
+.bib-row.temporada .bib-info { color: var(--text-secondary); }
+li.bib-collapsed > .bib-children { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="bib-page">
+    <div class="bib-header">
+        <h1>🗂️ {{ t('bib_title') }}</h1>
+        <a href="/" class="btn-back">{{ t('volver_catalogo') }}</a>
+    </div>
+    <p class="bib-desc">{{ t('bib_desc') }}</p>
+
+    <div class="bib-toolbar">
+        <button type="button" class="bib-btn bib-btn-accent" onclick="abrirModalNuevo()">{{ t('bib_anadir_pelicula_serie') }}</button>
+        <button type="button" class="bib-btn" id="btnTemp" onclick="abrirModalTemporada()" disabled>{{ t('bib_anadir_temporada') }}</button>
+        <button type="button" class="bib-btn" id="btnVideos" onclick="abrirModalVideos()" disabled>{{ t('bib_anadir_video') }}</button>
+        <button type="button" class="bib-btn" id="btnMeta" onclick="abrirModalMeta()" disabled>{{ t('bib_editar_metadata') }}</button>
+        <button type="button" class="bib-btn" id="btnRename" onclick="abrirModalRename()" disabled>{{ t('bib_renombrar') }}</button>
+        <button type="button" class="bib-btn bib-btn-danger" id="btnDelete" onclick="eliminarSeleccionado()" disabled>{{ t('bib_eliminar') }}</button>
+        <button type="button" class="bib-btn" onclick="location.reload()">{{ t('bib_refrescar') }}</button>
+    </div>
+
+    <div id="bib-msg"></div>
+
+    <div id="arbol">
+        {% if contenido %}
+        <ul class="bib-tree">
+            {% for item in contenido %}
+            <li>
+                <div class="bib-row raiz" data-nivel="raiz" data-nombre="{{ item.nombre }}" data-serie="{{ item.nombre }}" data-tipo="{{ item.tipo }}">
+                    <span class="bib-icon">{{ '🎬' if item.tipo == 'pelicula' else '📺' }}</span>
+                    <span class="bib-nombre">{{ item.meta.get('titulo', item.nombre) }}</span>
+                    <span class="bib-info">{{ item.nombre }}{% if item.tiene_portada %} 🖼{% endif %}{{ ' — ' ~ item.meta.get('anio', '') if item.meta.get('anio') }}</span>
+                </div>
+                {% if item.temporadas %}
+                <ul class="bib-children">
+                    {% for temp in item.temporadas %}
+                    <li>
+                        <div class="bib-row temporada" data-nivel="temporada" data-nombre="{{ temp.nombre }}" data-serie="{{ item.nombre }}" data-temporada="{{ temp.nombre }}">
+                            <span class="bib-icon">📁</span>
+                            <span class="bib-nombre">{{ temp.nombre }}</span>
+                            <span class="bib-info">{{ temp.videos|length }} {{ t('bib_videos') }}</span>
+                        </div>
+                        {% if temp.videos %}
+                        <ul class="bib-children">
+                            {% for v in temp.videos %}
+                            <li>
+                                <div class="bib-row video" data-nivel="video" data-nombre="{{ v.nombre }}" data-serie="{{ item.nombre }}" data-temporada="{{ temp.nombre }}">
+                                    <span class="bib-icon">🎬</span>
+                                    <span class="bib-nombre">{{ v.nombre }}</span>
+                                    <span class="bib-info">{{ v.tam_mb }}</span>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% elif item.videos %}
+                <ul class="bib-children">
+                    {% for v in item.videos %}
+                    <li>
+                        <div class="bib-row video" data-nivel="video" data-nombre="{{ v.nombre }}" data-serie="{{ item.nombre }}">
+                            <span class="bib-icon">🎬</span>
+                            <span class="bib-nombre">{{ v.nombre }}</span>
+                            <span class="bib-info">{{ v.tam_mb }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="bib-empty">{{ t('bib_selecciona') }}<br>{{ t('bib_anadir_pelicula_serie') }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MODAL: METADATA (añadir/editar) -->
+<div id="modalMeta" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalMeta')">&times;</span>
+        <h2 id="modalMetaTitle" style="margin-top: 0; color: var(--text-primary);">{{ t('bib_meta_anadir_title') }}</h2>
+
+        <label class="modal-label">{{ t('bib_meta_titulo') }}</label>
+        <input type="text" id="metaTitulo" class="modal-input-text" required>
+        <p style="color: var(--text-secondary); font-size: 0.8rem; margin: -2px 0 8px 0;">{{ t('bib_meta_obligatorio') }}</p>
+
+        <label class="modal-label">{{ t('bib_meta_tipo') }}</label>
+        <select id="metaTipo" class="modal-input-text" style="margin-bottom: 8px;" onchange="cambiarTipoMeta()">
+            <option value="pelicula">{{ t('bib_meta_tipo_pelicula') }}</option>
+            <option value="serie">{{ t('bib_meta_tipo_serie') }}</option>
+        </select>
+
+        <label class="modal-label">{{ t('bib_meta_descripcion') }}</label>
+        <textarea id="metaDescripcion" class="modal-input-text" rows="3" style="resize: vertical;"></textarea>
+
+        <div style="display: flex; gap: 12px; margin: 6px 0;">
+            <div style="flex: 1;">
+                <label class="modal-label">{{ t('bib_meta_anio') }}</label>
+                <input type="text" id="metaAnio" class="modal-input-text">
+            </div>
+            <div style="flex: 1;">
+                <label class="modal-label">{{ t('bib_meta_valoracion') }}</label>
+                <input type="number" id="metaValoracion" class="modal-input-text" step="0.1" min="0" max="10" value="0">
+            </div>
+        </div>
+
+        <label class="modal-label">{{ t('bib_meta_director') }}</label>
+        <input type="text" id="metaDirector" class="modal-input-text">
+
+        <label class="modal-label">{{ t('bib_meta_generos') }}</label>
+        <input type="text" id="metaGenero" class="modal-input-text">
+
+        <div id="filaDuracion">
+            <label class="modal-label">{{ t('bib_meta_duracion') }}</label>
+            <input type="number" id="metaDuracion" class="modal-input-text" min="0" value="">
+        </div>
+        <div id="filaTemporadas" style="display: none;">
+            <label class="modal-label">{{ t('bib_meta_temporadas') }}</label>
+            <input type="number" id="metaTemporadas" class="modal-input-text" min="1" value="1">
+        </div>
+
+        <label class="modal-label">{{ t('bib_meta_ubicacion') }}</label>
+        <input type="text" id="metaUbicacion" class="modal-input-text">
+        <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 2px 0 10px 0;">{{ t('bib_meta_ubicacion_desc') }}</p>
+
+        <button type="button" class="btn-submit-user" style="width: 100%; margin-top: 8px;" onclick="guardarMeta()">{{ t('bib_meta_aceptar') }}</button>
+        <button type="button" class="bib-btn" style="width: 100%; margin-top: 8px;" onclick="cerrarModal('modalMeta')">{{ t('bib_meta_cancelar') }}</button>
+    </div>
+</div>
+
+<!-- MODAL: NUEVA TEMPORADA -->
+<div id="modalTemp" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalTemp')">&times;</span>
+        <h2 style="margin-top: 0; color: var(--text-primary);">{{ t('bib_anadir_temporada') }}</h2>
+        <p id="tempDestino" style="color: var(--text-secondary); font-size: 0.85rem;"></p>
+        <label class="modal-label">{{ t('bib_nombre_temporada') }}</label>
+        <input type="text" id="tempNombre" class="modal-input-text">
+        <button type="button" class="btn-submit-user" style="width: 100%; margin-top: 10px;" onclick="guardarTemporada()">{{ t('bib_meta_aceptar') }}</button>
+    </div>
+</div>
+
+<!-- MODAL: SUBIR VÍDEOS -->
+<div id="modalVideos" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalVideos')">&times;</span>
+        <h2 style="margin-top: 0; color: var(--text-primary);">{{ t('bib_anadir_video') }}</h2>
+        <p id="videosDestino" style="color: var(--text-secondary); font-size: 0.85rem;"></p>
+        <input type="hidden" id="videosSerie" name="serie">
+        <input type="hidden" id="videosTemporada" name="temporada">
+        <label class="modal-label">{{ t('bib_subir_videos') }}</label>
+        <input type="file" id="videosInput" class="modal-input-text" multiple accept=".mp4,.webm,.ogg,.avi,.mkv,video/*">
+        <button type="button" class="btn-submit-user" style="width: 100%; margin-top: 10px;" onclick="guardarVideos()">{{ t('bib_meta_aceptar') }}</button>
+    </div>
+</div>
+
+<!-- MODAL: RENOMBRAR -->
+<div id="modalRename" class="modal-overlay">
+    <div class="modal-box">
+        <span class="modal-close-btn" onclick="cerrarModal('modalRename')">&times;</span>
+        <h2 style="margin-top: 0; color: var(--text-primary);">{{ t('bib_renombrar') }}</h2>
+        <p id="renameOrigen" style="color: var(--text-secondary); font-size: 0.85rem;"></p>
+        <label class="modal-label" id="renameLabel">{{ t('bib_nuevo_nombre') }}</label>
+        <input type="text" id="renameNombre" class="modal-input-text">
+        <button type="button" class="btn-submit-user" style="width: 100%; margin-top: 10px;" onclick="guardarRename()">{{ t('bib_meta_aceptar') }}</button>
+    </div>
+</div>
+
+<script>
+    var tr = {{ T[idioma_actual] | tojson }};
+    var META_MAP = {{ meta_data | tojson }};
+
+    var seleccion = null;
+
+    function info(msg) { document.getElementById('bib-msg').textContent = msg; }
+
+    function cerrarModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    function abrirModal(id) {
+        document.getElementById(id).style.display = 'flex';
+    }
+
+    function establecerSeleccion(row) {
+        document.querySelectorAll('.bib-row').forEach(function(r) { r.classList.remove('sel'); });
+        row.classList.add('sel');
+        seleccion = {
+            nivel: row.dataset.nivel,
+            nombre: row.dataset.nombre,
+            serie: row.dataset.serie || '',
+            temporada: row.dataset.temporada || '',
+            tipo: row.dataset.tipo || ''
+        };
+        actualizarBotones();
+    }
+
+    function actualizarBotones() {
+        var esRaiz = seleccion && seleccion.nivel === 'raiz';
+        var esSerie = esRaiz && seleccion.tipo === 'serie';
+        document.getElementById('btnTemp').disabled = !esSerie;
+        document.getElementById('btnMeta').disabled = !esRaiz;
+        document.getElementById('btnRename').disabled = !seleccion;
+        document.getElementById('btnDelete').disabled = !seleccion;
+        var videosOk = seleccion && !(esRaiz && seleccion.tipo === 'serie');
+        document.getElementById('btnVideos').disabled = !videosOk;
+    }
+
+    document.querySelectorAll('.bib-row').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            establecerSeleccion(row);
+            if (e.target.closest('.bib-row')) {
+                var li = row.closest('li');
+                if ((row.dataset.nivel === 'raiz' || row.dataset.nivel === 'temporada') && li) {
+                    li.classList.toggle('bib-collapsed');
+                }
+            }
+        });
+    });
+
+    function postJSON(url, datos, okMsg) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datos)
+        }).then(function(r) { return r.json().catch(function() { return {}; }); })
+          .then(function(res) {
+              if (res.error) { alert(res.error); throw new Error(res.error); }
+              info(okMsg);
+              setTimeout(function() { location.reload(); }, 400);
+              return res;
+          });
+    }
+
+    function cambiarTipoMeta() {
+        var tipo = document.getElementById('metaTipo').value;
+        document.getElementById('filaDuracion').style.display = tipo === 'pelicula' ? '' : 'none';
+        document.getElementById('filaTemporadas').style.display = tipo === 'serie' ? '' : 'none';
+    }
+
+    function rellenarMetaModal(meta) {
+        document.getElementById('metaTitulo').value = (meta && meta.titulo) || '';
+        document.getElementById('metaTipo').value = (meta && meta.tipo === 'serie') ? 'serie' : 'pelicula';
+        document.getElementById('metaDescripcion').value = (meta && meta.descripcion) || '';
+        document.getElementById('metaAnio').value = (meta && meta.anio) || '';
+        document.getElementById('metaValoracion').value = (meta && meta.valoracion) || 0;
+        document.getElementById('metaDirector').value = (meta && meta.director) || '';
+        var genero = '';
+        if (meta && meta.genero) {
+            genero = Array.isArray(meta.genero) ? meta.genero.join(', ') : meta.genero;
+        }
+        document.getElementById('metaGenero').value = genero;
+        document.getElementById('metaDuracion').value = (meta && meta.duracion_min) || '';
+        document.getElementById('metaTemporadas').value = (meta && meta.temporadas) || 1;
+        document.getElementById('metaUbicacion').value = (meta && meta.ubicacion) || '';
+        cambiarTipoMeta();
+    }
+
+    function abrirModalNuevo() {
+        rellenarMetaModal({});
+        document.getElementById('modalMetaTitle').textContent = tr.bib_meta_anadir_title;
+        metaModo = 'crear';
+        abrirModal('modalMeta');
+    }
+
+    var metaModo = 'crear';
+
+    function abrirModalMeta() {
+        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_requiere_raiz); return; }
+        rellenarMetaModal(META_MAP[seleccion.nombre] || {});
+        document.getElementById('modalMetaTitle').textContent = tr.bib_meta_editar_title + ': ' + seleccion.nombre;
+        metaModo = 'editar';
+        abrirModal('modalMeta');
+    }
+
+    function guardarMeta() {
+        var titulo = document.getElementById('metaTitulo').value.trim();
+        if (!titulo) { alert(tr.bib_meta_titulo); return; }
+        var tipo = document.getElementById('metaTipo').value;
+        var payload = {
+            titulo: titulo,
+            tipo: tipo,
+            descripcion: document.getElementById('metaDescripcion').value,
+            anio: document.getElementById('metaAnio').value,
+            valoracion: document.getElementById('metaValoracion').value,
+            director: document.getElementById('metaDirector').value,
+            genero: document.getElementById('metaGenero').value,
+            ubicacion: document.getElementById('metaUbicacion').value
+        };
+        if (tipo === 'pelicula') {
+            payload.duracion_min = document.getElementById('metaDuracion').value;
+        } else {
+            payload.temporadas = document.getElementById('metaTemporadas').value;
+        }
+        if (metaModo === 'editar' && seleccion) {
+            payload.nombre = seleccion.nombre;
+            postJSON('/biblioteca/meta', payload, tr.bib_guardado);
+        } else {
+            postJSON('/biblioteca/crear', payload, tr.bib_creado);
+        }
+    }
+
+    function abrirModalTemporada() {
+        if (!seleccion || seleccion.nivel !== 'raiz') { alert(tr.bib_requiere_serie); return; }
+        if (seleccion.tipo === 'pelicula') { alert(tr.bib_requiere_serie); return; }
+        document.getElementById('tempDestino').textContent = tr.bib_destino + ' ' + seleccion.nombre;
+        var count = 0;
+        document.querySelectorAll('.bib-row.temporada').forEach(function(r) {
+            if (r.dataset.serie === seleccion.nombre) count++;
+        });
+        document.getElementById('tempNombre').value = 'Season ' + (count + 1);
+        abrirModal('modalTemp');
+    }
+
+    function guardarTemporada() {
+        var nombre = document.getElementById('tempNombre').value.trim();
+        if (!nombre) return;
+        postJSON('/biblioteca/temporada', { serie: seleccion.nombre, temporada: nombre }, tr.bib_creado);
+    }
+
+    function abrirModalVideos() {
+        if (!seleccion) { alert(tr.bib_requiere_temporada); return; }
+        var serie, temporada;
+        if (seleccion.nivel === 'raiz') {
+            if (seleccion.tipo === 'serie') { alert(tr.bib_requiere_temporada); return; }
+            serie = seleccion.nombre; temporada = '';
+        } else if (seleccion.nivel === 'temporada') {
+            serie = seleccion.serie; temporada = seleccion.nombre;
+        } else {
+            serie = seleccion.serie; temporada = seleccion.temporada;
+        }
+        document.getElementById('videosSerie').value = serie;
+        document.getElementById('videosTemporada').value = temporada;
+        document.getElementById('videosDestino').textContent = tr.bib_destino + ' ' + (temporada ? serie + ' / ' + temporada : serie);
+        document.getElementById('videosInput').value = '';
+        abrirModal('modalVideos');
+    }
+
+    function guardarVideos() {
+        var input = document.getElementById('videosInput');
+        if (!input.files || input.files.length === 0) { alert(tr.bib_subir_videos); return; }
+        var fd = new FormData();
+        fd.append('serie', document.getElementById('videosSerie').value);
+        fd.append('temporada', document.getElementById('videosTemporada').value);
+        Array.prototype.forEach.call(input.files, function(f) { fd.append('archivos', f); });
+        document.getElementById('modalVideos').style.display = 'none';
+        info(tr.bib_procesando);
+        fetch('/biblioteca/videos/add', { method: 'POST', body: fd })
+            .then(function(r) { return r.json().catch(function() { return {}; }); })
+            .then(function(res) {
+                if (res.error) { alert(res.error); throw new Error(res.error); }
+                var msg = (res.copiados || 0) + ' ' + tr.bib_videos + ' ✓';
+                if (res.errores && res.errores.length) { msg += ' — ' + res.errores.join(' | '); }
+                info(msg);
+                setTimeout(function() { location.reload(); }, 500);
+            });
+    }
+
+    function abrirModalRename() {
+        if (!seleccion) { alert(tr.bib_requiere_raiz); return; }
+        document.getElementById('renameOrigen').textContent = seleccion.nombre;
+        var esVideo = seleccion.nivel === 'video';
+        document.getElementById('renameLabel').textContent = esVideo ? tr.bib_nuevo_nombre_video : tr.bib_nuevo_nombre;
+        var valor = seleccion.nombre;
+        if (esVideo) {
+            var ultimoPunto = valor.lastIndexOf('.');
+            valor = ultimoPunto > 0 ? valor.slice(0, ultimoPunto) : valor;
+        }
+        document.getElementById('renameNombre').value = valor;
+        abrirModal('modalRename');
+    }
+
+    function guardarRename() {
+        var nuevo = document.getElementById('renameNombre').value.trim();
+        if (!nuevo) return;
+        var payload = {
+            nivel: seleccion.nivel,
+            nombre: seleccion.nombre,
+            nuevo: nuevo
+        };
+        if (seleccion.nivel !== 'raiz') payload.serie = seleccion.serie;
+        if (seleccion.nivel === 'video' && seleccion.temporada) payload.temporada = seleccion.temporada;
+        postJSON('/biblioteca/renombrar', payload, tr.bib_renombrado);
+    }
+
+    function eliminarSeleccionado() {
+        if (!seleccion) { alert(tr.bib_requiere_raiz); return; }
+        var msg;
+        if (seleccion.nivel === 'raiz') {
+            msg = tr.bib_confirmar_eliminar_serie.replace('{nombre}', seleccion.nombre);
+        } else if (seleccion.nivel === 'temporada') {
+            msg = tr.bib_confirmar_eliminar_temporada.replace('{nombre}', seleccion.nombre).replace('{serie}', seleccion.serie);
+        } else {
+            msg = tr.bib_confirmar_eliminar_video.replace('{nombre}', seleccion.nombre);
+        }
+        if (!confirm(msg)) return;
+        var payload = { nivel: seleccion.nivel, nombre: seleccion.nombre };
+        if (seleccion.nivel !== 'raiz') payload.serie = seleccion.serie;
+        if (seleccion.nivel === 'video' && seleccion.temporada) payload.temporada = seleccion.temporada;
+        postJSON('/biblioteca/eliminar', payload, tr.bib_eliminado);
+    }
+
+    window.addEventListener('click', function(e) {
+        var modals = document.querySelectorAll('.modal-overlay');
+        modals.forEach(function(m) {
+            if (e.target === m) m.style.display = 'none';
+        });
+    });
+</script>
+
+{% endblock %}
