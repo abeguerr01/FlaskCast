@@ -31,6 +31,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# El spec de FlaskCast sí es fuente compartida (Windows/Linux)
+!FlaskCast.spec
 
 # Installer logs
 pip-log.txt
@@ -182,6 +184,12 @@ cython_debug/
 
 
 # CUSTOM
+#   Icono del ejecutable (se regenera con generar_icono.py en el build)
+icon.ico
+#   Binarios compilados (no se suben; cada ejecutable pesa ~30-100 MB)
+bin/
+#   Entorno virtual local de compilación (creado por build_linux.sh)
+.venv-build/
 #   Ignorar todo el contenido dentro de data/ por defecto
 data/*
 #   Ignorar todo el contenido dentro de data/media/ por defecto

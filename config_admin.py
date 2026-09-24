@@ -8,7 +8,24 @@ import urllib.parse
 import urllib.error
 import sqlite3
 
-DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
+def _es_frozen():
+    return getattr(sys, 'frozen', False)
+
+
+def _base_dir():
+    if _es_frozen():
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _recursos_dir():
+    if _es_frozen():
+        return sys._MEIPASS
+    return _base_dir()
+
+
+DIRECTORIO_RAIZ = _base_dir()
+RECURSOS_DIR = _recursos_dir()
 CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
 MEDIA_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 ENV_PATH = os.path.join(DIRECTORIO_RAIZ, '.env')
@@ -533,7 +550,7 @@ def gui():
             self.root.resizable(True, True)
 
             if self._first_init:
-                logo_path = os.path.join(DIRECTORIO_RAIZ, 'static', 'logo.png')
+                logo_path = os.path.join(RECURSOS_DIR, 'static', 'logo.png')
                 if os.path.exists(logo_path):
                     logo = tk.PhotoImage(file=logo_path)
                     self.root.iconphoto(True, logo)
@@ -610,13 +627,6 @@ def gui():
 
             ttk.Label(parent, text=t('gen_auth_desc'),
                       foreground='#888', font=('Segoe UI', 8)).pack(anchor=tk.W)
-
-            frame_port = ttk.Frame(parent)
-            frame_port.pack(fill=tk.X)
-            ttk.Label(frame_port, text=t('gen_puerto')).pack(side=tk.LEFT)
-            self.port_var = tk.StringVar(value=str(cfg.get('puerto', 5000)))
-            port_entry = ttk.Entry(frame_port, textvariable=self.port_var, width=10)
-            port_entry.pack(side=tk.LEFT, padx=(10, 0))
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
@@ -1473,18 +1483,9 @@ def gui():
             self.st_tree.selection_set(str(idx + 1))
 
         def guardar_y_cerrar(self):
-            try:
-                puerto = int(self.port_var.get())
-                if puerto < 1 or puerto > 65535:
-                    raise ValueError
-            except ValueError:
-                messagebox.showerror('Error', 'El puerto debe ser un número entre 1 y 65535.')
-                return
-
             data = leer_config()
             data['boton_apagar_visible'] = self.apagar_var.get()
             data['boton_apagar_todo_visible'] = self.apagar_todo_var.get()
-            data['puerto'] = puerto
             data['api_habilitada'] = self.api_var.get()
             data['auth_enabled'] = self.auth_var.get()
             data['auth_password'] = self.auth_password_var.get()

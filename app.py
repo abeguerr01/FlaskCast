@@ -27,9 +27,30 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 # =============================================================================
+# ENTORNO EMPAQUETADO Y RUTAS PORTÁTILES (Windows/Linux)
+# =============================================================================
+def es_frozen():
+    return getattr(sys, 'frozen', False)
+
+def directorio_base():
+    if es_frozen():
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+def directorio_recursos():
+    if es_frozen():
+        return getattr(sys, '_MEIPASS', directorio_base())
+    return directorio_base()
+
+DIRECTORIO_RAIZ = directorio_base()
+RECURSOS_DIR = directorio_recursos()
+
+# =============================================================================
 # INICIALIZACIÓN DE LA APLICACIÓN FLASK
 # =============================================================================
-app = Flask(__name__)
+app = Flask(__name__,
+            template_folder=os.path.join(RECURSOS_DIR, 'templates'),
+            static_folder=os.path.join(RECURSOS_DIR, 'static'))
 app.secret_key = 'flaskcast_ultra_secret_key_2026'
 
 limiter = Limiter(
@@ -95,7 +116,6 @@ def _parsear_progreso_ffmpeg(linea):
 # =============================================================================
 # CONSTANTES DE RUTA Y ESTADO
 # =============================================================================
-DIRECTORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIRECTORIO_MEDIA = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
 DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
 CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
@@ -1036,7 +1056,23 @@ def ajustes():
     return render_template('ajustes.html', auto_marcar=auto_marcar, mostrar_progreso=mostrar_progreso, tema=tema, idioma=idioma,
         boton_apagar_visible=cfg.get('boton_apagar_visible', False),
         boton_apagar_todo_visible=cfg.get('boton_apagar_todo_visible', False),
+        api_habilitada=api_habilitada,
         es_local=es_cliente_local(), return_to=return_to, usuario_id=usuario_id)
+
+@app.route('/ajustes/toggle_api', methods=['POST'])
+def toggle_api():
+    global api_habilitada
+    if not es_cliente_local():
+        return jsonify({'error': 'Solo disponible en la máquina que hospeda el servidor.'}), 403
+    cfg = leer_config()
+    cfg['api_habilitada'] = not cfg.get('api_habilitada', False)
+    try:
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=4, ensure_ascii=False)
+    except OSError as e:
+        return jsonify({'error': f'No se pudo guardar la configuración: {e}'}), 500
+    api_habilitada = cfg['api_habilitada']
+    return jsonify({'status': 'ok', 'api_habilitada': api_habilitada})
 
 # =============================================================================
 # API - GESTIÓN DE VÍDEOS
@@ -2254,6 +2290,21 @@ def stream_mover():
 def abrir_config_admin():
     if not es_cliente_local():
         return jsonify({'error': 'Solo disponible en la máquina local.'}), 403
+    if es_frozen():
+        try:
+            if platform.system() == "Windows":
+                subprocess.Popen([sys.executable, '--config'],
+                                 creationflags=subprocess.DETACHED_PROCESS,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 cwd=DIRECTORIO_RAIZ)
+            else:
+                subprocess.Popen([sys.executable, '--config'],
+                                 start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 cwd=DIRECTORIO_RAIZ)
+        except Exception as e:
+            return jsonify({'error': f'No se pudo abrir la configuración: {e}'}), 500
+        return jsonify({'status': 'ok'})
     config_admin_path = os.path.join(DIRECTORIO_RAIZ, 'config_admin.py')
     if platform.system() == "Windows":
         subprocess.Popen(['python', config_admin_path], creationflags=subprocess.DETACHED_PROCESS)
@@ -2293,27 +2344,189 @@ def _apagar_todo():
         subprocess.run("sudo shutdown -h now", shell=True)
 
 # =============================================================================
+# AUTOPROVISIÓN DE ESTRUCTURA Y DIÁLOGOS MULTIPLATAFORMA
+# =============================================================================
+DEFAULTS_CONFIG = {
+    'puerto': 5000,
+    'api_habilitada': False,
+    'auth_enabled': False,
+    'auth_password': '',
+    'boton_apagar_visible': False,
+    'boton_apagar_todo_visible': False,
+}
+
+STREAMS_EJEMPLO = [
+    {
+        'titulo': 'ENLACE DE EJEMPLO',
+        'url': 'https://enlace.de.ejemplo',
+        'urls': ['https://enlace.de.ejemplo', 'https://backup1.de.ejemplo', 'https://backup2.de.ejemplo'],
+        'tipo': 'hls'
+    },
+    {
+        'titulo': 'ENLACE DE EJEMPLO 2',
+        'urls': ['https://enlace.de.ejemplo.2', 'https://backup.de.ejemplo.2'],
+        'tipo': 'hls'
+    }
+]
+
+def asegurar_estructura():
+    creados = []
+    errores = []
+    data_dir = os.path.join(DIRECTORIO_RAIZ, 'data')
+    media_dir = os.path.join(data_dir, 'media')
+
+    if not os.path.isdir(data_dir):
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+            creados.append('data/')
+        except Exception as e:
+            errores.append(f'data/: {e}')
+    if not os.path.isdir(media_dir):
+        try:
+            os.makedirs(media_dir, exist_ok=True)
+            creados.append('data/media/')
+        except Exception as e:
+            errores.append(f'data/media/: {e}')
+
+    if not os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(DEFAULTS_CONFIG, f, indent=4, ensure_ascii=False)
+            creados.append('data/config.json')
+        except Exception as e:
+            errores.append(f'data/config.json: {e}')
+
+    if not os.path.exists(LIVE_STREAMS_PATH):
+        try:
+            with open(LIVE_STREAMS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(STREAMS_EJEMPLO, f, indent=4, ensure_ascii=False)
+            creados.append('data/live_streams.json')
+        except Exception as e:
+            errores.append(f'data/live_streams.json: {e}')
+
+    if not os.path.exists(ENV_PATH):
+        try:
+            with open(ENV_PATH, 'w', encoding='utf-8') as f:
+                f.write('# Clave OMDb opcional (se guarda aquí al validarla desde la web/panel)\n# OMDB_API_KEY=\n')
+            creados.append('.env')
+        except Exception as e:
+            errores.append(f'.env: {e}')
+
+    return creados, errores
+
+def _dialogo(titulo, mensaje, es_error=False):
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        raiz = tk.Tk()
+        raiz.withdraw()
+        if es_error:
+            messagebox.showwarning(titulo, mensaje, parent=raiz)
+        else:
+            messagebox.showinfo(titulo, mensaje, parent=raiz)
+        raiz.destroy()
+    except Exception:
+        prefijo = '[ERROR] ' if es_error else ''
+        print(f'{prefijo}[{titulo}] {mensaje}')
+
+def notificar_inicio(creados, errores, media_vacia):
+    avisos = []
+    if creados:
+        avisos.append('Primera ejecución: se ha creado automáticamente:\n\n  • ' + '\n  • '.join(creados))
+    if media_vacia:
+        avisos.append("La carpeta 'data/media' está vacía.\nColoca tu contenido ahí (cada serie/película en su carpeta).")
+    if errores:
+        _dialogo('FLASKCAST - Problema de archivos',
+                 'No se pudieron crear:\n\n  • ' + '\n  • '.join(errores),
+                 es_error=True)
+        return
+    if avisos:
+        _dialogo('FLASKCAST', '\n\n'.join(avisos))
+
+# =============================================================================
+# MENÚ DE INICIO Y ARRANQUE DEL SERVIDOR (multi-plataforma, compatible .exe)
+# =============================================================================
+def pedir_puerto(por_defecto):
+    """Pregunta el puerto por consola (solo en ejecutable). Vacío -> por_defecto."""
+    while True:
+        try:
+            respuesta = input(f"Puerto a usar (Enter para {por_defecto}): ").strip()
+        except EOFError:
+            return por_defecto
+        if respuesta == '':
+            return por_defecto
+        if respuesta.isdigit() and 1 <= int(respuesta) <= 65535:
+            return int(respuesta)
+        print(f"'{respuesta}' no es un puerto valido (1-65535). Intentalo de nuevo.")
+
+def pedir_decision_inicio():
+    """Pregunta si iniciar el servidor (por defecto) o abrir la configuracion."""
+    while True:
+        try:
+            eleccion = input("Iniciar el servidor (Enter) o abrir la configuracion (C): ").strip().lower()
+        except EOFError:
+            return 'server'
+        if eleccion in ('', 's', '1', 'server', 'iniciar', 'servidor'):
+            return 'server'
+        if eleccion in ('c', 'config', 'configuracion', '2'):
+            return 'config'
+        print("Opcion no valida. Pulsa Enter para iniciar el servidor o 'C' para configuracion.")
+
+def abrir_admin_gui():
+    """Abre el panel tkinter dentro del propio proceso y refresca la API al cerrar."""
+    global api_habilitada
+    try:
+        import config_admin
+        config_admin.gui()
+    except Exception as e:
+        _dialogo('FLASKCAST - Error', f'No se pudo abrir la configuracion:\n{e}', es_error=True)
+    finally:
+        cfg = leer_config()
+        api_habilitada = cfg.get('api_habilitada', False)
+
+def _servir(puerto):
+    """Arranca Waitress. Devuelve False si el puerto esta ocupado, True al terminar."""
+    global api_habilitada
+    cfg = leer_config()
+    api_habilitada = cfg.get('api_habilitada', False)
+
+    from waitress import create_server
+    try:
+        servidor = create_server(app, host='0.0.0.0', port=puerto, threads=6)
+    except OSError:
+        return False
+    print(f"Iniciando servidor Waitress en 0.0.0.0:{puerto}", flush=True)
+    servidor.run()
+    return True
+
+# =============================================================================
 # PUNTO DE ENTRADA PRINCIPAL
 # =============================================================================
 if __name__ == '__main__':
+    creados, errores = asegurar_estructura()
     inicializar_base_datos()
-    
-    cfg = leer_config()
-    puerto = cfg.get('puerto', 5000)
-    sistema = platform.system()
-    
-    if sistema == "Windows":
-        from waitress import serve
-        print(f"Iniciado servidor con Waitress (Windows) en puerto {puerto}")
-        serve(app, host='0.0.0.0', port=puerto, threads=6)
-        
+    media_vacia = os.path.isdir(DIRECTORIO_MEDIA) and not os.listdir(DIRECTORIO_MEDIA)
+
+    if (creados or errores or media_vacia) and '--config' not in sys.argv:
+        notificar_inicio(creados, errores, media_vacia)
+
+    if es_frozen():
+        primer_accion = 'config' if '--config' in sys.argv else None
+        while True:
+            accion = primer_accion if primer_accion else pedir_decision_inicio()
+            primer_accion = None
+            if accion == 'config':
+                abrir_admin_gui()
+                continue
+            puerto = pedir_puerto(leer_config().get('puerto', 5000))
+            if _servir(puerto):
+                break
+            _dialogo('FLASKCAST - Error',
+                     f'El puerto {puerto} esta ocupado. Cierra la aplicacion que lo usa o elige otro.',
+                     es_error=True)
     else:
-        import subprocess
-        print(f"Iniciando servidor Gunicorn (Linux/Unix) en puerto {puerto} (1 worker, 6 threads)")
-        subprocess.run([
-            sys.executable, "-m", "gunicorn",
-            "--bind", f"0.0.0.0:{puerto}",
-            "--workers", "1",
-            "--threads", "6",
-            "app:app"
-        ])
+        if not _servir(leer_config().get('puerto', 5000)):
+            mensaje = 'El puerto esta ocupado. Cambialo en data/config.json.'
+            print('[ERROR] ' + mensaje, flush=True)
+            _dialogo('FLASKCAST - Error', mensaje, es_error=True)
+            sys.exit(1)

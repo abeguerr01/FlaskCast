@@ -131,11 +131,35 @@ sudo emerge media-video/ffmpeg
 
 - **`py7zr`** se usa para las funciones de exportar/importar contenido multimedia en el panel de administración.
 - **`Flask-Limiter`** proporciona rate limiting para proteger contra abuso de la API.
-- **`waitress`** (Windows) y **`gunicorn`** (Linux) se usan como servidores WSGI de producción.
+- **`waitress`** se usa como servidor WSGI de producción en Windows y Linux.
 
 ### Despliegue en producción
 
-En Windows, FlaskCast usa **Waitress** (6 threads). En Linux/Unix, usa **Gunicorn** (1 worker, 6 threads) para compartir el estado de conversiones en memoria. El puerto se configura en `data/config.json` o mediante el panel de administración.
+En Windows y Linux, FlaskCast usa **Waitress** (6 threads). El estado de las conversiones se comparte en memoria dentro del único proceso, igual que antes con Gunicorn. El puerto se configura en `data/config.json` o mediante el panel de administración.
+
+### Instalar o compilar como ejecutable independiente (Windows/Linux)
+
+FlaskCast puede usarse **sin instalar Python** de dos formas:
+
+**1. Binarios precompilados** (`FlaskCast.exe` en Windows, ELF `FlaskCast` en Linux):
+- El binario lleva **Python embebido** (PyInstaller), así que el usuario final **no necesita instalar nada**. Copia el binario donde quieras ejecutarlo.
+- ⚠️ **Windows:** al ser un `.exe` sin firma digital, Smart App Control / SmartScreen puede bloquearlo la primera vez (ver la Guía de instalación).
+- ⚠️ **Linux:** el ELF distribuido está compilado con la **versión más nueva de Ubuntu** y depende de su glibc. Funciona en esa distro y en las más recientes, pero **puede fallar en distros más antiguas** (error típico: `GLIBC_x.x not found`). Si falla, compila tu propio binario (punto 2).
+
+**2. Compilar tu propio binario** (cada binario se genera en su propio sistema y se guarda en `bin/`; los binarios **no** se suben al repositorio):
+- **Windows:** ejecuta `build_windows.bat` (equivale a `python -m PyInstaller --noconfirm --clean --distpath bin FlaskCast.spec`).
+- **Linux:** ejecuta `bash build_linux.sh`. El script comprueba que Tkinter esté disponible (`python3-tk`), instala `requirements.txt` y PyInstaller automáticamente (funciona incluso en un entorno limpio tipo WSL) y equivale a `python3 -m PyInstaller --noconfirm --clean --distpath bin FlaskCast.spec`.
+- 💡 En Linux compila en la **distro más antigua que quieras soportar** (p. ej. Debian 11 / Ubuntu 20.04): el binario hereda la versión de glibc del sistema de compilación. Compilar dentro de **WSL** es válido; el ELF resultante corre en Linux (no en Windows).
+
+Comportamiento del binario:
+
+- Al arrancar pregunta si quieres **iniciar el servidor** (Enter, por defecto) o **abrir la configuración** (`C`). Al cerrar la configuración vuelve a preguntar si quieres iniciar el servidor. Desde la web, el botón "Abrir Panel de Administración" de `/ajustes` lanza el panel dentro del propio ejecutable.
+- **El puerto se elige al iniciar el servidor** por consola. Si solo pulsas Enter, usa el de `data/config.json` (5000 por defecto). Si el puerto escrito está **ocupado**, muestra un error ("El puerto X está ocupado") y vuelve al menú sin iniciar el servicio. Con la opción de puerto eliminada del panel tkinter, el puerto ya no se configura ahí.
+- Espera una carpeta `data/` junto a él. Si falta, crea automáticamente `data/`, `data/media/`, `data/config.json`, `data/live_streams.json` y `.env` en el directorio del ejecutable.
+- En la primera ejecución muestra un diálogo informando qué se creó (y avisa si `data/media` está vacía).
+- Incluye plantillas y estáticos; `static-ffmpeg` descarga FFmpeg la primera vez en la caché del usuario, así que el primer arranque puede tardar un poco.
+- La ventana de consola permanece abierta mostrando los logs del servidor y el menú de inicio.
+- El `.exe` de Windows lleva **el icono de `static/logo.png`** embebido (`icon.ico` se genera solo durante la compilación con `generar_icono.py`). En Linux los binarios ELF no incorporan iconos en el ejecutable: `build_linux.sh` genera `bin/FlaskCast.desktop` junto al binario apuntando a `bin/logo.png` para el lanzador.
 
 ### Docker
 
@@ -1214,7 +1238,7 @@ Al finalizar un vídeo, el reproductor carga automáticamente el siguiente capí
 | GET | `/api/lista/estado` | Obtener estado de lista de una serie | 200/min |
 | POST | `/api/lista/guardar` | Guardar estado en lista (Pendiente/Viendo/Visto) | 30/min |
 | GET | `/api/lista/obtener` | Obtener todas las listas del usuario | 200/min |
-| GET | `/api/abrir_config_admin` | Abrir panel de administración (solo localhost) | 200/min |
+| GET | `/api/abrir_config_admin` | Abrir panel de administración (solo localhost; dentro del ejecutable) | 200/min |
 | GET | `/api/ping` | Verificar estado del servidor | 200/min |
 | GET | `/api/off` | Apagar servidor (si habilitado) | 2/min |
 | GET | `/api/off/all` | Apagar sistema (si habilitado) | 1/min |

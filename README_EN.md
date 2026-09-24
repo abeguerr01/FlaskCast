@@ -131,11 +131,35 @@ sudo emerge media-video/ffmpeg
 
 - **`py7zr`** is used for the export/import multimedia content functions in the admin panel.
 - **`Flask-Limiter`** provides rate limiting to protect against API abuse.
-- **`waitress`** (Windows) and **`gunicorn`** (Linux) are used as production WSGI servers.
+- **`waitress`** is used as the production WSGI server on both Windows and Linux.
 
 ### Production Deployment
 
-On Windows, FlaskCast uses **Waitress** (6 threads). On Linux/Unix, it uses **Gunicorn** (1 worker, 6 threads) to share conversion state in memory. The port is configured in `data/config.json` or through the admin panel.
+On both Windows and Linux, FlaskCast uses **Waitress** (6 threads). Conversion state is shared in memory inside the single process, just as before with Gunicorn. The port is configured in `data/config.json` or through the admin panel.
+
+### Installing or building a standalone executable (Windows/Linux)
+
+You can use FlaskCast **without installing Python** in two ways:
+
+**1. Prebuilt binaries** (`FlaskCast.exe` on Windows, `FlaskCast` ELF on Linux):
+- The binary ships with **embedded Python** (PyInstaller), so the end user **does not need to install anything**. Copy the binary anywhere you want to run it.
+- ⚠️ **Windows:** since it is an unsigned `.exe`, Smart App Control / SmartScreen may block it the first time (see the Installation Guide).
+- ⚠️ **Linux:** the distributed ELF is built with the **latest Ubuntu version** and depends on its glibc. It works on that distro and on newer ones, but **may fail on older distros** (typical error: `GLIBC_x.x not found`). If it fails, build your own binary (option 2).
+
+**2. Build your own binary** (each binary is built on its own OS and stored in `bin/`; binaries are **not** pushed to the repository):
+- **Windows:** run `build_windows.bat` (equivalent to `python -m PyInstaller --noconfirm --clean --distpath bin FlaskCast.spec`).
+- **Linux:** run `bash build_linux.sh`. The script checks that Tkinter is available (`python3-tk`), installs `requirements.txt` and PyInstaller automatically (works even on a clean environment such as WSL) and is equivalent to `python3 -m PyInstaller --noconfirm --clean --distpath bin FlaskCast.spec`.
+- 💡 On Linux, build on the **oldest distro you want to support** (e.g. Debian 11 / Ubuntu 20.04): the binary inherits the glibc version of the build system. Building inside **WSL** is valid; the resulting ELF runs on Linux (not on Windows).
+
+Binary behavior:
+
+- On startup it asks whether to **start the server** (Enter, default) or **open the configuration** (`C`). After closing the configuration it asks again whether to start the server. From the web, the "Open Admin Panel" button in `/ajustes` launches the panel inside the executable itself.
+- **The port is chosen when starting the server** in the console. If you just press Enter, it uses the one from `data/config.json` (5000 default). If the typed port is **busy**, it shows an error ("Port X is busy") and returns to the menu without starting the service. The port option was removed from the tkinter panel, so the port is no longer set there.
+- It expects a `data/` folder next to it. If missing, it automatically creates `data/`, `data/media/`, `data/config.json`, `data/live_streams.json` and `.env` in the executable's directory.
+- On first run it shows a dialog explaining what was created (and warns if `data/media` is empty).
+- Templates and static assets are bundled; `static-ffmpeg` downloads FFmpeg on first run into the user cache, so the first launch may take a little longer.
+- The console window stays open showing the server logs and the startup menu.
+- The Windows `.exe` embeds **the `static/logo.png` icon** (`icon.ico` is generated automatically during the build by `generar_icono.py`). On Linux, ELF binaries cannot embed icons in the executable: `build_linux.sh` generates `bin/FlaskCast.desktop` next to the binary pointing to `bin/logo.png` for the launcher.
 
 ### Docker
 
@@ -1214,7 +1238,7 @@ When a video finishes, the player automatically loads the next episode in the sa
 | GET | `/api/lista/estado` | Get list state for a series | 200/min |
 | POST | `/api/lista/guardar` | Save list state (Pending/Watching/Watched) | 30/min |
 | GET | `/api/lista/obtener` | Get all user lists | 200/min |
-| GET | `/api/abrir_config_admin` | Open admin panel (localhost only) | 200/min |
+| GET | `/api/abrir_config_admin` | Open admin panel (localhost only; inside the executable) | 200/min |
 | GET | `/api/ping` | Check server status | 200/min |
 | GET | `/api/off` | Shutdown server (if enabled) | 2/min |
 | GET | `/api/off/all` | Shutdown system (if enabled) | 1/min |
