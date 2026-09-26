@@ -690,8 +690,19 @@ python config_admin.py
 - **Habilitar API REST:** activa/desactiva los endpoints de la API REST.
 - **Activar autenticación:** activa/desactiva la protección con contraseña. Al activarla, aparece un campo para definir la contraseña de acceso.
 - **Puerto:** cambia el puerto en el que escucha el servidor (requiere reiniciar la aplicación).
-- **Exportar media (.fkmedia):** comprime toda la carpeta `data/media/` en un archivo `.fkmedia` (formato 7z internamente).
-- **Importar media (.fkmedia):** selecciona un archivo `.fkmedia` previamente exportado y lo extrae en `data/media/`.
+- **Exportar data/ (.fkmedia):** comprime toda la carpeta `data/` en un archivo `.fkmedia` (formato 7z internamente): `media/` (vídeos, miniaturas y metadatos), `config.json`, `live_streams.json` y `flaskcast.db`. La base de datos se copia con la API de backup de SQLite, por lo que el archivo es consistente aunque el servidor esté escribiendo. No se incluyen los archivos `-wal`/`-shm`.
+  - Eliges tú la ruta con el diálogo "Guardar como" (nombre sugerido `flaskcast-AAAA-MM-DD.fkmedia`); al terminar te muestra la ruta exacta y el SHA-256.
+  - Barra de progreso con porcentaje, velocidad, tiempo restante y **Cancelar**. Si cancelas, se borra el archivo parcial y `data/` no se toca.
+  - **Modo de compresión:** `Rápido` (copia sin recomprimir, muy veloz) o `Compacto` (LZMA2, bastante más pequeño pero más lento).
+  - **Exclusiones:** nombres de carpeta/archivo separados por comas, admitiendo comodines `*` y `?`. Un patrón que empieza por `/` se ancla a la raíz de `data/`. Por defecto se excluye `.thumbnails`.
+  - **Tamaño mínimo (MB):** omite cualquier archivo por encima de ese tamaño, útil para respaldar ajustes y bases de datos sin los vídeos grandes.
+  - Junto al `.fkmedia` se escribe un `.sha256` para poder comprobar que el archivo no se ha corrompido.
+- **Restaurar data/ (.fkmedia):** extrae un `.fkmedia` sobre `data/`. Los archivos con el mismo nombre se sobreescriben y tu configuración actual se sustituye por la del archivo. Los `.fkmedia` antiguos (que solo contenían `media/`) siguen siendo compatibles.
+  - Al elegir el archivo se muestra una **vista previa** con su formato, fecha y qué contiene.
+  - Puedes restaurar **todo**, solo los **datos** (ajustes, streams y base de datos) o solo los **vídeos**, y **Deshacer** (rollback) devuelve el estado anterior.
+  - Se descomprime primero en una carpeta temporal y solo se mueve sobre `data/` cuando todo ha salido bien: si algo falla, `data/` queda intacto. Necesitas espacio libre equivalente al tamaño sin comprimir.
+  - **Deshacer** está marcado por defecto y copia tu estado actual (ajustes, streams y base de datos; no los vídeos, así que tarda segundos) a un `.fkmedia` junto al que vas a restaurar, por si necesitas volver atrás.
+- **Ver contenido:** muestra la fecha, el formato y el resumen de un `.fkmedia` sin extraerlo, y te dice si su `.sha256` sigue siendo correcto.
 - **Guardar y Cerrar:** aplica los cambios y cierra la ventana.
 
 #### Pestaña OMDb
@@ -760,8 +771,16 @@ python config_admin.py [OPCIONES]
 | `--auth-password CONTRASEÑA` | Establece la contraseña de autenticación |
 | `--port PUERTO` | Cambia el puerto del servidor (1-65535) |
 | `--omdb-key API_KEY` | Guarda una clave de API de OMDb en el archivo `.env` |
-| `--export ARCHIVO` | Exporta `data/media/` a un archivo `.fkmedia` |
-| `--import ARCHIVO` | Importa un archivo `.fkmedia` en `data/media/` |
+| `--export ARCHIVO` | Exporta toda la carpeta `data/` a un archivo `.fkmedia` |
+| `--import ARCHIVO` | Restaura toda la carpeta `data/` desde un archivo `.fkmedia` |
+| `--compresion MODO` | `rapido` (copia directa, muy veloz) o `compactado` (LZMA2). Se guarda como predeterminado |
+| `--exclude PATRÓN` | Excluye carpeta/archivo; admite `*` y `?`, y `/ruta` para anclar a la raíz de `data/`. Repetible |
+| `--exclude-mb MB` | Omite archivos mayores de ese tamaño (0 = sin límite) |
+| `--alcance PARTE` | Al restaurar: `todo`, `datos` o `media` |
+| `--rollback` | Antes de restaurar, guarda tu estado actual (ajustes, streams y base de datos) en un `.fkmedia` junto al archivo, para poder deshacer |
+| `--solo-datos` | Al exportar, guarda solo ajustes, streams y base de datos (sin vídeos): una copia de seguridad rápida |
+| `--list ARCHIVO` | Muestra qué contiene un `.fkmedia` sin extraerlo |
+| `--verificar ARCHIVO` | Comprueba el archivo y su `.sha256` para detectar corrupción |
 
 Se pueden combinar varias banderas en una sola ejecución:
 
@@ -790,8 +809,27 @@ python config_admin.py --omdb-key tu_clave_aqui
 # Exportar todo el contenido multimedia
 python config_admin.py --export backup.fkmedia
 
+# Exportar más compacto (más lento, archivo más pequeño)
+python config_admin.py --export backup.fkmedia --compresion compactado
+
+# Copia de seguridad rápida: solo ajustes, streams y base de datos
+python config_admin.py --export ajustes.fkmedia --solo-datos
+
+# Dejar fuera miniaturas y cualquier .nfo
+python config_admin.py --export backup.fkmedia --exclude .thumbnails --exclude "*.nfo"
+
+# Ver qué contiene un backup y comprobar que no se ha corrompido
+python config_admin.py --list backup.fkmedia
+python config_admin.py --verificar backup.fkmedia
+
 # Importar contenido desde un backup
 python config_admin.py --import backup.fkmedia
+
+# Restaurar solo la base de datos y los ajustes, dejando los vídeos
+python config_admin.py --import backup.fkmedia --alcance datos
+
+# Restaurar guardando antes tu estado actual para poder deshacer
+python config_admin.py --import backup.fkmedia --rollback
 ```
 
 ---

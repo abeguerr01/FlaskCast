@@ -2,7 +2,12 @@ import json
 import os
 import sys
 import argparse
+import fnmatch
+import hashlib
+import shutil
+import tempfile
 import threading
+import time
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -26,12 +31,21 @@ def _recursos_dir():
 
 DIRECTORIO_RAIZ = _base_dir()
 RECURSOS_DIR = _recursos_dir()
-CONFIG_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'config.json')
-MEDIA_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'media')
+DATA_PATH = os.path.join(DIRECTORIO_RAIZ, 'data')
+CONFIG_PATH = os.path.join(DATA_PATH, 'config.json')
+MEDIA_PATH = os.path.join(DATA_PATH, 'media')
 ENV_PATH = os.path.join(DIRECTORIO_RAIZ, '.env')
-DB_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'flaskcast.db')
-LIVE_STREAMS_PATH = os.path.join(DIRECTORIO_RAIZ, 'data', 'live_streams.json')
+DB_PATH = os.path.join(DATA_PATH, 'flaskcast.db')
+LIVE_STREAMS_PATH = os.path.join(DATA_PATH, 'live_streams.json')
 OMDB_API_URL = 'https://www.omdbapi.com/'
+
+ARCHIVOS_IGNORADOS = ('flaskcast.db-wal', 'flaskcast.db-shm', 'flaskcast.db-journal')
+
+MODOS_COMPRESION = ('rapido', 'compactado')
+BACKUP_COMPRESION_POR_DEFECTO = 'rapido'
+BACKUP_EXCLUIR_POR_DEFECTO = ['.thumbnails']
+BACKUP_EXCLUIR_MB_POR_DEFECTO = 0
+ALCANCES = ('todo', 'datos', 'media')
 
 _admin_lang = 'es'
 
@@ -109,8 +123,16 @@ def cli():
             '  python config_admin.py --api                    Activa/desactiva la API REST\n'
             '  python config_admin.py --port 8080              Cambia el puerto\n'
             '  python config_admin.py --omdb-key abc123       Guarda la API key de OMDb\n'
-            '  python config_admin.py --export backup.fkmedia  Exporta media/ a archivo\n'
-            '  python config_admin.py --import backup.fkmedia  Importa media/ desde archivo\n'
+            '\n'
+            'Copias de seguridad de data/:\n'
+            '  python config_admin.py --export b.fkmedia      Exporta data/ a un .fkmedia\n'
+            '  python config_admin.py --import b.fkmedia      Restaura data/ desde un .fkmedia\n'
+            '  python config_admin.py --list b.fkmedia        Muestra el contenido sin extraer\n'
+            '  python config_admin.py --verificar b.fkmedia   Comprueba el archivo y su sha256\n'
+            '  python config_admin.py --export b --compresion rapido\n'
+            '  python config_admin.py --export b --exclude .thumbnails --exclude "TEMPORADA 4"\n'
+            '  python config_admin.py --export b --exclude-mb 500\n'
+            '  python config_admin.py --import b --alcance datos --rollback\n'
         )
     )
     parser.add_argument('--status', action='store_true', help='Muestra la configuración actual')
@@ -120,13 +142,29 @@ def cli():
     parser.add_argument('--port', type=int, metavar='PUERTO', help='Cambia el puerto del servidor')
     parser.add_argument('--auth', action='store_true', help='Activa/desactiva la autenticación')
     parser.add_argument('--auth-password', type=str, metavar='CONTRASEÑA', help='Establece la contraseña de autenticación')
-    parser.add_argument('--export', type=str, metavar='ARCHIVO', help='Exporta data/media/ a un archivo .fkmedia')
-    parser.add_argument('--import', type=str, metavar='ARCHIVO', dest='importar', help='Importa un archivo .fkmedia en data/media/')
+    parser.add_argument('--export', type=str, metavar='ARCHIVO', help='Exporta la carpeta data/ a un archivo .fkmedia')
+    parser.add_argument('--import', type=str, metavar='ARCHIVO', dest='importar', help='Restaura la carpeta data/ desde un archivo .fkmedia')
     parser.add_argument('--omdb-key', type=str, metavar='API_KEY', help='Guarda la API key de OMDb')
+    parser.add_argument('--list', type=str, metavar='ARCHIVO', dest='listar', help='Muestra el contenido de un .fkmedia sin extraerlo')
+    parser.add_argument('--verificar', type=str, metavar='ARCHIVO', dest='verificar', help='Comprueba que un .fkmedia se abre y su sha256 cuadra')
+    parser.add_argument('--compresion', choices=MODOS_COMPRESION, metavar='MODO',
+                        help='rapido: no comprime (ideal para vídeo). compactado: LZMA2, archivo más pequeño')
+    parser.add_argument('--exclude', action='append', metavar='PATRON', dest='excluir',
+                        help='Excluye del export lo que case con el patrón (repetible, ej: .thumbnails, *.mkv, /media/Serie)')
+    parser.add_argument('--exclude-mb', type=int, metavar='MB', dest='excluir_mb',
+                        help='Excluye del export los archivos de más de MB megabytes')
+    parser.add_argument('--alcance', choices=ALCANCES, default='todo',
+                        help='Qué restaura --import: todo, datos (ajustes y BD) o media (vídeos)')
+    parser.add_argument('--rollback', action='store_true',
+                        help='Antes de restaurar, copia los ajustes, streams y la base de datos actuales a un .fkmedia (no los vídeos, así que tarda segundos)')
+    parser.add_argument('--solo-datos', action='store_true',
+                        help='Con --export solo guarda ajustes, streams y base de datos (no los vídeos)')
 
     args = parser.parse_args()
 
-    tiene_args = any([args.status, args.toggle_server, args.toggle_all, args.api, args.port, args.auth, args.auth_password, args.export, args.importar, args.omdb_key])
+    tiene_args = any([args.status, args.toggle_server, args.toggle_all, args.api, args.port, args.auth,
+                      args.auth_password, args.export, args.importar, args.omdb_key, args.listar,
+                      args.verificar, args.compresion, args.excluir, args.excluir_mb, args.rollback])
 
     if not tiene_args:
         gui()
@@ -144,6 +182,10 @@ def cli():
         print(f'  Puerto:            {cfg.get("puerto", 5000)}')
         omdb_key = leer_env().get('OMDB_API_KEY', '')
         print(f'  OMDb API Key:      {"Configurada" if omdb_key else "No configurada"}')
+        op = _leer_opciones_backup(cfg)
+        print(f'  Compresión:        {op["compresion"]}')
+        print(f'  Exclusiones:       {", ".join(op["patrones"]) or "ninguna"}')
+        print(f'  Excluir >MB:       {op["excluir_mb"] or "no"}')
         return
 
     if args.toggle_server:
@@ -181,53 +223,642 @@ def cli():
         guardar_env({'OMDB_API_KEY': args.omdb_key.strip()})
         cambios.append(f'OMDb API Key -> guardada en .env')
 
+    if args.compresion:
+        cfg['backup_compresion'] = args.compresion
+        cambios.append(f'Modo de compresión -> {args.compresion}')
+
+    if args.excluir:
+        patrones = [p.strip() for p in args.excluir if p.strip()]
+        cfg['backup_excluir'] = patrones
+        cambios.append(f'Exclusiones -> {", ".join(patrones)}')
+
+    if args.excluir_mb is not None:
+        if args.excluir_mb < 0:
+            print('Error: --exclude-mb no puede ser negativo.')
+            sys.exit(1)
+        cfg['backup_excluir_mb'] = args.excluir_mb
+        cambios.append(f'Excluir archivos de más de -> {args.excluir_mb} MB')
+
     if cambios:
         guardar_config(cfg)
         print('Cambios aplicados:')
         for c in cambios:
             print(f'  -> {c}')
 
+    if args.listar:
+        print()
+        _previsualizar_cli(args.listar)
+        return
+
+    if args.verificar:
+        print()
+        _verificar_cli(args.verificar)
+        return
+
     if args.export:
-        exportar_media_cli(args.export)
+        print()
+        exportar_media_cli(args.export, _leer_opciones_backup(cfg), solo_datos=args.solo_datos)
 
     if args.importar:
-        importar_media_cli(args.importar)
+        print()
+        try:
+            importar_media_cli(args.importar, alcance=args.alcance, rollback=args.rollback,
+                               solo_datos=args.solo_datos)
+        except ValueError as e:
+            print(f'Error: {e}')
+            sys.exit(1)
 
 
-def exportar_media_cli(destino):
-    import py7zr
-
-    if not os.path.exists(MEDIA_PATH) or not os.listdir(MEDIA_PATH):
-        print('Error: la carpeta data/media/ está vacía o no existe.')
-        sys.exit(1)
-
-    if not destino.endswith('.fkmedia'):
-        destino += '.fkmedia'
-
-    print(f'Exportando media/ -> {destino} ...')
-    with py7zr.SevenZipFile(destino, 'w') as archive:
-        for raiz, dirs, archivos in os.walk(MEDIA_PATH):
-            for archivo in archivos:
-                ruta_abs = os.path.join(raiz, archivo)
-                ruta_rel = os.path.relpath(ruta_abs, os.path.dirname(MEDIA_PATH))
-                archive.write(ruta_abs, ruta_rel)
-    print(f'Exportado correctamente: {destino}')
+def _snapshot_db(destino):
+    """Copia consistente de la BD vía API de backup de SQLite (segura con el servidor en marcha)."""
+    origen = sqlite3.connect(DB_PATH, timeout=10)
+    try:
+        destino_conn = sqlite3.connect(destino)
+        try:
+            origen.backup(destino_conn)
+        finally:
+            destino_conn.close()
+    finally:
+        origen.close()
 
 
-def importar_media_cli(archivo):
-    import py7zr
+class _Cancelado(Exception):
+    """Operación cancelada por el usuario."""
 
-    if not os.path.exists(archivo):
-        print(f'Error: el archivo {archivo} no existe.')
-        sys.exit(1)
 
-    if not os.path.exists(MEDIA_PATH):
-        os.makedirs(MEDIA_PATH, exist_ok=True)
+def _py7zr():
+    try:
+        import py7zr
+    except ImportError:
+        raise RuntimeError('Falta la dependencia "py7zr". Instálala con: pip install py7zr')
+    return py7zr
 
-    print(f'Importando {archivo} -> data/media/ ...')
+
+def _filtros_compresion(modo):
+    py7zr = _py7zr()
+    if modo == 'compactado':
+        return [{'id': py7zr.FILTER_LZMA2, 'preset': 1}]
+    return [{'id': py7zr.FILTER_COPY}]
+
+
+def _leer_opciones_backup(cfg=None):
+    if cfg is None:
+        cfg = {}
+        if os.path.exists(CONFIG_PATH):
+            try:
+                cfg = leer_config()
+            except (OSError, ValueError):
+                cfg = {}
+    patrones = cfg.get('backup_excluir')
+    if not isinstance(patrones, list) or not patrones:
+        patrones = list(BACKUP_EXCLUIR_POR_DEFECTO)
+    patrones = [str(p).strip().replace('\\', '/') for p in patrones if str(p).strip()]
+    try:
+        excluir_mb = int(cfg.get('backup_excluir_mb', BACKUP_EXCLUIR_MB_POR_DEFECTO) or 0)
+    except (TypeError, ValueError):
+        excluir_mb = 0
+    modo = cfg.get('backup_compresion', BACKUP_COMPRESION_POR_DEFECTO)
+    if modo not in MODOS_COMPRESION:
+        modo = BACKUP_COMPRESION_POR_DEFECTO
+    return {'patrones': patrones, 'excluir_mb': max(0, excluir_mb), 'compresion': modo}
+
+
+def _excluir_relativo(rel, patrones, excluir_mb=0, tamano=None):
+    """rel puede venir como 'data/media/X' o 'media/X'; los patrones son relativos a data/."""
+    rel = rel.replace('\\', '/')
+    if rel == 'data' or rel.startswith('data/'):
+        rel = rel[len('data/'):]
+    partes = rel.split('/')
+    for patron in patrones:
+        if patron.startswith('/'):
+            destino = patron.lstrip('/')
+            if rel == destino or rel.startswith(destino + '/'):
+                return True
+            continue
+        if patron in partes[:-1] or patron == partes[-1]:
+            return True
+        if fnmatch.fnmatch(rel, patron) or fnmatch.fnmatch(partes[-1], patron):
+            return True
+    if excluir_mb and tamano is not None and tamano > excluir_mb * 1024 * 1024:
+        return True
+    return False
+
+
+def _escanear_data(opciones, cancelacion=None, solo_datos=False):
+    """Recorre data/ sin descender en lo excluido. Devuelve archivos, carpetas, bytes y excluidos."""
+    raiz = os.path.abspath(DATA_PATH)
+    db_absoluta = os.path.abspath(DB_PATH)
+    archivos, carpetas, total, excluidos = [], [], 0, []
+    patrones = opciones['patrones']
+    excluir_mb = opciones['excluir_mb']
+    raiz_rel = os.path.relpath(raiz, DIRECTORIO_RAIZ).replace('\\', '/')
+
+    for carpeta_raiz, dirs, files in os.walk(raiz):
+        if cancelacion is not None and cancelacion.is_set():
+            raise _Cancelado()
+        rel_carpeta = os.path.relpath(carpeta_raiz, DIRECTORIO_RAIZ).replace('\\', '/')
+        carpetas.append((carpeta_raiz, rel_carpeta))
+        keepers = []
+        for carpeta in sorted(dirs):
+            if solo_datos:
+                continue
+            rel = f'{rel_carpeta}/{carpeta}'
+            if _excluir_relativo(rel, patrones):
+                excluidos.append(rel)
+            else:
+                keepers.append(carpeta)
+        dirs[:] = keepers
+        if solo_datos and not keepers and files == []:
+            continue
+        for archivo in sorted(files):
+            if archivo in ARCHIVOS_IGNORADOS or archivo.endswith('.fkmedia') or archivo.endswith('.parcial'):
+                continue
+            ruta_abs = os.path.join(carpeta_raiz, archivo)
+            if os.path.abspath(ruta_abs) == db_absoluta:
+                continue
+            rel = f'{rel_carpeta}/{archivo}'
+            try:
+                tamano = os.path.getsize(ruta_abs)
+            except OSError:
+                tamano = 0
+            if _excluir_relativo(rel, patrones, excluir_mb, tamano):
+                excluidos.append(rel)
+                continue
+            archivos.append((ruta_abs, rel, tamano))
+            total += tamano
+
+    if solo_datos:
+        carpetas = [(raiz, raiz_rel)]
+        archivos = [a for a in archivos if '/media/' not in a[1]]
+        total = sum(a[2] for a in archivos)
+    return archivos, carpetas, total, excluidos
+
+
+def _sha256(ruta, bloque=4 * 1024 * 1024):
+    h = hashlib.sha256()
+    with open(ruta, 'rb') as f:
+        for trozo in iter(lambda: f.read(bloque), b''):
+            h.update(trozo)
+    return h.hexdigest()
+
+
+def _ruta_sha256(archivo):
+    return os.path.splitext(archivo)[0] + '.sha256'
+
+
+def _escribir_sha256(archivo, digest):
+    with open(_ruta_sha256(archivo), 'w', encoding='utf-8') as f:
+        f.write(f'{digest}  {os.path.basename(archivo)}\n')
+
+
+def _leer_sha256(archivo):
+    ruta = _ruta_sha256(archivo)
+    if not os.path.isfile(ruta):
+        return None
+    try:
+        with open(ruta, 'r', encoding='utf-8') as f:
+            return f.read().split()[0]
+    except (OSError, IndexError):
+        return None
+
+
+def _verificar_fkmedia(archivo, esperado=None):
+    """Abre el .fkmedia y comprueba que se lee y que cuadra el número de entradas."""
+    py7zr = _py7zr()
+    if not os.path.isfile(archivo):
+        raise ValueError(f'El archivo {archivo} no existe.')
     with py7zr.SevenZipFile(archivo, 'r') as archive:
-        archive.extractall(path=os.path.dirname(MEDIA_PATH))
-    print('Importado correctamente.')
+        nombres = [n.replace('\\', '/') for n in archive.getnames()]
+    return {
+        'ruta': os.path.abspath(archivo),
+        'bytes': os.path.getsize(archivo),
+        'entradas': len(nombres),
+        'esperado': esperado,
+        'ok': esperado is None or len(nombres) == esperado,
+    }
+
+
+def _verificar_integridad(archivo):
+    """Comprueba el .sha256 si existe y que el archivo se pueda abrir."""
+    info = _verificar_fkmedia(archivo)
+    esperado = _leer_sha256(archivo)
+    if esperado is None:
+        info['sha256'] = None
+        info['sha256_ok'] = None
+    else:
+        info['sha256'] = esperado
+        info['sha256_ok'] = _sha256(archivo) == esperado
+    return info
+
+
+def _validar_exportacion(destino):
+    """Normaliza la extensión y rechaza destinos dentro de data/. Devuelve la ruta absoluta."""
+    if not os.path.isdir(DATA_PATH) or not os.listdir(DATA_PATH):
+        raise ValueError('La carpeta data/ está vacía o no existe.')
+    if not destino.lower().endswith('.fkmedia'):
+        destino += '.fkmedia'
+    destino = os.path.abspath(destino)
+    raiz = os.path.abspath(DATA_PATH)
+    if destino == raiz or destino.startswith(raiz + os.sep):
+        raise ValueError('El archivo de destino no puede guardarse dentro de data/.')
+    return destino
+
+
+def _crear_progreso_extraccion(cancelacion, progreso):
+    py7zr = _py7zr()
+    from py7zr.callbacks import ExtractCallback
+
+    estado = {'bytes': 0, 'cancelado': False}
+
+    class Progreso(ExtractCallback):
+        def report_start_preparation(self):
+            pass
+
+        def report_start(self, processing_file_path, processing_bytes):
+            pass
+
+        def report_update(self, decompressed_bytes):
+            try:
+                estado['bytes'] += int(decompressed_bytes)
+            except (TypeError, ValueError):
+                return
+            if cancelacion is not None and cancelacion.is_set():
+                estado['cancelado'] = True
+                raise _Cancelado()
+            if progreso:
+                progreso(estado['bytes'])
+
+        def report_end(self, processing_file_path, wrote_bytes):
+            pass
+
+        def report_warning(self, message):
+            pass
+
+        def report_postprocess(self):
+            pass
+
+    return Progreso()
+
+
+def _exportar_fkmedia(destino, opciones, cancelacion=None, progreso=None, solo_datos=False):
+    """Comprime data/ en un .fkmedia. La DB va como snapshot atómico. Escribe en .parcial y renombra al final."""
+    py7zr = _py7zr()
+    destino = os.path.abspath(destino)
+    archivos, carpetas, total, excluidos = _escanear_data(opciones, cancelacion, solo_datos)
+
+    parcial = destino + '.parcial'
+    temp_dir = tempfile.mkdtemp(prefix='flaskcast_fkmedia_')
+    snapshot = None
+    try:
+        if os.path.exists(DB_PATH):
+            snapshot = os.path.join(temp_dir, 'flaskcast.db')
+            _snapshot_db(snapshot)
+            total += os.path.getsize(snapshot)
+
+        with py7zr.SevenZipFile(parcial, 'w', filters=_filtros_compresion(opciones['compresion'])) as archive:
+            for abs_carpeta, rel_carpeta in carpetas:
+                archive.write(abs_carpeta, rel_carpeta)
+            hechos = 0
+            total_archivos = len(archivos) + (1 if snapshot else 0)
+            for indice, (ruta_abs, rel, tamano) in enumerate(archivos, 1):
+                if cancelacion is not None and cancelacion.is_set():
+                    raise _Cancelado()
+                archive.write(ruta_abs, rel)
+                hechos += tamano
+                if progreso:
+                    progreso(hechos, total, indice, total_archivos)
+            if snapshot:
+                rel_db = os.path.relpath(DB_PATH, DIRECTORIO_RAIZ).replace('\\', '/')
+                archive.write(snapshot, rel_db)
+                hechos += os.path.getsize(snapshot)
+                if progreso:
+                    progreso(hechos, total, total_archivos, total_archivos)
+
+        info = _verificar_fkmedia(parcial, esperado=len(archivos) + len(carpetas) + (1 if snapshot else 0))
+        if not info['ok']:
+            raise RuntimeError(
+                f'La verificación falló: se esperaban {info["esperado"]} entradas y hay {info["entradas"]}.'
+            )
+        os.makedirs(os.path.dirname(destino) or '.', exist_ok=True)
+        os.replace(parcial, destino)
+        info['ruta'] = destino
+        info['sha256'] = _sha256(destino)
+        _escribir_sha256(destino, info['sha256'])
+        info['bytes_origen'] = total
+        info['excluidos'] = excluidos
+        info['compresion'] = opciones['compresion']
+        return info
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        if os.path.exists(parcial):
+            try:
+                os.remove(parcial)
+            except OSError:
+                pass
+
+
+def _prefijo_archivo(nombres):
+    """Los .fkmedia antiguos guardaban 'media/...'; los nuevos guardan 'data/...'."""
+    for nombre in nombres:
+        limpio = nombre.replace('\\', '/')
+        if limpio == 'data' or limpio.startswith('data/'):
+            return 'data/'
+    return ''
+
+
+def _listar_fkmedia(archivo):
+    """Vista previa del contenido de un .fkmedia sin extraerlo."""
+    py7zr = _py7zr()
+    if not os.path.isfile(archivo):
+        raise ValueError(f'El archivo {archivo} no existe.')
+    entradas = []
+    with py7zr.SevenZipFile(archivo, 'r') as archive:
+        for info in archive.list():
+            nombre = info.filename.replace('\\', '/')
+            entradas.append({
+                'nombre': nombre,
+                'es_dir': bool(info.is_directory),
+                'bytes': info.uncompressed or 0,
+            })
+    archivos = [e for e in entradas if not e['es_dir']]
+    nombres = [e['nombre'] for e in entradas]
+    prefijo = _prefijo_archivo(nombres)
+    con_db = any(n.endswith('flaskcast.db') for n in nombres)
+    resumen = {
+        'ruta': os.path.abspath(archivo),
+        'bytes': os.path.getsize(archivo),
+        'entradas': len(entradas),
+        'archivos': len(archivos),
+        'carpetas': len(entradas) - len(archivos),
+        'bytes_descomprimidos': sum(e['bytes'] for e in archivos),
+        'prefijo': prefijo,
+        'tiene_db': con_db,
+        'tiene_config': any(n.endswith('config.json') for n in nombres),
+        'tiene_streams': any(n.endswith('live_streams.json') for n in nombres),
+        'tiene_media': any('/media/' in n for n in nombres),
+        'antiguo': prefijo == '',
+        'entradas_detalle': entradas,
+    }
+    resumen['sha256'] = _leer_sha256(archivo)
+    return resumen
+
+
+def _alcance_a_targets(alcance, entradas, prefijo):
+    """None = todo. Si no, la lista exacta de entradas a extraer (nunca directorios sueltos)."""
+    if alcance == 'todo':
+        return None
+    base_media = prefijo + 'media'
+    if alcance == 'media':
+        return [e['nombre'] for e in entradas
+                if e['nombre'] == base_media or e['nombre'].startswith(base_media + '/')]
+    return [e['nombre'] for e in entradas
+            if not e['es_dir']
+            and e['nombre'].startswith(prefijo)
+            and e['nombre'] != prefijo.rstrip('/')
+            and e['nombre'][len(prefijo):].count('/') == 0]
+
+
+def _validar_extraccion(temp_dir, entradas, objetivos):
+    """Comprueba que se extrajo todo lo esperado antes de tocar data/."""
+    faltantes = []
+    for entrada in entradas:
+        limpio = entrada['nombre']
+        if objetivos is not None and not any(
+                limpio == o or limpio.startswith(o.rstrip('/') + '/') or o.rstrip('/') == limpio
+                for o in objetivos):
+            continue
+        if not os.path.exists(os.path.join(temp_dir, *limpio.split('/'))):
+            faltantes.append(limpio)
+            if len(faltantes) > 20:
+                break
+    if faltantes:
+        raise RuntimeError(
+            'La extracción está incompleta, no se ha tocado data/. Faltan:\n  '
+            + '\n  '.join(faltantes)
+        )
+    db = os.path.join(temp_dir, 'data', 'flaskcast.db')
+    if os.path.isfile(db):
+        try:
+            conn = sqlite3.connect(db)
+            conn.execute('PRAGMA integrity_check').fetchone()
+            conn.close()
+        except sqlite3.Error as e:
+            raise RuntimeError(f'La base de datos extraída está dañada, no se ha tocado data/.\n{e}')
+
+
+def _commit_extraccion(temp_dir, destino_raiz):
+    """Mueve lo extraído a su sitio. Renombrados en el mismo volumen, sin copiar datos."""
+    movidos = 0
+    origen_raiz = os.path.join(temp_dir, os.path.basename(destino_raiz.rstrip(os.sep)))
+    if not os.path.isdir(origen_raiz):
+        origen_raiz = temp_dir
+    for carpeta_raiz, dirs, files in os.walk(origen_raiz):
+        for carpeta in dirs:
+            origen = os.path.join(carpeta_raiz, carpeta)
+            destino = os.path.join(carpeta_raiz[len(origen_raiz):].lstrip(os.sep), carpeta)
+            destino = os.path.join(destino_raiz, destino) if destino else os.path.join(destino_raiz, carpeta)
+            os.makedirs(destino, exist_ok=True)
+            movidos += 1
+        for archivo in files:
+            origen = os.path.join(carpeta_raiz, archivo)
+            destino = os.path.join(carpeta_raiz[len(origen_raiz):].lstrip(os.sep), archivo)
+            destino = os.path.join(destino_raiz, destino)
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            if os.path.abspath(origen) == os.path.abspath(destino):
+                movidos += 1
+                continue
+            os.replace(origen, destino)
+            movidos += 1
+    for sufijo in ('-wal', '-shm'):
+        obsoleto = DB_PATH + sufijo
+        if os.path.exists(obsoleto):
+            try:
+                os.remove(obsoleto)
+            except OSError:
+                pass
+    return movidos
+
+
+def _importar_fkmedia(archivo, alcance='todo', cancelacion=None, progreso=None, directorio_temporal=None):
+    """Extrae a un temporal, valida y solo entonces mueve a data/. Devuelve el resumen."""
+    py7zr = _py7zr()
+    if not os.path.isfile(archivo):
+        raise ValueError(f'El archivo {archivo} no existe.')
+
+    previo = _listar_fkmedia(archivo)
+    necesita = previo['bytes_descomprimidos']
+    libre = shutil.disk_usage(DIRECTORIO_RAIZ).free
+    if necesita > libre * 0.9:
+        raise RuntimeError(
+            f'No hay espacio suficiente para restaurar de forma segura.\n'
+            f'Necesitas al menos {necesita / 1073741824:.1f} GB libres y hay {libre / 1073741824:.1f} GB.\n'
+            f'Libera espacio o borra alguna copia anterior.'
+        )
+
+    temp_dir = directorio_temporal or tempfile.mkdtemp(prefix='.restore_', dir=DIRECTORIO_RAIZ)
+    try:
+        with py7zr.SevenZipFile(archivo, 'r') as archive:
+            entradas = [
+                {'nombre': i.filename.replace('\\', '/'), 'es_dir': bool(i.is_directory)}
+                for i in archive.list()
+            ]
+            prefijo = _prefijo_archivo([e['nombre'] for e in entradas])
+            destino_raiz = DIRECTORIO_RAIZ if prefijo else os.path.dirname(MEDIA_PATH)
+            objetivos = _alcance_a_targets(alcance, entradas, prefijo)
+            movidos = 0
+            if objetivos is not None:
+                if not objetivos:
+                    raise RuntimeError(
+                        f'El archivo no contiene nada del alcance "{alcance}", no se ha tocado data/.')
+                cb = _crear_progreso_extraccion(cancelacion, progreso)
+                archive.extract(temp_dir, targets=objetivos, recursive=True, callback=cb)
+            else:
+                cb = _crear_progreso_extraccion(cancelacion, progreso)
+                archive.extractall(path=temp_dir, callback=cb)
+
+        _validar_extraccion(temp_dir, entradas, objetivos)
+        movidos = _commit_extraccion(temp_dir, destino_raiz)
+        return {
+            'ruta': os.path.abspath(archivo),
+            'raiz': destino_raiz,
+            'alcance': alcance,
+            'entradas': movidos,
+            'bytes': previo['bytes_descomprimidos'],
+            'sha256_previo': previo['sha256'],
+        }
+    finally:
+        if directorio_temporal is None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _formato_bytes(num):
+    if not num:
+        return '0 B'
+    for unidad in ('B', 'KB', 'MB', 'GB', 'TB'):
+        if num < 1024 or unidad == 'TB':
+            return f'{num:.1f} {unidad}' if unidad != 'B' else f'{int(num)} B'
+        num /= 1024.0
+    return f'{num:.1f} TB'
+
+
+def _barra_progreso(hechos, total, tag):
+    if not total:
+        return f'  {tag}'
+    porcentaje = min(100.0, hechos * 100.0 / total)
+    relleno = int(porcentaje / 2)
+    barra = '#' * relleno + '-' * (50 - relleno)
+    return f'  [{barra}] {porcentaje:5.1f}%  {_formato_bytes(hechos)}/{_formato_bytes(total)}  {tag}'
+
+
+class _ConsolaProgreso:
+    def __init__(self):
+        self.inicio = time.time()
+        self.ultimo = 0.0
+
+    def __call__(self, hechos, total, archivos, archivos_totales):
+        ahora = time.time()
+        if ahora - self.ultimo < 0.2 and archivos != archivos_totales:
+            return
+        self.ultimo = ahora
+        transcurrido = max(0.001, ahora - self.inicio)
+        restante = (total - hechos) / (hechos / transcurrido) if hechos > 0 else 0
+        eta = time.strftime('%H:%M:%S', time.gmtime(restante)) if restante > 0 else '--:--:--'
+        print('\r' + _barra_progreso(hechos, total, f'{archivos}/{archivos_totales} ETA {eta}') + '   ', end='', flush=True)
+
+
+def exportar_media_cli(destino, opciones=None, solo_datos=False):
+    opciones = opciones or _leer_opciones_backup()
+    destino = _validar_exportacion(destino)
+    print(f'Exportando data/ -> {destino}')
+    print(f'  Modo: {opciones["compresion"]}  Excluir: {", ".join(opciones["patrones"]) or "nada"}'
+          + (f'  >{opciones["excluir_mb"]}MB' if opciones["excluir_mb"] else ''))
+    progreso = _ConsolaProgreso()
+    try:
+        info = _exportar_fkmedia(destino, opciones, progreso=progreso, solo_datos=solo_datos)
+    except _Cancelado:
+        print('\nExportación cancelada. No se ha dejado ningún archivo a medias.')
+        return None
+    print()
+    print(f'  Archivo:   {info["ruta"]}')
+    print(f'  Checksum:  {info["ruta"]}.sha256 (sha256)')
+    print(f'  Tamaño:    {_formato_bytes(info["bytes"])} de {_formato_bytes(info["bytes_origen"])} origen')
+    print(f'  Entradas:  {info["entradas"]} (verificadas)')
+    if info['excluidos']:
+        print(f'  Excluidos: {len(info["excluidos"])} elementos')
+    return info
+
+
+def _previsualizar_cli(archivo):
+    info = _listar_fkmedia(archivo)
+    print(f'Archivo:    {info["ruta"]}')
+    print(f'Tamaño:     {_formato_bytes(info["bytes"])}')
+    print(f'Entradas:   {info["entradas"]} ({info["archivos"]} archivos, {info["carpetas"]} carpetas)')
+    if info['bytes_descomprimidos']:
+        print(f'Descomprime: ~{_formato_bytes(info["bytes_descomprimidos"])}')
+    print(f'Formato:    {"antiguo (media/...)" if info["antiguo"] else "actual (data/...)"}')
+    print('Contenido:')
+    for clave, etiqueta in (('tiene_config', 'data/config.json'),
+                            ('tiene_db', 'data/flaskcast.db'),
+                            ('tiene_streams', 'data/live_streams.json'),
+                            ('tiene_media', 'data/media/')):
+        if info[clave]:
+            print(f'  [si] {etiqueta}')
+    if info['sha256']:
+        print(f'Checksum:   {info["sha256"]} (lado a lado)')
+    else:
+        print('Checksum:   sin archivo .sha256')
+    return info
+
+
+def _verificar_cli(archivo):
+    info = _verificar_integridad(archivo)
+    print(f'Archivo:   {info["ruta"]}')
+    print(f'Tamaño:    {_formato_bytes(info["bytes"])}')
+    print(f'Entradas:  {info["entradas"]}')
+    print(f'Abre:      si')
+    if info['sha256_ok'] is None:
+        print('SHA256:    sin archivo .sha256, no se puede comprobar')
+    else:
+        print(f'SHA256:    {"correcto" if info["sha256_ok"] else "NO COINCIDE"}')
+    if not info['sha256_ok']:
+        print('El archivo puede estar dañado o haber cambiado.')
+    return info
+
+
+def importar_media_cli(archivo, alcance='todo', rollback=False, solo_datos=False):
+    if alcance not in ALCANCES:
+        raise ValueError(f'Alcance no válido: {alcance}. Usa: {", ".join(ALCANCES)}.')
+    info = _previsualizar_cli(archivo)
+    print()
+
+    destino_rollback = None
+    if rollback:
+        sello = time.strftime('%Y%m%d-%H%M%S')
+        destino_rollback = os.path.join(
+            os.path.dirname(os.path.abspath(archivo)),
+            f'flaskcast-antes-de-restaurar-{sello}.fkmedia')
+        print('Creando copia de seguridad previa (ajustes, streams y base de datos)...')
+        print(f'  -> {destino_rollback}')
+        exportar_media_cli(destino_rollback, solo_datos=True)
+        print()
+
+    alcance_txt = {'todo': 'toda la carpeta data/', 'datos': 'solo ajustes y base de datos',
+                   'media': 'solo data/media/'}[alcance]
+    print(f'Restaurando {alcance_txt} desde {archivo} ...')
+    progreso = _ConsolaProgreso()
+    try:
+        resumen = _importar_fkmedia(archivo, alcance=alcance, progreso=progreso)
+    except _Cancelado:
+        print('\nRestauración cancelada. data/ no se ha modificado.')
+        return None
+    except RuntimeError as e:
+        print('\n' + str(e))
+        return None
+    print()
+    print(f'  Restaurado: {resumen["entradas"]} elementos en {resumen["raiz"]}\\data')
+    if destino_rollback:
+        print(f'  Copia previa: {destino_rollback}')
+    return resumen
 
 
 def omdb_validar_api_key(api_key):
@@ -422,8 +1053,6 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog, simpledialog
     import webbrowser
-    import shutil
-    import py7zr
 
     FORMATOS_VIDEO = ('.mp4', '.webm', '.ogg', '.avi', '.mkv')
 
@@ -630,18 +1259,55 @@ def gui():
 
             ttk.Separator(parent, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
 
-            ttk.Label(parent, text=t('gen_gestion_contenido'),
+            ttk.Label(parent, text=t('gen_copia_titulo'),
                       font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, pady=(0, 6))
 
+            opciones = _leer_opciones_backup(cfg)
+            comp_frame = ttk.LabelFrame(parent, text=t('gen_compresion'), padding=8)
+            comp_frame.pack(fill=tk.X, pady=2)
+            self.compresion_var = tk.StringVar(value=opciones['compresion'])
+            ttk.Radiobutton(comp_frame, text=t('gen_comp_rapido'), value='rapido',
+                            variable=self.compresion_var).pack(anchor=tk.W)
+            ttk.Label(comp_frame, text=t('gen_comp_rapido_desc'), foreground='#888',
+                      font=('Segoe UI', 8), wraplength=560).pack(anchor=tk.W, padx=(18, 0))
+            ttk.Radiobutton(comp_frame, text=t('gen_comp_compactado'), value='compactado',
+                            variable=self.compresion_var).pack(anchor=tk.W, pady=(6, 0))
+            ttk.Label(comp_frame, text=t('gen_comp_compactado_desc'), foreground='#888',
+                      font=('Segoe UI', 8), wraplength=560).pack(anchor=tk.W, padx=(18, 0))
+
+            exc_frame = ttk.LabelFrame(parent, text=t('gen_exclusiones'), padding=8)
+            exc_frame.pack(fill=tk.X, pady=(6, 2))
+            self.excluir_var = tk.StringVar(value=', '.join(opciones['patrones']))
+            ttk.Entry(exc_frame, textvariable=self.excluir_var).pack(fill=tk.X)
+            ttk.Label(exc_frame, text=t('gen_exclusiones_desc'), foreground='#888',
+                      font=('Segoe UI', 8), wraplength=560).pack(anchor=tk.W, pady=(4, 0))
+            self.excluir_mb_var = tk.StringVar(value=str(opciones['excluir_mb'] or ''))
+            mb_frame = ttk.Frame(exc_frame)
+            mb_frame.pack(fill=tk.X, pady=(6, 0))
+            ttk.Label(mb_frame, text=t('gen_excluir_mb')).pack(side=tk.LEFT)
+            ttk.Entry(mb_frame, textvariable=self.excluir_mb_var, width=8).pack(side=tk.LEFT, padx=(6, 0))
+            ttk.Label(mb_frame, text='MB', foreground='#888').pack(side=tk.LEFT, padx=(4, 0))
+
             media_frame = ttk.Frame(parent)
-            media_frame.pack(fill=tk.X, pady=4)
+            media_frame.pack(fill=tk.X, pady=(8, 0))
             ttk.Button(media_frame, text=t('gen_exportar'),
                        command=self.exportar_media).pack(side=tk.LEFT, padx=(0, 5))
             ttk.Button(media_frame, text=t('gen_importar'),
-                       command=self.importar_media).pack(side=tk.LEFT)
+                       command=self.importar_media).pack(side=tk.LEFT, padx=(0, 5))
+            ttk.Button(media_frame, text=t('gen_ver_contenido'),
+                       command=self.ver_contenido).pack(side=tk.LEFT)
 
-            self.status_label = ttk.Label(parent, text='', foreground='green')
+            self.status_label = ttk.Label(parent, text='', foreground='green', wraplength=600)
             self.status_label.pack(pady=(8, 0))
+
+            prog_frame = ttk.Frame(parent)
+            prog_frame.pack(fill=tk.X, pady=(4, 0))
+            self.barra_progreso = ttk.Progressbar(prog_frame, mode='determinate', length=400)
+            self.barra_progreso.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            self.cancel_event = threading.Event()
+            self.btn_cancelar = ttk.Button(prog_frame, text=t('gen_cancelar'),
+                                           command=self._cancelar, state='disabled')
+            self.btn_cancelar.pack(side=tk.RIGHT, padx=(8, 0))
 
             btn_frame = ttk.Frame(parent)
             btn_frame.pack(pady=(10, 0))
@@ -1489,6 +2155,12 @@ def gui():
             data['api_habilitada'] = self.api_var.get()
             data['auth_enabled'] = self.auth_var.get()
             data['auth_password'] = self.auth_password_var.get()
+            data['backup_compresion'] = self.compresion_var.get()
+            data['backup_excluir'] = [p.strip() for p in self.excluir_var.get().split(',') if p.strip()]
+            try:
+                data['backup_excluir_mb'] = max(0, int(self.excluir_mb_var.get().strip() or 0))
+            except ValueError:
+                data['backup_excluir_mb'] = 0
             guardar_config(data)
 
             omdb_key = self.omdb_api_var.get().strip()
@@ -1499,74 +2171,252 @@ def gui():
             self.status_label.config(text=texto, foreground=color)
             self.root.update_idletasks()
 
-        def exportar_media(self):
-            if not os.path.exists(MEDIA_PATH) or not os.listdir(MEDIA_PATH):
-                messagebox.showinfo('Exportar', 'La carpeta media/ está vacía o no existe.')
-                return
+        def _opciones_desde_panel(self):
+            patrones = [p.strip() for p in self.excluir_var.get().split(',') if p.strip()]
+            try:
+                mb = max(0, int(self.excluir_mb_var.get().strip() or 0))
+            except ValueError:
+                mb = 0
+            return {'patrones': patrones, 'excluir_mb': mb, 'compresion': self.compresion_var.get()}
 
+        def _cancelar(self):
+            self.cancel_event.set()
+            self._set_status(t('gen_cancelando'), '#ff8800')
+
+        def _iniciar_progreso(self, mensaje):
+            self.cancel_event.clear()
+            self.barra_progreso.config(value=0)
+            self.btn_cancelar.config(state='normal')
+            self.root.config(cursor='watch')
+            self._set_status(mensaje, '#ff8800')
+
+        def _fin_progreso(self):
+            self.btn_cancelar.config(state='disabled')
+            self.root.config(cursor='')
+
+        def _progreso_export(self, etiqueta):
+            inicio = time.time()
+            ultimo = [0.0]
+
+            def _callback(hechos, total, archivos, archivos_totales):
+                ahora = time.time()
+                if ahora - ultimo[0] < 0.15 and archivos != archivos_totales:
+                    return
+                ultimo[0] = ahora
+                porcentaje = min(100.0, hechos * 100.0 / total) if total else 100.0
+                transcurrido = max(0.001, ahora - inicio)
+                restante = (total - hechos) / (hechos / transcurrido) if hechos > 0 else 0
+                eta = time.strftime('%H:%M:%S', time.gmtime(restante)) if restante > 0 else '--:--'
+                texto = (f'{etiqueta} {porcentaje:.1f}%  '
+                         f'{_formato_bytes(hechos)} de {_formato_bytes(total)}  '
+                         f'({archivos}/{archivos_totales})  ETA {eta}')
+                self.root.after(0, lambda: self.barra_progreso.config(value=porcentaje))
+                self.root.after(0, lambda: self._set_status(texto, '#ff8800'))
+
+            return _callback
+
+        def ver_contenido(self):
+            archivo = filedialog.askopenfilename(
+                title=t('gen_ver_contenido'),
+                filetypes=[('FlaskCast Data', '*.fkmedia')])
+            if not archivo:
+                return
+            try:
+                info = _listar_fkmedia(archivo)
+            except Exception as e:
+                messagebox.showerror(t('gen_ver_contenido'), f'{e}')
+                return
+            lineas = [
+                t('gen_ver_ruta').format(ruta=info['ruta']),
+                t('gen_ver_tamano').format(tamano=_formato_bytes(info['bytes'])),
+                t('gen_ver_entradas').format(
+                    entradas=info['entradas'], archivos=info['archivos'], carpetas=info['carpetas']),
+            ]
+            if info['bytes_descomprimidos']:
+                lineas.append(t('gen_ver_descomprime').format(
+                    total=_formato_bytes(info['bytes_descomprimidos'])))
+            lineas.append('')
+            lineas.append(t('gen_ver_formato') + ': ' +
+                          (t('gen_ver_formato_antiguo') if info['antiguo'] else t('gen_ver_formato_actual')))
+            for clave, etiqueta in (('tiene_config', 'data/config.json'),
+                                    ('tiene_db', 'data/flaskcast.db'),
+                                    ('tiene_streams', 'data/live_streams.json'),
+                                    ('tiene_media', 'data/media/')):
+                if info[clave]:
+                    lineas.append('  [✓] ' + etiqueta)
+            lineas.append('')
+            if info['sha256']:
+                lineas.append('SHA-256: ' + info['sha256'][:32] + '...')
+                verificada = _verificar_integridad(archivo)
+                lineas.append(t('gen_ver_sha_ok') if verificada['sha256_ok']
+                              else t('gen_ver_sha_mal'))
+            else:
+                lineas.append(t('gen_ver_sha_no'))
+            messagebox.showinfo(t('gen_ver_contenido'), '\n'.join(lineas))
+
+        def _dialogo_restaurar(self, archivo):
+            """Toplevel con vista previa, alcance a restaurar y copia de seguridad previa."""
+            dialogo = tk.Toplevel(self.root)
+            dialogo.title(t('gen_importar'))
+            dialogo.transient(self.root)
+            dialogo.resizable(False, False)
+            marco = ttk.Frame(dialogo, padding=15)
+            marco.pack(fill=tk.BOTH, expand=True)
+
+            try:
+                info = _listar_fkmedia(archivo)
+            except Exception as e:
+                messagebox.showerror(t('gen_importar'), f'{e}')
+                dialogo.destroy()
+                return None
+
+            ttk.Label(marco, text=os.path.basename(archivo), font=('Segoe UI', 11, 'bold')).pack(anchor=tk.W)
+            ttk.Label(marco, text=archivo, foreground='#888', font=('Segoe UI', 8),
+                      wraplength=460).pack(anchor=tk.W, pady=(0, 8))
+            resumen = (f"{_formato_bytes(info['bytes'])}  ·  {info['entradas']} entradas  ·  "
+                       + (t('gen_ver_formato_antiguo') if info['antiguo'] else t('gen_ver_formato_actual')))
+            ttk.Label(marco, text=resumen, font=('Segoe UI', 9)).pack(anchor=tk.W, pady=(0, 10))
+
+            alcance_var = tk.StringVar(value='todo')
+            ttk.Label(marco, text=t('gen_alcance')).pack(anchor=tk.W)
+            for valor, etiqueta in (('todo', t('gen_alcance_todo')),
+                                    ('datos', t('gen_alcance_datos')),
+                                    ('media', t('gen_alcance_media'))):
+                ttk.Radiobutton(marco, text=etiqueta, value=valor,
+                                variable=alcance_var).pack(anchor=tk.W)
+
+            rollback_var = tk.BooleanVar(value=True)
+            ttk.Checkbutton(marco, text=t('gen_rollback'), variable=rollback_var).pack(anchor=tk.W, pady=(10, 0))
+            ttk.Label(marco, text=t('gen_rollback_desc'), foreground='#888', font=('Segoe UI', 8),
+                      wraplength=460).pack(anchor=tk.W, padx=(20, 0))
+
+            ttk.Label(marco, text=t('gen_restaurar_aviso'), foreground='#c00', font=('Segoe UI', 8),
+                      wraplength=460).pack(anchor=tk.W, pady=(10, 0))
+
+            resultado = {}
+
+            def _aceptar():
+                resultado['alcance'] = alcance_var.get()
+                resultado['rollback'] = rollback_var.get()
+                dialogo.destroy()
+
+            botones = ttk.Frame(marco)
+            botones.pack(pady=(14, 0))
+            ttk.Button(botones, text=t('gen_restaurar'), command=_aceptar).pack(side=tk.LEFT, padx=5)
+            ttk.Button(botones, text=t('gen_salir'), command=dialogo.destroy).pack(side=tk.LEFT, padx=5)
+            dialogo.grab_set()
+            self.root.wait_window(dialogo)
+            return resultado
+
+        def exportar_media(self):
+            sello = time.strftime('%Y-%m-%d')
             destino = filedialog.asksaveasfilename(
-                title='Exportar media',
+                title=t('gen_exportar'),
                 defaultextension='.fkmedia',
-                filetypes=[('FlaskCast Media', '*.fkmedia')],
-                initialfile='data.fkmedia'
-            )
+                filetypes=[('FlaskCast Data', '*.fkmedia')],
+                initialfile=f'flaskcast-{sello}.fkmedia',
+                parent=self.root)
             if not destino:
                 return
 
-            self._set_status('Exportando... esto puede tardar.', '#ff8800')
-            self.root.config(cursor='watch')
+            opciones = self._opciones_desde_panel()
+            try:
+                destino = _validar_exportacion(destino)
+            except ValueError as e:
+                messagebox.showwarning(t('gen_exportar'), str(e))
+                return
+
+            self._iniciar_progreso(t('gen_exportando'))
+            progreso = self._progreso_export(t('gen_exportando'))
 
             def _hilo():
                 try:
-                    with py7zr.SevenZipFile(destino, 'w') as archive:
-                        for raiz, dirs, archivos in os.walk(MEDIA_PATH):
-                            for archivo in archivos:
-                                ruta_abs = os.path.join(raiz, archivo)
-                                ruta_rel = os.path.relpath(ruta_abs, os.path.dirname(MEDIA_PATH))
-                                archive.write(ruta_abs, ruta_rel)
-                    self.root.after(0, lambda: self._set_status(f'Exportado: {os.path.basename(destino)}'))
-                    self.root.after(0, lambda: messagebox.showinfo('Exportar', f'Exportado correctamente.\n{destino}'))
+                    info = _exportar_fkmedia(destino, opciones,
+                                             cancelacion=self.cancel_event, progreso=progreso)
+                    resumen = (t('gen_exportado').format(ruta=info['ruta'])
+                               + '\n' + t('gen_checksum').format(ruta=info['ruta'] + '.sha256')
+                               + '\n' + t('gen_export_tamano').format(
+                                   tamano=_formato_bytes(info['bytes']),
+                                   origen=_formato_bytes(info['bytes_origen']))
+                               + '\n' + t('gen_export_entradas').format(entradas=info['entradas']))
+                    if info['excluidos']:
+                        resumen += '\n' + t('gen_export_excluidos').format(cantidad=len(info['excluidos']))
+                    self.root.after(0, lambda: self.barra_progreso.config(value=100))
+                    self.root.after(0, lambda: self._set_status(t('gen_exportado').format(ruta=info['ruta'])))
+                    self.root.after(0, lambda: messagebox.showinfo(t('gen_exportar'), resumen))
+                except _Cancelado:
+                    self.root.after(0, lambda: self._set_status(t('gen_export_cancelado'), '#888'))
                 except Exception as e:
-                    self.root.after(0, lambda: self._set_status(f'Error: {e}', 'red'))
+                    self.root.after(0, lambda: self._set_status(f'{e}', 'red'))
+                    self.root.after(0, lambda: messagebox.showerror(t('gen_exportar'), f'{e}'))
                 finally:
-                    self.root.after(0, lambda: self.root.config(cursor=''))
+                    self.root.after(0, self._fin_progreso)
 
             threading.Thread(target=_hilo, daemon=True).start()
 
         def importar_media(self):
             archivo = filedialog.askopenfilename(
-                title='Importar media',
-                filetypes=[('FlaskCast Media', '*.fkmedia')]
-            )
+                title=t('gen_importar'),
+                filetypes=[('FlaskCast Data', '*.fkmedia')],
+                parent=self.root)
             if not archivo:
                 return
 
-            if not os.path.exists(MEDIA_PATH):
-                os.makedirs(MEDIA_PATH, exist_ok=True)
-
-            confirmar = messagebox.askyesno(
-                'Importar media',
-                'Se extraerán los vídeos en data/media/.\n'
-                'Si ya existen archivos con el mismo nombre, se sobreescribirán.\n\n¿Continuar?'
-            )
-            if not confirmar:
+            decision = self._dialogo_restaurar(archivo)
+            if not decision:
                 return
 
-            self._set_status('Importando... esto puede tardar.', '#ff8800')
-            self.root.config(cursor='watch')
+            rollback = decision['rollback']
+            destino_rollback = None
+            if rollback:
+                sello = time.strftime('%Y%m%d-%H%M%S')
+                destino_rollback = os.path.join(
+                    os.path.dirname(os.path.abspath(archivo)),
+                    f'flaskcast-antes-de-restaurar-{sello}.fkmedia')
+                self._iniciar_progreso(t('gen_rollback_en_curso').format(ruta=destino_rollback))
+                progreso = self._progreso_export(t('gen_rollback_en_curso'))
 
-            def _hilo():
-                try:
-                    with py7zr.SevenZipFile(archivo, 'r') as archive:
-                        archive.extractall(path=os.path.dirname(MEDIA_PATH))
-                    self.root.after(0, lambda: self._set_status('Importado correctamente.'))
-                    self.root.after(0, lambda: messagebox.showinfo('Importar', 'Importado correctamente.'))
-                except Exception as e:
-                    self.root.after(0, lambda: self._set_status(f'Error: {e}', 'red'))
-                finally:
-                    self.root.after(0, lambda: self.root.config(cursor=''))
+                def _hilo_rollback():
+                    try:
+                        opciones = self._opciones_desde_panel()
+                        info = _exportar_fkmedia(destino_rollback, opciones, solo_datos=True,
+                                                 cancelacion=self.cancel_event, progreso=progreso)
+                        if self.cancel_event.is_set():
+                            raise _Cancelado()
+                        self.root.after(0, lambda: self._iniciar_progreso(t('gen_restaurando')))
+                        self._restaurar(archivo, decision['alcance'], info['ruta'])
+                    except _Cancelado:
+                        self.root.after(0, lambda: self._set_status(t('gen_cancelado'), '#888'))
+                        self.root.after(0, self._fin_progreso)
+                    except Exception as e:
+                        self.root.after(0, lambda: self._set_status(f'{e}', 'red'))
+                        self.root.after(0, lambda: messagebox.showerror(t('gen_importar'), f'{e}'))
+                        self.root.after(0, self._fin_progreso)
 
-            threading.Thread(target=_hilo, daemon=True).start()
+                threading.Thread(target=_hilo_rollback, daemon=True).start()
+                return
+
+            self._iniciar_progreso(t('gen_restaurando'))
+            threading.Thread(target=lambda: self._restaurar(
+                archivo, decision['alcance'], None), daemon=True).start()
+
+        def _restaurar(self, archivo, alcance, ruta_rollback):
+            try:
+                resumen = _importar_fkmedia(archivo, alcance=alcance, cancelacion=self.cancel_event)
+                mensaje = t('gen_restaurado').format(entradas=resumen['entradas'])
+                if ruta_rollback:
+                    mensaje += '\n\n' + t('gen_rollback_guardado').format(ruta=ruta_rollback)
+                mensaje += '\n\n' + t('gen_reiniciar')
+                self.root.after(0, lambda: self.barra_progreso.config(value=100))
+                self.root.after(0, lambda: self._set_status(t('gen_restaurado').format(entradas=resumen['entradas'])))
+                self.root.after(0, lambda: messagebox.showwarning(t('gen_importar'), mensaje))
+            except _Cancelado:
+                self.root.after(0, lambda: self._set_status(t('gen_restaurar_cancelado'), '#888'))
+            except Exception as e:
+                self.root.after(0, lambda: self._set_status(f'{e}', 'red'))
+                self.root.after(0, lambda: messagebox.showerror(t('gen_importar'), f'{e}'))
+            finally:
+                self.root.after(0, self._fin_progreso)
 
         def run(self):
             self.root.mainloop()

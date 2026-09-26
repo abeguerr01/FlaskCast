@@ -2353,6 +2353,9 @@ DEFAULTS_CONFIG = {
     'auth_password': '',
     'boton_apagar_visible': False,
     'boton_apagar_todo_visible': False,
+    'backup_compresion': 'rapido',
+    'backup_excluir': ['.thumbnails'],
+    'backup_excluir_mb': 0,
 }
 
 STREAMS_EJEMPLO = [
